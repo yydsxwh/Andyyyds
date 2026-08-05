@@ -47,6 +47,7 @@ export default async function CourseDetailPage({
           <img src={course.coverUrl} alt={course.title} className="aspect-[16/9] w-full object-cover" />
           <div className="space-y-4 p-6 sm:p-8">
             <div className="text-sm text-[var(--muted)]">
+              {course.productType === "COLUMN" ? "专栏" : "课程"} ·{" "}
               {course.category?.name ?? "综合"} · {course.teacher.name}
             </div>
             <h1 className="text-3xl font-semibold">{course.title}</h1>

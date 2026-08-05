@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 
 type Props = {
   mode: "login" | "register";
+  defaultReferralCode?: string;
 };
 
-export function AuthForm({ mode }: Props) {
+export function AuthForm({ mode, defaultReferralCode = "" }: Props) {
   const router = useRouter();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -60,7 +61,12 @@ export function AuthForm({ mode }: Props) {
         required
       />
       {mode === "register" ? (
-        <input className="field" name="referralCode" placeholder="邀请码（可选）" />
+        <input
+          className="field"
+          name="referralCode"
+          placeholder="邀请码（可选）"
+          defaultValue={defaultReferralCode}
+        />
       ) : null}
       {error ? <p className="text-sm text-red-700">{error}</p> : null}
       <button className="btn btn-primary w-full" disabled={loading} type="submit">

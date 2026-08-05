@@ -19,12 +19,130 @@ model User {
   referredById String?
   referredBy   User?              @relation("Referrals", fields: [referredById], references: [id])
   referrals    User[]             @relation("Referrals")
-  courses      Course[]           @relation("TeacherCourses")
-  enrollments  Enrollment[]
-  orders       Order[]
-  coupons      CouponRedemption[]
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
+  courses              Course[]           @relation("TeacherCourses")
+  enrollments          Enrollment[]
+  orders               Order[]
+  coupons              CouponRedemption[]
+  mediaCategories      MediaCategory[]
+  mediaAssets          MediaAsset[]
+  commissionsEarned    Commission[]       @relation("CommissionBeneficiary")
+  commissionsAsBuyer   Commission[]       @relation("CommissionBuyer")
+  merchant             Merchant?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+}
+
+model Merchant {
+  id            String    @id @default(cuid())
+  userId        String    @unique
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  storeName     String
+  contactName   String    @default("")
+  contactPhone  String    @default("")
+  contactWechat String    @default("")
+  joinType      String    @default("DIRECT")
+  status        String    @default("PENDING")
+  notes         String    @default("")
+  approvedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([status])
+  @@index([joinType])
+}
+
+model DistributionConfig {
+  id            String   @id @default("default")
+  enabled       Boolean  @default(true)
+  level1Percent Int      @default(20)
+  level2Percent Int      @default(10)
+  level3Percent Int      @default(5)
+  updatedAt     DateTime @updatedAt
+}
+
+/// 站长系统设置（支付 / 存储），单例 id = default
+model SiteSettings {
+  id String @id @default("default")
+
+  siteUrl String @default("")
+
+  /// mock | auto | wechat | alipay | both
+  paymentMode   String  @default("auto")
+  wechatEnabled Boolean @default(true)
+  alipayEnabled Boolean @default(false)
+
+  wechatAppId         String @default("")
+  wechatMchId         String @default("")
+  wechatApiV3Key      String @default("")
+  wechatMchSerialNo   String @default("")
+  wechatMchPrivateKey String @default("")
+
+  alipayAppId      String @default("")
+  alipayPrivateKey String @default("")
+  alipayPublicKey  String @default("")
+  /// sandbox | production
+  alipayGateway    String @default("production")
+
+  /// LOCAL | ALIYUN_OSS
+  storageProvider   String @default("LOCAL")
+  ossRegion         String @default("")
+  ossBucket         String @default("")
+  ossAccessKeyId    String @default("")
+  ossAccessKeySecret String @default("")
+  ossEndpoint       String @default("")
+  ossPublicBaseUrl  String @default("")
+  ossPrefix         String @default("uploads")
+
+  updatedAt DateTime @updatedAt
+}
+
+model Commission {
+  id            String   @id @default(cuid())
+  orderId       String
+  order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  beneficiaryId String
+  beneficiary   User     @relation("CommissionBeneficiary", fields: [beneficiaryId], references: [id])
+  buyerId       String
+  buyer         User     @relation("CommissionBuyer", fields: [buyerId], references: [id])
+  level         Int
+  ratePercent   Int
+  amount        Int
+  status        String   @default("SETTLED")
+  createdAt     DateTime @default(now())
+
+  @@index([beneficiaryId])
+  @@index([orderId])
+}
+
+model MediaCategory {
+  id        String       @id @default(cuid())
+  name      String
+  ownerId   String
+  owner     User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  assets    MediaAsset[]
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@unique([ownerId, name])
+}
+
+model MediaAsset {
+  id          String         @id @default(cuid())
+  name        String
+  description String         @default("")
+  type        String         @default("VIDEO")
+  fileUrl     String
+  fileName    String         @default("")
+  mimeType    String         @default("")
+  sizeBytes   Int            @default(0)
+  durationSec Int            @default(0)
+  ownerId     String
+  owner       User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  categoryId  String?
+  category    MediaCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  lessons     Lesson[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
 }
 
 model Category {
@@ -46,6 +164,7 @@ model Course {
   price         Int          @default(0)
   originalPrice Int          @default(0)
   status        String       @default("DRAFT")
+  productType   String       @default("COURSE")
   isFree        Boolean      @default(false)
   studentCount  Int          @default(0)
   rating        Float        @default(5)
@@ -71,19 +190,21 @@ model Chapter {
 }
 
 model Lesson {
-  id          String           @id @default(cuid())
-  title       String
-  sortOrder   Int              @default(0)
-  type        String           @default("VIDEO")
-  content     String           @default("")
-  videoUrl    String           @default("")
-  durationSec Int              @default(0)
-  isPreview   Boolean          @default(false)
-  liveAt      DateTime?
-  chapterId   String
-  chapter     Chapter          @relation(fields: [chapterId], references: [id], onDelete: Cascade)
-  progress    LessonProgress[]
-  createdAt   DateTime         @default(now())
+  id           String           @id @default(cuid())
+  title        String
+  sortOrder    Int              @default(0)
+  type         String           @default("VIDEO")
+  content      String           @default("")
+  videoUrl     String           @default("")
+  durationSec  Int              @default(0)
+  isPreview    Boolean          @default(false)
+  liveAt       DateTime?
+  chapterId    String
+  chapter      Chapter          @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  mediaAssetId String?
+  mediaAsset   MediaAsset?      @relation(fields: [mediaAssetId], references: [id], onDelete: SetNull)
+  progress     LessonProgress[]
+  createdAt    DateTime         @default(now())
 }
 
 model Enrollment {
@@ -138,19 +259,23 @@ model CouponRedemption {
 }
 
 model Order {
-  id           String   @id @default(cuid())
-  orderNo      String   @unique
-  userId       String
-  courseId     String
-  amount       Int
-  discount     Int      @default(0)
-  status       String   @default("PENDING")
-  couponId     String?
-  referralCode String?
-  paidAt       DateTime?
-  user         User     @relation(fields: [userId], references: [id])
-  course       Course   @relation(fields: [courseId], references: [id])
-  coupon       Coupon?  @relation(fields: [couponId], references: [id])
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id              String       @id @default(cuid())
+  orderNo         String       @unique
+  userId          String
+  courseId        String
+  amount          Int
+  discount        Int          @default(0)
+  status          String       @default("PENDING")
+  payChannel      String       @default("")
+  providerTradeNo String       @default("")
+  codeUrl         String       @default("")
+  couponId        String?
+  referralCode    String?
+  paidAt          DateTime?
+  user            User         @relation(fields: [userId], references: [id])
+  course          Course       @relation(fields: [courseId], references: [id])
+  coupon          Coupon?      @relation(fields: [couponId], references: [id])
+  commissions     Commission[]
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 }

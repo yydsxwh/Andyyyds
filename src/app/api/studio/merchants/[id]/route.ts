@@ -1,0 +1,166 @@
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { prisma } from "@/lib/db";
+import {
+  MERCHANT_JOIN_TYPES,
+  MERCHANT_STATUSES,
+  roleForMerchantStatus,
+} from "@/lib/merchants";
+import { requireAdmin, studioErrorResponse } from "@/lib/studio";
+import type { MerchantStatus, Role } from "@/lib/types";
+
+const patchSchema = z.object({
+  storeName: z.string().min(1).max(120).optional(),
+  contactName: z.string().max(80).optional(),
+  contactPhone: z.string().max(40).optional(),
+  contactWechat: z.string().max(80).optional(),
+  joinType: z.enum(MERCHANT_JOIN_TYPES).optional(),
+  status: z.enum(MERCHANT_STATUSES).optional(),
+  notes: z.string().max(1000).optional(),
+  name: z.string().min(1).max(80).optional(),
+});
+
+const merchantInclude = {
+  user: {
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      role: true,
+      _count: { select: { courses: true } },
+      courses: {
+        select: {
+          orders: {
+            where: { status: "PAID" },
+            select: { amount: true },
+          },
+        },
+      },
+    },
+  },
+} as const;
+
+function serializeMerchant(
+  merchant: {
+    id: string;
+    storeName: string;
+    contactName: string;
+    contactPhone: string;
+    contactWechat: string;
+    joinType: string;
+    status: string;
+    notes: string;
+    approvedAt: Date | null;
+    createdAt: Date;
+    updatedAt: Date;
+    user: {
+      id: string;
+      email: string;
+      name: string;
+      role: string;
+      _count: { courses: number };
+      courses: { orders: { amount: number }[] }[];
+    };
+  },
+) {
+  const paidOrders = merchant.user.courses.flatMap((c) => c.orders);
+  const revenue = paidOrders.reduce((sum, o) => sum + o.amount, 0);
+  return {
+    id: merchant.id,
+    storeName: merchant.storeName,
+    contactName: merchant.contactName,
+    contactPhone: merchant.contactPhone,
+    contactWechat: merchant.contactWechat,
+    joinType: merchant.joinType,
+    status: merchant.status,
+    notes: merchant.notes,
+    approvedAt: merchant.approvedAt?.toISOString() ?? null,
+    createdAt: merchant.createdAt.toISOString(),
+    updatedAt: merchant.updatedAt.toISOString(),
+    user: {
+      id: merchant.user.id,
+      email: merchant.user.email,
+      name: merchant.user.name,
+      role: merchant.user.role,
+    },
+    courseCount: merchant.user._count.courses,
+    revenue,
+  };
+}
+
+type Ctx = { params: Promise<{ id: string }> };
+
+export async function PATCH(req: Request, ctx: Ctx) {
+  try {
+    await requireAdmin();
+    const { id } = await ctx.params;
+    const body = patchSchema.parse(await req.json());
+
+    const existing = await prisma.merchant.findUnique({
+      where: { id },
+      include: { user: true },
+    });
+    if (!existing) {
+      return NextResponse.json({ error: "商家不存在" }, { status: 404 });
+    }
+
+    const nextStatus = (body.status || existing.status) as MerchantStatus;
+
+    const merchant = await prisma.$transaction(async (tx) => {
+      if (body.name || body.status) {
+        await tx.user.update({
+          where: { id: existing.userId },
+          data: {
+            ...(body.name ? { name: body.name } : {}),
+            ...(body.status
+              ? {
+                  role: roleForMerchantStatus(
+                    nextStatus,
+                    existing.user.role as Role,
+                  ),
+                }
+              : {}),
+          },
+        });
+      }
+
+      return tx.merchant.update({
+        where: { id },
+        data: {
+          ...(body.storeName !== undefined
+            ? { storeName: body.storeName.trim() }
+            : {}),
+          ...(body.contactName !== undefined
+            ? { contactName: body.contactName.trim() }
+            : {}),
+          ...(body.contactPhone !== undefined
+            ? { contactPhone: body.contactPhone.trim() }
+            : {}),
+          ...(body.contactWechat !== undefined
+            ? { contactWechat: body.contactWechat.trim() }
+            : {}),
+          ...(body.joinType !== undefined ? { joinType: body.joinType } : {}),
+          ...(body.notes !== undefined ? { notes: body.notes.trim() } : {}),
+          ...(body.status !== undefined
+            ? {
+                status: body.status,
+                approvedAt:
+                  body.status === "APPROVED"
+                    ? existing.approvedAt ?? new Date()
+                    : existing.approvedAt,
+              }
+            : {}),
+        },
+        include: merchantInclude,
+      });
+    });
+
+    return NextResponse.json({ merchant: serializeMerchant(merchant) });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: "参数无效" }, { status: 400 });
+    }
+    const mapped = studioErrorResponse(error);
+    return NextResponse.json({ error: mapped.error }, { status: mapped.status });
+  }
+}

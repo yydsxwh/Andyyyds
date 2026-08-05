@@ -1,7 +1,8 @@
 import { notFound, redirect } from "next/navigation";
-import { PayButton } from "@/components/pay-button";
+import { CheckoutPay } from "@/components/checkout-pay";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { getPaymentChannels } from "@/lib/payments";
 import { formatPrice } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +26,8 @@ export default async function CheckoutPage({
     redirect(`/learn/${order.course.slug}`);
   }
 
+  const channels = await getPaymentChannels();
+
   return (
     <div className="container py-16">
       <div className="surface mx-auto max-w-lg rounded-[28px] p-8">
@@ -45,7 +48,11 @@ export default async function CheckoutPage({
           </div>
         </div>
         <div className="mt-8">
-          <PayButton orderId={order.id} />
+          <CheckoutPay
+            orderId={order.id}
+            amount={order.amount}
+            channels={channels}
+          />
         </div>
       </div>
     </div>

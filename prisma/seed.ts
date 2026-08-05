@@ -4,6 +4,7 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 async function main() {
+  await prisma.commission.deleteMany();
   await prisma.lessonProgress.deleteMany();
   await prisma.enrollment.deleteMany();
   await prisma.order.deleteMany();
@@ -12,7 +13,11 @@ async function main() {
   await prisma.lesson.deleteMany();
   await prisma.chapter.deleteMany();
   await prisma.course.deleteMany();
+  await prisma.mediaAsset.deleteMany();
+  await prisma.mediaCategory.deleteMany();
   await prisma.category.deleteMany();
+  await prisma.distributionConfig.deleteMany();
+  await prisma.merchant.deleteMany();
   await prisma.user.deleteMany();
 
   const passwordHash = await hashPassword("123456");
@@ -243,12 +248,116 @@ async function main() {
     data: { studentCount: { increment: 1 } },
   });
 
+  const mediaCats = await Promise.all(
+    ["开场导学", "转化话术", "交付复盘"].map((name) =>
+      prisma.mediaCategory.create({
+        data: { name, ownerId: teacher.id },
+      }),
+    ),
+  );
+
+  await prisma.mediaAsset.createMany({
+    data: [
+      {
+        name: "开场导学｜为什么你的知识付费产品卖不动：从信任缺口到转化漏斗的完整拆解与现场演示",
+        description: "适合作为单课第一节或专栏导读。",
+        fileUrl: "https://www.w3schools.com/html/mov_bbb.mp4",
+        fileName: "intro-funnel.mp4",
+        mimeType: "video/mp4",
+        durationSec: 720,
+        ownerId: teacher.id,
+        categoryId: mediaCats[0].id,
+      },
+      {
+        name: "转化话术｜详情页五段式结构：痛点共鸣、方法可信、结果证明、价格锚点、行动号召",
+        description: "可单独售卖，也可并入专栏第二章。",
+        fileUrl: "https://www.w3schools.com/html/mov_bbb.mp4",
+        fileName: "landing-copy.mp4",
+        mimeType: "video/mp4",
+        durationSec: 900,
+        ownerId: teacher.id,
+        categoryId: mediaCats[1].id,
+      },
+      {
+        name: "交付复盘｜课后作业设计与社群答疑节奏：让完课率和复购同时上升的运营清单",
+        description: "交付侧素材，建议放在专栏后半段。",
+        fileUrl: "https://www.w3schools.com/html/mov_bbb.mp4",
+        fileName: "delivery-review.mp4",
+        mimeType: "video/mp4",
+        durationSec: 840,
+        ownerId: teacher.id,
+        categoryId: mediaCats[2].id,
+      },
+      {
+        name: "未分类样例｜直播带课互动节奏与限时优惠话术速记（可随时改名并归类）",
+        description: "演示未分类素材。",
+        fileUrl: "https://www.w3schools.com/html/mov_bbb.mp4",
+        fileName: "live-script.mp4",
+        mimeType: "video/mp4",
+        durationSec: 600,
+        ownerId: teacher.id,
+      },
+    ],
+  });
+
+  await prisma.distributionConfig.create({
+    data: {
+      id: "default",
+      enabled: true,
+      level1Percent: 20,
+      level2Percent: 10,
+      level3Percent: 5,
+    },
+  });
+
+  await prisma.merchant.create({
+    data: {
+      userId: teacher.id,
+      storeName: "知夏知识工作室",
+      contactName: "林知夏",
+      contactPhone: "13800001111",
+      contactWechat: "zhixia-studio",
+      joinType: "DIRECT",
+      status: "APPROVED",
+      notes: "演示已入驻商家（对应 teacher 账号）",
+      approvedAt: new Date(),
+    },
+  });
+
+  const pendingMerchantUser = await prisma.user.create({
+    data: {
+      email: "merchant@yyds.local",
+      name: "待审商家",
+      passwordHash,
+      role: "STUDENT",
+      bio: "待审核入驻商家",
+      referralCode: makeReferralCode(),
+    },
+  });
+
+  await prisma.merchant.create({
+    data: {
+      userId: pendingMerchantUser.id,
+      storeName: "星火成长课堂",
+      contactName: "王加盟",
+      contactPhone: "13900002222",
+      contactWechat: "xinghuo-join",
+      joinType: "FRANCHISE",
+      status: "PENDING",
+      notes: "演示待审核加盟申请",
+    },
+  });
+
   console.log("Seed OK");
   console.log("Admin:   admin@yyds.local / 123456");
   console.log("Teacher: teacher@yyds.local / 123456");
   console.log("Student: student@yyds.local / 123456");
+  console.log("Pending merchant: merchant@yyds.local / 123456");
   console.log(`Courses: ${course1.slug}, ${course2.slug}, ${course3.slug}`);
   console.log("Coupon: YYDS20");
+  console.log("Media: 4 sample assets for teacher@yyds.local");
+  console.log("Distribution: L1 20% / L2 10% / L3 5%");
+  console.log("Merchants: 1 approved + 1 pending");
   console.log(`Admin id: ${admin.id}`);
 }
 

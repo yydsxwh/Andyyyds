@@ -13,6 +13,7 @@ type CourseCardProps = {
     studentCount: number;
     rating: number;
     isFree: boolean;
+    productType?: string;
     teacher: { name: string };
     category: { name: string } | null;
   };
@@ -34,7 +35,10 @@ export function CourseCard({ course }: CourseCardProps) {
       </div>
       <div className="space-y-3 p-5">
         <div className="flex items-center justify-between gap-3 text-xs text-[var(--muted)]">
-          <span>{course.category?.name ?? "综合"}</span>
+          <span>
+            {course.productType === "COLUMN" ? "专栏" : "课程"} ·{" "}
+            {course.category?.name ?? "综合"}
+          </span>
           <span>★ {course.rating.toFixed(1)}</span>
         </div>
         <div>

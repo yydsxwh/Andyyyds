@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createSession, hashPassword, makeReferralCode } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import type { Role } from "@/lib/types";
 
 const schema = z.object({
   name: z.string().min(1),
@@ -41,7 +42,7 @@ export async function POST(req: Request) {
       id: user.id,
       email: user.email,
       name: user.name,
-      role: user.role,
+      role: user.role as Role,
     });
 
     return NextResponse.json({ ok: true });

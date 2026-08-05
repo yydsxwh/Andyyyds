@@ -46,7 +46,7 @@ export default async function HomePage() {
               />
             </div>
             <div className="absolute -bottom-4 left-4 right-4 rounded-2xl border border-[var(--line)] bg-[rgba(255,252,246,0.92)] px-4 py-3 text-sm shadow-[var(--shadow)] sm:left-auto sm:right-6 sm:w-64">
-              已上线课程交易、学习进度与模拟支付
+              已上线课程交易、微信支付与学习进度
             </div>
           </div>
         </div>

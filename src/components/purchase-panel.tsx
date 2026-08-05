@@ -64,7 +64,7 @@ export function PurchasePanel({ courseId, price, isFree, enrolled, slug }: Props
         {isFree || price <= 0 ? "免费领取" : `¥${(price / 100).toFixed(price % 100 === 0 ? 0 : 2)}`}
       </div>
       <p className="mt-2 text-sm text-[var(--muted)]">
-        支持优惠券与邀请码分销结算（演示环境为模拟支付）
+        支持微信支付购买；支付成功后立即开通学习。可使用优惠券。
       </p>
       {!isFree && price > 0 ? (
         <input

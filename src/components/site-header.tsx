@@ -18,9 +18,24 @@ export async function SiteHeader() {
             我的学习
           </Link>
           {session && (session.role === "TEACHER" || session.role === "ADMIN") ? (
-            <Link href="/studio" className="hover:text-[var(--ink)]">
-              创作者中心
-            </Link>
+            <>
+              <Link href="/studio" className="hover:text-[var(--ink)]">
+                创作者中心
+              </Link>
+              <Link href="/studio/media" className="hover:text-[var(--ink)]">
+                素材中心
+              </Link>
+              {session.role === "ADMIN" ? (
+                <>
+                  <Link href="/studio/merchants" className="hover:text-[var(--ink)]">
+                    商家管理
+                  </Link>
+                  <Link href="/studio/settings" className="hover:text-[var(--ink)]">
+                    系统设置
+                  </Link>
+                </>
+              ) : null}
+            </>
           ) : null}
         </nav>
         <div className="flex items-center gap-2">

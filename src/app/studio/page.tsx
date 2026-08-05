@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CreateCourseForm } from "@/components/create-course-form";
+import { StudioNav } from "@/components/studio-nav";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatPrice } from "@/lib/utils";
@@ -48,17 +49,18 @@ export default async function StudioPage() {
 
   return (
     <div className="container space-y-8 py-12">
+      <StudioNav current="overview" />
       <div>
         <h1 className="text-3xl font-semibold">创作者中心</h1>
         <p className="mt-2 text-[var(--muted)]">
-          管理课程、查看订单。你的邀请码：
+          管理课程、素材与订单。你的邀请码：
           <span className="ml-2 font-semibold text-[var(--brand)]">{user?.referralCode}</span>
         </p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="surface rounded-[24px] p-5">
-          <div className="text-sm text-[var(--muted)]">课程数</div>
+          <div className="text-sm text-[var(--muted)]">课程/专栏</div>
           <div className="mt-2 text-3xl font-semibold">{courses.length}</div>
         </div>
         <div className="surface rounded-[24px] p-5">
@@ -71,10 +73,47 @@ export default async function StudioPage() {
         </div>
       </div>
 
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Link href="/studio/media" className="surface rounded-[24px] p-5 transition hover:-translate-y-0.5">
+          <div className="text-lg font-semibold">素材中心</div>
+          <p className="mt-2 text-sm text-[var(--muted)]">上传视频、自由分类与长命名，多选后可组课售卖</p>
+        </Link>
+        <Link href="/studio/compose" className="surface rounded-[24px] p-5 transition hover:-translate-y-0.5">
+          <div className="text-lg font-semibold">用素材做课 / 专栏</div>
+          <p className="mt-2 text-sm text-[var(--muted)]">勾选素材、排顺序、定价上架，一键生成可售产品</p>
+        </Link>
+        <Link href="/studio/distribution" className="surface rounded-[24px] p-5 transition hover:-translate-y-0.5">
+          <div className="text-lg font-semibold">分销管理</div>
+          <p className="mt-2 text-sm text-[var(--muted)]">设置一/二/三级分销比例，查看佣金与邀请链接</p>
+        </Link>
+        {session.role === "ADMIN" ? (
+          <>
+            <Link
+              href="/studio/merchants"
+              className="surface rounded-[24px] p-5 transition hover:-translate-y-0.5"
+            >
+              <div className="text-lg font-semibold">商家管理</div>
+              <p className="mt-2 text-sm text-[var(--muted)]">
+                审核入驻/加盟商家，启用或停用卖课权限，维护联系资料
+              </p>
+            </Link>
+            <Link
+              href="/studio/settings"
+              className="surface rounded-[24px] p-5 transition hover:-translate-y-0.5"
+            >
+              <div className="text-lg font-semibold">系统设置</div>
+              <p className="mt-2 text-sm text-[var(--muted)]">
+                配置微信/支付宝支付与本地或阿里云 OSS 存储
+              </p>
+            </Link>
+          </>
+        ) : null}
+      </div>
+
       <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
         <CreateCourseForm />
         <div className="surface rounded-[28px] p-6">
-          <h2 className="text-lg font-semibold">我的课程</h2>
+          <h2 className="text-lg font-semibold">我的课程 / 专栏</h2>
           <div className="mt-4 space-y-3">
             {courses.map((course) => (
               <div
@@ -82,7 +121,12 @@ export default async function StudioPage() {
                 className="flex flex-col gap-2 rounded-2xl bg-white/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div>
-                  <div className="font-medium">{course.title}</div>
+                  <div className="font-medium">
+                    <span className="mr-2 rounded-full bg-[rgba(15,107,92,0.12)] px-2 py-0.5 text-xs text-[var(--brand)]">
+                      {course.productType === "COLUMN" ? "专栏" : "课程"}
+                    </span>
+                    {course.title}
+                  </div>
                   <div className="text-xs text-[var(--muted)]">
                     {course.status} · {formatPrice(course.price)} · 报名{" "}
                     {course._count.enrollments}
