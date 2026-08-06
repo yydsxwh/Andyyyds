@@ -42,6 +42,7 @@ const patchSchema = z.object({
   wechatEnabled: z.boolean().optional(),
   alipayEnabled: z.boolean().optional(),
   wechatAppId: z.string().max(128).optional(),
+  wechatAppSecret: z.string().max(128).optional(),
   wechatMchId: z.string().max(64).optional(),
   wechatApiV3Key: z.string().max(128).optional(),
   wechatMchSerialNo: z.string().max(128).optional(),
@@ -140,6 +141,7 @@ export async function PATCH(req: Request) {
     }
 
     const secretKeys = [
+      ["wechatAppSecret", body.wechatAppSecret],
       ["wechatApiV3Key", body.wechatApiV3Key],
       ["wechatMchPrivateKey", body.wechatMchPrivateKey],
       ["alipayPrivateKey", body.alipayPrivateKey],

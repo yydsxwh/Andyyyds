@@ -1,3 +1,13 @@
+/**
+ * 支付宝电脑网站 / 手机网站支付封装（核心）
+ *
+ * - page.pay：电脑端跳转收银台（FAST_INSTANT_TRADE_PAY）
+ * - wap.pay：手机端跳转收银台（QUICK_WAP_WAY）
+ *
+ * 配置：系统设置里的 AppID、应用私钥、支付宝公钥（RSA2）。
+ * 异步通知验签用「支付宝公钥」，不要填成应用公钥。
+ */
+
 import crypto from "crypto";
 import { getPublicSiteUrl } from "./payments";
 import { getSiteSettings } from "./site-settings";
@@ -61,6 +71,53 @@ function signParams(params: Record<string, string>, privateKey: string) {
   return signer.sign(privateKey, "base64");
 }
 
+function alipayTimestamp() {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+}
+
+/**
+ * 拼支付宝网关跳转 URL（GET 表单等价参数 + sign）。
+ * 金额以「元」两位小数字符串提交；库内订单金额是「分」。
+ */
+async function buildAlipayPayUrl(input: {
+  orderNo: string;
+  subject: string;
+  amountCents: number;
+  method: "alipay.trade.page.pay" | "alipay.trade.wap.pay";
+  productCode: string;
+}) {
+  const cfg = await getAlipayConfig();
+  const siteUrl = await getPublicSiteUrl();
+  const amountYuan = (input.amountCents / 100).toFixed(2);
+  const bizContent = JSON.stringify({
+    out_trade_no: input.orderNo,
+    product_code: input.productCode,
+    total_amount: amountYuan,
+    subject: input.subject.slice(0, 256),
+  });
+
+  const params: Record<string, string> = {
+    app_id: cfg.appId,
+    method: input.method,
+    format: "JSON",
+    charset: "utf-8",
+    sign_type: "RSA2",
+    timestamp: alipayTimestamp(),
+    version: "1.0",
+    notify_url: `${siteUrl}/api/payments/alipay/notify`,
+    return_url: `${siteUrl}/checkout/return`,
+    biz_content: bizContent,
+  };
+
+  params.sign = signParams(params, cfg.privateKey);
+  const qs = Object.entries(params)
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+    .join("&");
+  return { payUrl: `${cfg.gateway}?${qs}`, notifyUrl: params.notify_url };
+}
+
 export function verifyAlipayNotify(
   params: Record<string, string>,
   alipayPublicKey: string,
@@ -85,47 +142,28 @@ export function verifyAlipayNotify(
   return verifier.verify(alipayPublicKey, sign, "base64");
 }
 
-/** 电脑网站支付：返回可跳转的网关 URL */
+/** 电脑网站支付 */
 export async function createAlipayPagePay(input: {
   orderNo: string;
   subject: string;
   amountCents: number;
 }) {
-  const cfg = await getAlipayConfig();
-  const siteUrl = await getPublicSiteUrl();
-  const amountYuan = (input.amountCents / 100).toFixed(2);
-  const bizContent = JSON.stringify({
-    out_trade_no: input.orderNo,
-    product_code: "FAST_INSTANT_TRADE_PAY",
-    total_amount: amountYuan,
-    subject: input.subject.slice(0, 256),
-  });
-
-  const params: Record<string, string> = {
-    app_id: cfg.appId,
+  return buildAlipayPayUrl({
+    ...input,
     method: "alipay.trade.page.pay",
-    format: "JSON",
-    charset: "utf-8",
-    sign_type: "RSA2",
-    timestamp: new Date()
-      .toISOString()
-      .replace("T", " ")
-      .replace(/\.\d+Z$/, "")
-      .replace(/-/g, "-"),
-    version: "1.0",
-    notify_url: `${siteUrl}/api/payments/alipay/notify`,
-    return_url: `${siteUrl}/checkout/return`,
-    biz_content: bizContent,
-  };
+    productCode: "FAST_INSTANT_TRADE_PAY",
+  });
+}
 
-  // 用本地时间更贴近支付宝要求
-  const now = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  params.timestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
-
-  params.sign = signParams(params, cfg.privateKey);
-  const qs = Object.entries(params)
-    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-    .join("&");
-  return { payUrl: `${cfg.gateway}?${qs}`, notifyUrl: params.notify_url };
+/** 手机网站支付（H5 / 手机浏览器） */
+export async function createAlipayWapPay(input: {
+  orderNo: string;
+  subject: string;
+  amountCents: number;
+}) {
+  return buildAlipayPayUrl({
+    ...input,
+    method: "alipay.trade.wap.pay",
+    productCode: "QUICK_WAP_WAY",
+  });
 }

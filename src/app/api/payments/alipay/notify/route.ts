@@ -1,3 +1,10 @@
+/**
+ * POST /api/payments/alipay/notify
+ *
+ * 支付宝异步通知（form-urlencoded）。验签通过且交易成功后履约。
+ * 成功必须返回纯文本 "success"。
+ */
+
 import { NextResponse } from "next/server";
 import { getAlipayConfig, verifyAlipayNotify } from "@/lib/alipay";
 import { prisma } from "@/lib/db";

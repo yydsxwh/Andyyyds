@@ -3,8 +3,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { OrderFormSettings } from "@/components/order-form-settings";
+import { PortalSettings } from "@/components/portal-settings";
 import { StudioNavSettings } from "@/components/studio-nav-settings";
 import { DEFAULT_ORDER_FORM, type OrderFormConfig } from "@/lib/order-form";
+import { DEFAULT_PORTAL, type PortalConfig } from "@/lib/portal";
 import {
   DEFAULT_STUDIO_NAV,
   type StudioNavConfig,
@@ -16,6 +18,7 @@ type Props = {
     uiCopy: { compose: ComposeUiCopy };
     orderForm: OrderFormConfig;
     studioNav: StudioNavConfig;
+    portal: PortalConfig;
   };
 };
 
@@ -61,6 +64,13 @@ export function CmsPanel({ initial }: Props) {
       ? initial.studioNav.courses
       : DEFAULT_STUDIO_NAV.courses,
   }));
+  const [portal, setPortal] = useState<PortalConfig>(() => ({
+    ...DEFAULT_PORTAL,
+    ...(initial.portal || {}),
+    nav: initial.portal?.nav?.length ? initial.portal.nav : DEFAULT_PORTAL.nav,
+    company: { ...DEFAULT_PORTAL.company, ...(initial.portal?.company || {}) },
+    person: { ...DEFAULT_PORTAL.person, ...(initial.portal?.person || {}) },
+  }));
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -80,7 +90,7 @@ export function CmsPanel({ initial }: Props) {
     const res = await fetch("/api/studio/cms", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ uiCopy, orderForm, studioNav }),
+      body: JSON.stringify({ uiCopy, orderForm, studioNav, portal }),
     });
     const data = await res.json();
     setSaving(false);
@@ -91,12 +101,15 @@ export function CmsPanel({ initial }: Props) {
     if (data.uiCopy) setUiCopy(data.uiCopy);
     if (data.orderForm) setOrderForm(data.orderForm);
     if (data.studioNav) setStudioNav(data.studioNav);
+    if (data.portal) setPortal(data.portal);
     setMessage("内容配置已保存");
     router.refresh();
   }
 
   return (
     <form onSubmit={save} className="space-y-6">
+      <PortalSettings value={portal} onChange={setPortal} />
+
       <StudioNavSettings value={studioNav} onChange={setStudioNav} />
 
       <OrderFormSettings value={orderForm} onChange={setOrderForm} />

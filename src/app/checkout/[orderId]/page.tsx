@@ -35,8 +35,8 @@ export default async function CheckoutPage({
   const initialAnswers = parseStoredAnswers(order.formAnswersJson).values;
 
   return (
-    <div className="container py-16">
-      <div className="surface mx-auto max-w-lg rounded-[28px] p-8">
+    <div className="container py-8 sm:py-16">
+      <div className="surface mx-auto max-w-lg rounded-[28px] p-5 sm:p-8">
         <h1 className="text-2xl font-semibold">确认订单</h1>
         <p className="mt-2 text-sm text-[var(--muted)]">订单号 {order.orderNo}</p>
         <div className="mt-6 space-y-3 text-sm">

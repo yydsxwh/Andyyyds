@@ -1,19 +1,58 @@
+/**
+ * POST /api/orders/:orderId/pay —— 发起支付（核心）
+ *
+ * 请求体：channel / tradeType / allowNativeFallback
+ * 微信响应 mode：wechat_need_oauth | wechat_jsapi | wechat_h5 | wechat
+ *
+ * 注意：同一商户订单号不能混用不同微信下单形态；冲突时引导重新下单。
+ */
+
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createAlipayPagePay } from "@/lib/alipay";
+import { createAlipayPagePay, createAlipayWapPay } from "@/lib/alipay";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { answersComplete } from "@/lib/order-form";
 import { fulfillPaidOrder } from "@/lib/orders";
-import { getPaymentChannels } from "@/lib/payments";
+import { getPaymentChannels, getPublicSiteUrl } from "@/lib/payments";
 import { getOrderFormConfig } from "@/lib/site-settings";
-import { createNativePayment } from "@/lib/wechat-pay";
+import {
+  createH5Payment,
+  createJsapiPayment,
+  createNativePayment,
+  isWechatOAuthConfigured,
+} from "@/lib/wechat-pay";
 
 const bodySchema = z
   .object({
     channel: z.enum(["WECHAT", "ALIPAY", "MOCK"]).optional(),
+    /** native=扫码 jsapi=微信内 h5=手机浏览器 */
+    tradeType: z.enum(["native", "jsapi", "h5"]).optional(),
+    /** 手机端默认 false：直连失败时不自动落成扫码单，避免锁单 */
+    allowNativeFallback: z.boolean().optional(),
   })
   .optional();
+
+/** H5 下单需要付款人客户端 IP */
+function clientIpFrom(req: Request) {
+  const forwarded = req.headers.get("x-forwarded-for");
+  if (forwarded) return forwarded.split(",")[0].trim();
+  return req.headers.get("x-real-ip") || "127.0.0.1";
+}
+
+function uaFrom(req: Request) {
+  return req.headers.get("user-agent") || "";
+}
+
+function isWeChatUa(ua: string) {
+  return /MicroMessenger/i.test(ua);
+}
+
+function isMobileUa(ua: string) {
+  return /Android|webOS|iPhone|iPod|iPad|Mobile|BlackBerry|IEMobile|Opera Mini/i.test(
+    ua,
+  );
+}
 
 export async function POST(
   req: Request,
@@ -27,7 +66,7 @@ export async function POST(
   const { orderId } = await params;
   const order = await prisma.order.findUnique({
     where: { id: orderId },
-    include: { course: true },
+    include: { course: true, user: true },
   });
 
   if (!order || order.userId !== session.id) {
@@ -49,12 +88,26 @@ export async function POST(
     );
   }
 
+  const ua = uaFrom(req);
   let channel: "WECHAT" | "ALIPAY" | "MOCK" = "WECHAT";
+  let tradeType: "native" | "jsapi" | "h5" = "native";
+  let allowNativeFallback = !isMobileUa(ua) && !isWeChatUa(ua);
   try {
     const parsed = bodySchema.parse(await req.json().catch(() => ({})));
     channel = parsed?.channel || "WECHAT";
+    tradeType = parsed?.tradeType || "native";
+    if (typeof parsed?.allowNativeFallback === "boolean") {
+      allowNativeFallback = parsed.allowNativeFallback;
+    }
   } catch {
     channel = "WECHAT";
+    tradeType = "native";
+  }
+
+  // 服务端按 UA 校正：防止客户端误传 native，导致手机只能看到二维码
+  if (channel === "WECHAT" && tradeType === "native") {
+    if (isWeChatUa(ua)) tradeType = "jsapi";
+    else if (isMobileUa(ua)) tradeType = "h5";
   }
 
   const channels = await getPaymentChannels();
@@ -82,7 +135,176 @@ export async function POST(
       if (!channels.wechat) {
         return NextResponse.json({ error: "未启用微信支付" }, { status: 400 });
       }
-      if (order.codeUrl && order.payChannel === "WECHAT") {
+
+      if (tradeType === "jsapi") {
+        const openid = order.user.wechatOpenId?.trim() || "";
+        if (!openid) {
+          const oauthReady = await isWechatOAuthConfigured();
+          if (oauthReady) {
+            return NextResponse.json({
+              mode: "wechat_need_oauth",
+              oauthUrl: `/api/auth/wechat?returnUrl=${encodeURIComponent(`/checkout/${order.id}`)}`,
+              status: "PENDING",
+              orderNo: order.orderNo,
+              amount: order.amount,
+              slug: order.course.slug,
+            });
+          }
+          // 无 AppSecret：微信内无法 JSAPI，改走 H5（若商户已开通）；再不行走明确错误
+          tradeType = "h5";
+        } else {
+          if (
+            order.codeUrl &&
+            order.payChannel &&
+            order.payChannel !== "WECHAT_JSAPI"
+          ) {
+            return NextResponse.json({
+              mode: "wechat_trade_conflict",
+              error:
+                "本订单已用其他支付方式发起过，请返回课程重新下单后再支付",
+              codeUrl:
+                allowNativeFallback &&
+                (order.payChannel === "WECHAT" ||
+                  order.payChannel === "WECHAT_NATIVE")
+                  ? order.codeUrl
+                  : "",
+              status: order.status,
+              orderNo: order.orderNo,
+              amount: order.amount,
+              slug: order.course.slug,
+            });
+          }
+          const { payParams, prepayId } = await createJsapiPayment({
+            orderNo: order.orderNo,
+            description: order.course.title,
+            amountCents: order.amount,
+            openid,
+          });
+          await prisma.order.update({
+            where: { id: order.id },
+            data: {
+              payChannel: "WECHAT_JSAPI",
+              codeUrl: `prepay:${prepayId}`,
+            },
+          });
+          return NextResponse.json({
+            mode: "wechat_jsapi",
+            status: "PENDING",
+            orderNo: order.orderNo,
+            payParams,
+            amount: order.amount,
+            slug: order.course.slug,
+          });
+        }
+      }
+
+      if (tradeType === "h5") {
+        if (
+          order.codeUrl &&
+          order.payChannel &&
+          order.payChannel !== "WECHAT_H5"
+        ) {
+          if (
+            order.payChannel === "WECHAT" ||
+            order.payChannel === "WECHAT_NATIVE"
+          ) {
+            if (allowNativeFallback) {
+              return NextResponse.json({
+                mode: "wechat",
+                status: order.status,
+                orderNo: order.orderNo,
+                codeUrl: order.codeUrl,
+                amount: order.amount,
+                slug: order.course.slug,
+                hint: "请长按识别二维码，或使用微信扫一扫完成支付",
+              });
+            }
+            return NextResponse.json(
+              {
+                error:
+                  "本订单已生成扫码单。请返回课程重新下单，即可在手机上直接调起微信支付",
+              },
+              { status: 400 },
+            );
+          }
+          if (order.payChannel === "WECHAT_JSAPI") {
+            return NextResponse.json(
+              {
+                error:
+                  "本订单已在微信内发起过支付。请打开微信完成支付，或返回课程重新下单",
+              },
+              { status: 400 },
+            );
+          }
+        }
+        if (order.codeUrl && order.payChannel === "WECHAT_H5") {
+          const siteUrl = await getPublicSiteUrl();
+          const redirectUrl = encodeURIComponent(
+            `${siteUrl}/checkout/return?out_trade_no=${order.orderNo}`,
+          );
+          const payUrl = order.codeUrl.includes("redirect_url=")
+            ? order.codeUrl
+            : `${order.codeUrl}${order.codeUrl.includes("?") ? "&" : "?"}redirect_url=${redirectUrl}`;
+          return NextResponse.json({
+            mode: "wechat_h5",
+            status: order.status,
+            orderNo: order.orderNo,
+            mwebUrl: payUrl,
+            amount: order.amount,
+            slug: order.course.slug,
+          });
+        }
+        try {
+          const { mwebUrl } = await createH5Payment({
+            orderNo: order.orderNo,
+            description: order.course.title,
+            amountCents: order.amount,
+            clientIp: clientIpFrom(req),
+            appName: order.course.title,
+          });
+          await prisma.order.update({
+            where: { id: order.id },
+            data: { payChannel: "WECHAT_H5", codeUrl: mwebUrl },
+          });
+          const siteUrl = await getPublicSiteUrl();
+          const redirectUrl = encodeURIComponent(
+            `${siteUrl}/checkout/return?out_trade_no=${order.orderNo}`,
+          );
+          const payUrl = `${mwebUrl}${mwebUrl.includes("?") ? "&" : "?"}redirect_url=${redirectUrl}`;
+          return NextResponse.json({
+            mode: "wechat_h5",
+            status: "PENDING",
+            orderNo: order.orderNo,
+            mwebUrl: payUrl,
+            amount: order.amount,
+            slug: order.course.slug,
+          });
+        } catch (h5Error) {
+          const message =
+            h5Error instanceof Error ? h5Error.message : "H5 支付不可用";
+          if (allowNativeFallback) {
+            tradeType = "native";
+          } else {
+            const oauthReady = await isWechatOAuthConfigured();
+            return NextResponse.json(
+              {
+                error: oauthReady
+                  ? `无法调起手机支付：${message}。请在微信内打开本站完成支付，或返回课程重新下单。`
+                  : `无法调起手机直接支付：${message}。请在系统设置填写公众号 AppSecret，并在微信商户平台开通 H5 支付；微信内打开时可直接调起支付。`,
+                needAppSecret: !oauthReady,
+              },
+              { status: 400 },
+            );
+          }
+        }
+      }
+
+      // Native 扫码（桌面，或 JSAPI/H5 降级）
+      if (
+        order.codeUrl &&
+        (order.payChannel === "WECHAT" ||
+          order.payChannel === "WECHAT_NATIVE")
+      ) {
         return NextResponse.json({
           mode: "wechat",
           status: order.status,
@@ -92,6 +314,21 @@ export async function POST(
           slug: order.course.slug,
         });
       }
+      if (
+        order.codeUrl &&
+        order.payChannel &&
+        order.payChannel !== "WECHAT" &&
+        order.payChannel !== "WECHAT_NATIVE"
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "本订单已用手机支付方式发起过。若未完成支付，请返回课程重新下单；或在微信内完成先前的支付。",
+          },
+          { status: 400 },
+        );
+      }
+
       const { codeUrl } = await createNativePayment({
         orderNo: order.orderNo,
         description: order.course.title,
@@ -99,7 +336,7 @@ export async function POST(
       });
       await prisma.order.update({
         where: { id: order.id },
-        data: { payChannel: "WECHAT", codeUrl },
+        data: { payChannel: "WECHAT_NATIVE", codeUrl },
       });
       return NextResponse.json({
         mode: "wechat",
@@ -115,14 +352,37 @@ export async function POST(
       if (!channels.alipay) {
         return NextResponse.json({ error: "未启用支付宝支付" }, { status: 400 });
       }
-      const { payUrl } = await createAlipayPagePay({
+      const useWap = isMobileUa(ua) || isWeChatUa(ua);
+      const payInput = {
         orderNo: order.orderNo,
         subject: order.course.title,
         amountCents: order.amount,
-      });
+      };
+      let payUrl = "";
+      let payChannel = "ALIPAY";
+      try {
+        if (useWap) {
+          const wap = await createAlipayWapPay(payInput);
+          payUrl = wap.payUrl;
+          payChannel = "ALIPAY_WAP";
+        } else {
+          const page = await createAlipayPagePay(payInput);
+          payUrl = page.payUrl;
+          payChannel = "ALIPAY_PAGE";
+        }
+      } catch (alipayError) {
+        // 手机网站支付未开通时，回退电脑网站支付
+        if (useWap) {
+          const page = await createAlipayPagePay(payInput);
+          payUrl = page.payUrl;
+          payChannel = "ALIPAY_PAGE";
+        } else {
+          throw alipayError;
+        }
+      }
       await prisma.order.update({
         where: { id: order.id },
-        data: { payChannel: "ALIPAY", codeUrl: payUrl },
+        data: { payChannel, codeUrl: payUrl },
       });
       return NextResponse.json({
         mode: "alipay",

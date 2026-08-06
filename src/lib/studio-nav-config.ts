@@ -1,4 +1,12 @@
+/**
+ * Studio 后台导航配置
+ *
+ * 默认菜单在 DEFAULT_STUDIO_NAV；内容管理可覆盖文案与链接，存 SiteSettings.studioNavJson。
+ * 改默认菜单：改本文件；改线上文案：走 CMS，不必发版。
+ */
+
 export type StudioNavLink = {
+  /** 稳定键，排序/合并时用，不要靠中文 label */
   key: string;
   label: string;
   href: string;

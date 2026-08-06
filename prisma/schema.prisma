@@ -15,6 +15,8 @@ model User {
   bio          String             @default("")
   avatarUrl    String             @default("")
   role         String             @default("STUDENT")
+  /// 微信公众号网页授权 openid（JSAPI 支付用，同一 AppID 下）
+  wechatOpenId String             @default("")
   referralCode String             @unique
   referredById String?
   referredBy   User?              @relation("Referrals", fields: [referredById], references: [id])
@@ -72,6 +74,8 @@ model SiteSettings {
   alipayEnabled Boolean @default(false)
 
   wechatAppId         String @default("")
+  /// 公众号/服务号 AppSecret（网页授权换 openid，JSAPI 支付需要）
+  wechatAppSecret     String @default("")
   wechatMchId         String @default("")
   wechatApiV3Key      String @default("")
   wechatMchSerialNo   String @default("")
@@ -114,6 +118,9 @@ model SiteSettings {
 
   /// 后台导航菜单配置（JSON）：顶部导航 + 课程中心子菜单的文案与链接
   studioNavJson String @default("")
+
+  /// 前台门户配置（JSON）：门户导航 + 公司/个人介绍文案
+  portalJson String @default("")
 
   updatedAt DateTime @updatedAt
 }

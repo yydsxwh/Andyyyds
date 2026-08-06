@@ -118,7 +118,15 @@ export function LearnPlayer({
                 key={playSrc}
                 className="aspect-video w-full bg-black"
                 controls
+                playsInline
+                preload="metadata"
                 src={playSrc}
+                // 微信 X5 内核内联播放
+                {...{
+                  "webkit-playsinline": "true",
+                  "x5-playsinline": "true",
+                  "x5-video-player-type": "h5",
+                }}
               />
             ) : (
               <div className="flex aspect-video items-center justify-center bg-[var(--bg-deep)] text-sm text-[var(--muted)]">

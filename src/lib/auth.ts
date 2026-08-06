@@ -1,3 +1,10 @@
+/**
+ * 登录会话（JWT Cookie）
+ *
+ * Cookie 名：yyds_session。角色在 role 字段（如 ADMIN / TEACHER / STUDENT）。
+ * 需要登录的 API / 页面先 getSession()，没有则 401 或跳转 /login。
+ */
+
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { prisma } from "./db";

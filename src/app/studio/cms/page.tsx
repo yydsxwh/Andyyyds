@@ -4,6 +4,7 @@ import { StudioNav } from "@/components/studio-nav";
 import { getSession } from "@/lib/auth";
 import {
   getOrderFormConfig,
+  getPortalConfig,
   getStudioNavConfig,
   getUiCopy,
 } from "@/lib/site-settings";
@@ -15,10 +16,11 @@ export default async function StudioCmsPage() {
   if (!session) redirect("/login");
   if (session.role !== "ADMIN") redirect("/studio");
 
-  const [uiCopy, orderForm, studioNav] = await Promise.all([
+  const [uiCopy, orderForm, studioNav, portal] = await Promise.all([
     getUiCopy(),
     getOrderFormConfig(),
     getStudioNavConfig(),
+    getPortalConfig(),
   ]);
 
   return (
@@ -27,10 +29,10 @@ export default async function StudioCmsPage() {
       <div>
         <h1 className="text-3xl font-semibold">内容管理</h1>
         <p className="mt-2 text-sm text-[var(--muted)]">
-          管理后台导航、文案与下单信息采集字段。视觉门面请到「店铺装修」。
+          管理门户导航、介绍页、后台导航、文案与下单信息采集。视觉门面请到「店铺装修」。
         </p>
       </div>
-      <CmsPanel initial={{ uiCopy, orderForm, studioNav }} />
+      <CmsPanel initial={{ uiCopy, orderForm, studioNav, portal }} />
     </div>
   );
 }

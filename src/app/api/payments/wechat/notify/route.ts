@@ -1,3 +1,10 @@
+/**
+ * POST /api/payments/wechat/notify
+ *
+ * 微信支付结果异步通知。解密 resource → 校验金额 → fulfillPaidOrder。
+ * 必须尽快返回 { code: SUCCESS }，否则微信会反复重试。
+ */
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { fulfillPaidOrder } from "@/lib/orders";

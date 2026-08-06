@@ -1,3 +1,15 @@
+/**
+ * 支付渠道与站点公网地址（核心）
+ *
+ * 职责：
+ * 1. 算出当前前台可用哪些支付方式（微信 / 支付宝 / 仅模拟）
+ * 2. 规范化站点公网 URL，供微信/支付宝回调地址拼接
+ *
+ * 改需求时注意：
+ * - 「启用开关」在系统设置；「参数是否齐全」才算真正可用
+ * - 两者都没有时会落到 mockOnly，结账页走模拟支付
+ */
+
 import { getSiteSettings } from "./site-settings";
 
 export type PaymentMode = "mock" | "wechat" | "alipay" | "both";
@@ -6,9 +18,11 @@ export type PaymentChannels = {
   mode: PaymentMode;
   wechat: boolean;
   alipay: boolean;
+  /** true 表示只能点「模拟支付」，用于未配真实收款时调试 */
   mockOnly: boolean;
 };
 
+/** 环境变量里是否凑齐微信商户必填项（可作为数据库配置的兜底） */
 function envWechatReady() {
   return Boolean(
     process.env.WECHAT_APP_ID &&
@@ -19,6 +33,7 @@ function envWechatReady() {
   );
 }
 
+/** 环境变量里是否凑齐支付宝必填项 */
 function envAlipayReady() {
   return Boolean(
     process.env.ALIPAY_APP_ID &&
@@ -29,12 +44,15 @@ function envAlipayReady() {
 
 const DEFAULT_SITE_URL = "https://www.yydsxwh.com";
 
-/** 微信 notify_url 校验用的域名形态（避免缺协议、多余路径、空白导致 400） */
+/**
+ * 把后台填写的「站点公网地址」收成干净的 https://域名 形态。
+ * 微信 notify_url 对格式很敏感：缺协议、多路径、空白都会导致下单失败。
+ */
 export function normalizePublicSiteUrl(raw: string | null | undefined): string {
   let value = (raw || "").trim().replace(/[\\\s\u3000]+/g, "");
   if (!value) return DEFAULT_SITE_URL;
 
-  // 误把回调完整地址填进站点地址时，截回站点根
+  // 有人误把完整回调 URL 填进「站点地址」时，裁回站点根
   value = value.replace(
     /\/api\/payments\/(wechat|alipay)\/notify\/?$/i,
     "",
@@ -49,7 +67,7 @@ export function normalizePublicSiteUrl(raw: string | null | undefined): string {
     if (!u.hostname || !u.hostname.includes(".")) {
       return DEFAULT_SITE_URL;
     }
-    // 只保留协议 + 主机（+端口），支付回调不带站点子路径
+    // 只保留协议 + 主机（+非常规端口），不带业务路径
     const port =
       u.port && u.port !== "80" && u.port !== "443" ? `:${u.port}` : "";
     return `${u.protocol}//${u.hostname.toLowerCase()}${port}`;
@@ -58,6 +76,7 @@ export function normalizePublicSiteUrl(raw: string | null | undefined): string {
   }
 }
 
+/** 当前站点对外根地址：优先系统设置，其次环境变量，最后默认正式域名 */
 export async function getPublicSiteUrl() {
   const settings = await getSiteSettings();
   const fromDb = settings.siteUrl?.trim();
@@ -69,6 +88,10 @@ export async function getPublicSiteUrl() {
   );
 }
 
+/**
+ * 结账页用的支付通道开关。
+ * 判定顺序：强制 mock → 设置/env 指定单通道 → auto（看启用+配置是否齐全）。
+ */
 export async function getPaymentChannels(): Promise<PaymentChannels> {
   const settings = await getSiteSettings();
   const wechatReady =
@@ -107,6 +130,7 @@ export async function getPaymentChannels(): Promise<PaymentChannels> {
     alipay = alipayReady && settings.alipayEnabled;
   }
 
+  // 真实通道一个都不可用时，降级为模拟，避免前台完全无法测流程
   if (!wechat && !alipay) {
     return { mode: "mock", wechat: false, alipay: false, mockOnly: true };
   }
@@ -119,7 +143,7 @@ export async function getPaymentChannels(): Promise<PaymentChannels> {
   return { mode: "alipay", wechat: false, alipay: true, mockOnly: false };
 }
 
-/** @deprecated 使用 getPaymentChannels；保留兼容旧调用 */
+/** @deprecated 请改用 getPaymentChannels；仅保留旧代码兼容 */
 export async function getPaymentMode(): Promise<PaymentMode> {
   const channels = await getPaymentChannels();
   return channels.mode;

@@ -35,17 +35,16 @@ export async function GET(
   }
 
   const channels = await getPaymentChannels();
-  if (
-    order.status === "PENDING" &&
-    order.payChannel === "WECHAT" &&
-    channels.wechat
-  ) {
+  const wechatPending =
+    order.payChannel === "WECHAT" ||
+    order.payChannel.startsWith("WECHAT_");
+  if (order.status === "PENDING" && wechatPending && channels.wechat) {
     try {
       const wx = await queryNativePaymentByOrderNo(order.orderNo);
       if (wx.trade_state === "SUCCESS") {
         order = await fulfillPaidOrder({
           orderId: order.id,
-          payChannel: "WECHAT",
+          payChannel: order.payChannel || "WECHAT",
           providerTradeNo: wx.transaction_id || "",
         });
       }

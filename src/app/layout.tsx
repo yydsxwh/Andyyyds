@@ -1,9 +1,16 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Manrope, Fraunces } from "next/font/google";
 import { SiteHeader } from "@/components/site-header";
 import { DEFAULT_DECORATE, DEFAULT_LOGO_URL } from "@/lib/decorate";
 import { getDecorateConfig } from "@/lib/site-settings";
 import "./globals.css";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#f7f3eb",
+};
 
 const body = Manrope({
   variable: "--font-body",
@@ -27,7 +34,8 @@ export async function generateMetadata(): Promise<Metadata> {
       template: `%s · ${siteName}`,
     },
     applicationName: siteName,
-    description: "知识付费卖课平台：课程上架、购买学习、创作者后台、优惠券与分销",
+    description:
+      "多功能门户：公司与个人介绍、知识付费、商城/论坛/游戏中心陆续开放",
   };
 }
 

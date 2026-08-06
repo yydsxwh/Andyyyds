@@ -1,3 +1,15 @@
+/**
+ * 微信支付 API v3 封装（核心）
+ *
+ * 三种下单形态（同一商户订单号 out_trade_no 不能混用不同形态重复下单）：
+ * - Native：电脑扫码，返回 code_url
+ * - JSAPI：微信内直接调起，需要用户 openid（靠公众号网页授权拿到）
+ * - H5：手机浏览器跳转微信收银台，需商户开通 H5 权限
+ *
+ * 配置来源优先「系统设置」数据库字段，环境变量作兜底。
+ * 改密钥 / AppID 后一般无需改本文件，只要后台填对即可。
+ */
+
 import crypto from "crypto";
 import fs from "fs";
 import { getPublicSiteUrl } from "./payments";
@@ -11,6 +23,16 @@ type WechatConfig = {
   privateKey: string;
 };
 
+export type WechatJsapiPayParams = {
+  appId: string;
+  timeStamp: string;
+  nonceStr: string;
+  package: string;
+  signType: "RSA";
+  paySign: string;
+};
+
+/** 从环境变量读商户私钥：支持全文，或指向 pem 文件路径 */
 function readEnvPrivateKey() {
   const inline = process.env.WECHAT_MCH_PRIVATE_KEY;
   if (inline) {
@@ -23,6 +45,7 @@ function readEnvPrivateKey() {
   return "";
 }
 
+/** 组装商户下单所需配置；缺项直接抛中文错误给前台/日志 */
 export async function getWechatConfig(): Promise<WechatConfig> {
   const settings = await getSiteSettings();
   const appId = settings.wechatAppId || process.env.WECHAT_APP_ID || "";
@@ -43,6 +66,23 @@ export async function getWechatConfig(): Promise<WechatConfig> {
     throw new Error("微信 APIv3 密钥应为 32 位");
   }
   return { appId, mchId, apiV3Key, serialNo, privateKey };
+}
+
+/** 公众号网页授权（换 openid）所需的 AppID + AppSecret */
+export async function getWechatOAuthConfig(): Promise<{
+  appId: string;
+  appSecret: string;
+} | null> {
+  const settings = await getSiteSettings();
+  const appId = settings.wechatAppId || process.env.WECHAT_APP_ID || "";
+  const appSecret =
+    settings.wechatAppSecret || process.env.WECHAT_APP_SECRET || "";
+  if (!appId || !appSecret) return null;
+  return { appId, appSecret };
+}
+
+export async function isWechatOAuthConfigured() {
+  return Boolean(await getWechatOAuthConfig());
 }
 
 function nonceStr(len = 32) {
@@ -69,6 +109,10 @@ function authorizationHeader(
   return `WECHATPAY2-SHA256-RSA2048 mchid="${cfg.mchId}",nonce_str="${nonce}",signature="${signature}",timestamp="${timestamp}",serial_no="${cfg.serialNo}"`;
 }
 
+/**
+ * 调用微信支付 API v3（自动带商户签名 Authorization）。
+ * path 形如 /v3/pay/transactions/jsapi
+ */
 async function wechatRequest<T>(
   method: "GET" | "POST",
   path: string,
@@ -105,20 +149,25 @@ async function wechatRequest<T>(
   return data as T;
 }
 
+async function buildNotifyUrl() {
+  const siteUrl = await getPublicSiteUrl();
+  const notifyUrl = `${siteUrl}/api/payments/wechat/notify`;
+  if (!/^https?:\/\/[^\s/?#]+/i.test(notifyUrl)) {
+    throw new Error(
+      `支付回调地址无效（${notifyUrl}）。请在系统设置把「站点公网地址」设为 https://www.yydsxwh.com`,
+    );
+  }
+  return notifyUrl;
+}
+
+/** Native 扫码下单：返回 codeUrl，前端画成二维码 */
 export async function createNativePayment(input: {
   orderNo: string;
   description: string;
   amountCents: number;
 }) {
   const cfg = await getWechatConfig();
-  const siteUrl = await getPublicSiteUrl();
-  const notifyUrl = `${siteUrl}/api/payments/wechat/notify`;
-  // 微信要求 notify_url 必须是合法 http(s) 绝对地址
-  if (!/^https?:\/\/[^\s/?#]+/i.test(notifyUrl)) {
-    throw new Error(
-      `支付回调地址无效（${notifyUrl}）。请在系统设置把「站点公网地址」设为 https://www.yydsxwh.com`,
-    );
-  }
+  const notifyUrl = await buildNotifyUrl();
   const data = await wechatRequest<{ code_url?: string }>(
     "POST",
     "/v3/pay/transactions/native",
@@ -140,6 +189,136 @@ export async function createNativePayment(input: {
   return { codeUrl: data.code_url, notifyUrl };
 }
 
+/** 微信内浏览器 JSAPI 支付（需用户 openid） */
+export async function createJsapiPayment(input: {
+  orderNo: string;
+  description: string;
+  amountCents: number;
+  openid: string;
+}) {
+  const cfg = await getWechatConfig();
+  const notifyUrl = await buildNotifyUrl();
+  if (!input.openid) {
+    throw new Error("缺少微信 openid，无法发起 JSAPI 支付");
+  }
+  const data = await wechatRequest<{ prepay_id?: string }>(
+    "POST",
+    "/v3/pay/transactions/jsapi",
+    {
+      appid: cfg.appId,
+      mchid: cfg.mchId,
+      description: input.description.slice(0, 127),
+      out_trade_no: input.orderNo,
+      notify_url: notifyUrl,
+      amount: {
+        total: input.amountCents,
+        currency: "CNY",
+      },
+      payer: {
+        openid: input.openid,
+      },
+    },
+  );
+  if (!data.prepay_id) {
+    throw new Error("微信未返回 prepay_id");
+  }
+  return {
+    prepayId: data.prepay_id,
+    payParams: buildJsapiPayParams(data.prepay_id, cfg),
+    notifyUrl,
+  };
+}
+
+/**
+ * 把 prepay_id 签成前端 WeixinJSBridge.invoke 需要的字段。
+ * 签名串格式是微信规定的，不要改换行与字段顺序。
+ */
+export function buildJsapiPayParams(
+  prepayId: string,
+  cfg: WechatConfig,
+): WechatJsapiPayParams {
+  const timeStamp = Math.floor(Date.now() / 1000).toString();
+  const nonce = nonceStr(32);
+  const pkg = `prepay_id=${prepayId}`;
+  const message = `${cfg.appId}\n${timeStamp}\n${nonce}\n${pkg}\n`;
+  const paySign = signMessage(message, cfg.privateKey);
+  return {
+    appId: cfg.appId,
+    timeStamp,
+    nonceStr: nonce,
+    package: pkg,
+    signType: "RSA",
+    paySign,
+  };
+}
+
+/** 手机浏览器 H5 支付（非微信内置浏览器） */
+export async function createH5Payment(input: {
+  orderNo: string;
+  description: string;
+  amountCents: number;
+  clientIp: string;
+  appName?: string;
+}) {
+  const cfg = await getWechatConfig();
+  const notifyUrl = await buildNotifyUrl();
+  const siteUrl = await getPublicSiteUrl();
+  const clientIp = (input.clientIp || "127.0.0.1").split(",")[0].trim();
+  const data = await wechatRequest<{ h5_url?: string }>(
+    "POST",
+    "/v3/pay/transactions/h5",
+    {
+      appid: cfg.appId,
+      mchid: cfg.mchId,
+      description: input.description.slice(0, 127),
+      out_trade_no: input.orderNo,
+      notify_url: notifyUrl,
+      amount: {
+        total: input.amountCents,
+        currency: "CNY",
+      },
+      scene_info: {
+        payer_client_ip: clientIp || "127.0.0.1",
+        h5_info: {
+          type: "Wap",
+          app_name: (input.appName || "歪歪艾斯课程").slice(0, 64),
+          app_url: siteUrl,
+        },
+      },
+    },
+  );
+  if (!data.h5_url) {
+    throw new Error("微信未返回 H5 支付链接 h5_url");
+  }
+  return { mwebUrl: data.h5_url, notifyUrl };
+}
+
+/** 用网页授权 code 换 openid（需要 AppSecret） */
+export async function exchangeWechatOAuthCode(code: string) {
+  const oauth = await getWechatOAuthConfig();
+  if (!oauth) {
+    throw new Error("未配置微信 AppSecret，无法完成网页授权");
+  }
+  const url = new URL("https://api.weixin.qq.com/sns/oauth2/access_token");
+  url.searchParams.set("appid", oauth.appId);
+  url.searchParams.set("secret", oauth.appSecret);
+  url.searchParams.set("code", code);
+  url.searchParams.set("grant_type", "authorization_code");
+  const res = await fetch(url.toString(), { cache: "no-store" });
+  const data = (await res.json()) as {
+    access_token?: string;
+    openid?: string;
+    errcode?: number;
+    errmsg?: string;
+  };
+  if (!data.openid) {
+    throw new Error(
+      data.errmsg || `微信授权失败${data.errcode ? ` (${data.errcode})` : ""}`,
+    );
+  }
+  return { openid: data.openid, accessToken: data.access_token || "" };
+}
+
 export async function queryNativePaymentByOrderNo(orderNo: string) {
   const cfg = await getWechatConfig();
   const path = `/v3/pay/transactions/out-trade-no/${encodeURIComponent(orderNo)}?mchid=${encodeURIComponent(cfg.mchId)}`;
@@ -151,6 +330,10 @@ export async function queryNativePaymentByOrderNo(orderNo: string) {
   }>("GET", path);
 }
 
+/**
+ * 解密支付结果通知里的 resource（AEAD_AES_256_GCM）。
+ * apiV3Key 必须与商户平台设置的 32 位密钥一致。
+ */
 export async function decryptWechatResource(resource: {
   ciphertext: string;
   associated_data?: string;

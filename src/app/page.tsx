@@ -2,12 +2,12 @@ import Link from "next/link";
 import { CourseCard } from "@/components/course-card";
 import { DEFAULT_LOGO_URL, resolveHeroImage } from "@/lib/decorate";
 import { prisma } from "@/lib/db";
-import { getDecorateConfig } from "@/lib/site-settings";
+import { getDecorateConfig, getPortalConfig } from "@/lib/site-settings";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const [courses, decorate] = await Promise.all([
+  const [courses, decorate, portal] = await Promise.all([
     prisma.course.findMany({
       where: { status: "PUBLISHED" },
       include: { teacher: true, category: true },
@@ -15,7 +15,12 @@ export default async function HomePage() {
       take: 6,
     }),
     getDecorateConfig(),
+    getPortalConfig(),
   ]);
+
+  const modules = portal.nav.filter(
+    (item) => item.enabled !== false && item.key !== "home",
+  );
 
   const logoUrl = decorate.logoUrl || DEFAULT_LOGO_URL;
   const heroImage = resolveHeroImage(decorate);
@@ -47,10 +52,10 @@ export default async function HomePage() {
             </p>
             <div className="flex flex-wrap gap-3">
               <Link href="/courses" className="btn btn-primary">
-                逛课程广场
+                进入知识付费
               </Link>
-              <Link href="/studio" className="btn btn-secondary">
-                进入创作者中心
+              <Link href="/about/company" className="btn btn-secondary">
+                了解公司
               </Link>
             </div>
           </div>
@@ -88,6 +93,33 @@ export default async function HomePage() {
           </div>
         </section>
       ) : null}
+
+      <section className="pb-14">
+        <div className="container">
+          <div className="mb-6">
+            <h2 className="text-2xl font-semibold">门户入口</h2>
+            <p className="mt-2 text-sm text-[var(--muted)]">
+              多功能站点正在扩展：介绍、知识付费已可用，商城 / 论坛 / 游戏陆续开放
+            </p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {modules.map((item) => (
+              <Link
+                key={item.key}
+                href={item.href}
+                className="surface group rounded-[28px] p-5 transition hover:-translate-y-0.5"
+              >
+                <div className="text-lg font-semibold group-hover:text-[var(--brand)]">
+                  {item.label}
+                </div>
+                <p className="mt-2 text-sm text-[var(--muted)]">
+                  {item.comingSoon ? "即将开放，先了解规划" : "点击进入"}
+                </p>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
 
       <section className="pb-20">
         <div className="container">

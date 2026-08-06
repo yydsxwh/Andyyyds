@@ -45,7 +45,7 @@ export default async function StudioCoursesComposePage({
       <div>
         <h1 className="text-3xl font-semibold">{composeLabel}</h1>
         <p className="mt-2 text-sm text-[var(--muted)]">
-          多选素材、调整顺序，一键生成可售卖的单课或专栏。
+          先从素材中心多选并拖拽导入素材，确认顺序后再填写产品信息并生成单课或专栏。
           {assets.length === 0 ? (
             <>
               {" "}

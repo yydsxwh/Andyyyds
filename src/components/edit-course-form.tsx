@@ -3,6 +3,10 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import {
+  MediaAssetPickerModal,
+  type PickerMediaAsset,
+} from "@/components/media-asset-picker-modal";
 import { PRODUCT_TITLE_MAX } from "@/lib/media";
 
 type MediaOption = {
@@ -113,14 +117,20 @@ export function EditCourseForm({ course, mediaAssets }: Props) {
   const [chapters, setChapters] = useState<ChapterDraft[]>(() =>
     toDrafts(course),
   );
+  const [assetCatalog, setAssetCatalog] = useState<MediaOption[]>(mediaAssets);
+  const [pickerTarget, setPickerTarget] = useState<{
+    chapterKey: string;
+    lessonKey: string;
+    mediaAssetId: string | null;
+  } | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
   const kind = productType === "COLUMN" ? "专栏" : "课程";
   const mediaMap = useMemo(
-    () => Object.fromEntries(mediaAssets.map((m) => [m.id, m])),
-    [mediaAssets],
+    () => Object.fromEntries(assetCatalog.map((m) => [m.id, m])),
+    [assetCatalog],
   );
 
   function updateChapter(key: string, partial: Partial<ChapterDraft>) {
@@ -237,10 +247,40 @@ export function EditCourseForm({ course, mediaAssets }: Props) {
     );
   }
 
-  function bindMedia(chapterKey: string, lessonKey: string, assetId: string) {
-    const asset = mediaMap[assetId];
+  function rememberAsset(asset: PickerMediaAsset) {
+    setAssetCatalog((prev) => {
+      if (prev.some((m) => m.id === asset.id)) {
+        return prev.map((m) =>
+          m.id === asset.id
+            ? {
+                id: asset.id,
+                name: asset.name,
+                fileUrl: asset.fileUrl,
+                durationSec: asset.durationSec || 0,
+              }
+            : m,
+        );
+      }
+      return [
+        ...prev,
+        {
+          id: asset.id,
+          name: asset.name,
+          fileUrl: asset.fileUrl,
+          durationSec: asset.durationSec || 0,
+        },
+      ];
+    });
+  }
+
+  function bindMedia(
+    chapterKey: string,
+    lessonKey: string,
+    asset: PickerMediaAsset | null,
+  ) {
+    if (asset) rememberAsset(asset);
     updateLesson(chapterKey, lessonKey, {
-      mediaAssetId: assetId || null,
+      mediaAssetId: asset?.id || null,
       videoUrl: asset?.fileUrl || "",
       durationSec: asset?.durationSec || 0,
       ...(asset?.name ? { title: asset.name } : {}),
@@ -557,23 +597,30 @@ export function EditCourseForm({ course, mediaAssets }: Props) {
                           <option value="LIVE">直播</option>
                         </select>
                       </label>
-                      <label className="block text-xs">
+                      <div className="block text-xs">
                         <span className="text-[var(--muted)]">绑定素材视频</span>
-                        <select
-                          className={`${inputClass} mt-1`}
-                          value={lesson.mediaAssetId || ""}
-                          onChange={(e) =>
-                            bindMedia(chapter.key, lesson.key, e.target.value)
+                        <button
+                          type="button"
+                          className={`${inputClass} mt-1 flex w-full items-center justify-between gap-2 text-left`}
+                          onClick={() =>
+                            setPickerTarget({
+                              chapterKey: chapter.key,
+                              lessonKey: lesson.key,
+                              mediaAssetId: lesson.mediaAssetId,
+                            })
                           }
                         >
-                          <option value="">不绑定 / 手动填地址</option>
-                          {mediaAssets.map((m) => (
-                            <option key={m.id} value={m.id}>
-                              {m.name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                          <span className="min-w-0 truncate">
+                            {lesson.mediaAssetId
+                              ? mediaMap[lesson.mediaAssetId]?.name ||
+                                "已绑定素材（点击重选）"
+                              : "点击从素材中心选择…"}
+                          </span>
+                          <span className="shrink-0 text-[var(--brand)]">
+                            {lesson.mediaAssetId ? "重选" : "选择"}
+                          </span>
+                        </button>
+                      </div>
                       <label className="block text-xs sm:col-span-2">
                         <span className="text-[var(--muted)]">视频地址</span>
                         <input
@@ -660,6 +707,23 @@ export function EditCourseForm({ course, mediaAssets }: Props) {
           查看前台页
         </Link>
       </div>
+
+      <MediaAssetPickerModal
+        open={Boolean(pickerTarget)}
+        selectedId={pickerTarget?.mediaAssetId}
+        initialAssets={assetCatalog}
+        onClose={() => setPickerTarget(null)}
+        onSelect={(asset) => {
+          if (!pickerTarget) return;
+          bindMedia(pickerTarget.chapterKey, pickerTarget.lessonKey, asset);
+          setPickerTarget(null);
+        }}
+        onClear={() => {
+          if (!pickerTarget) return;
+          bindMedia(pickerTarget.chapterKey, pickerTarget.lessonKey, null);
+          setPickerTarget(null);
+        }}
+      />
     </form>
   );
 }

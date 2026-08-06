@@ -1,6 +1,14 @@
+/**
+ * 站点级配置读写（系统设置 / 支付 / OSS / VOD / CMS 导航等）
+ *
+ * 敏感字段对外展示时会 maskSecret 打码；保存接口若收到打码占位符应视为「不修改」。
+ * 支付相关字段被 payments.ts / wechat-pay.ts / alipay.ts 读取。
+ */
+
 import { prisma } from "./db";
 import { parseDecorate, type DecorateConfig } from "./decorate";
 import { parseOrderForm, type OrderFormConfig } from "./order-form";
+import { parsePortal, type PortalConfig } from "./portal";
 import { parseStudioNav, type StudioNavConfig } from "./studio-nav-config";
 import { parseUiCopy, type UiCopy } from "./ui-copy";
 
@@ -15,6 +23,7 @@ export type SiteSettingsRow = {
   wechatEnabled: boolean;
   alipayEnabled: boolean;
   wechatAppId: string;
+  wechatAppSecret: string;
   wechatMchId: string;
   wechatApiV3Key: string;
   wechatMchSerialNo: string;
@@ -41,6 +50,7 @@ export type SiteSettingsRow = {
   orderFormJson: string;
   decorateJson: string;
   studioNavJson: string;
+  portalJson: string;
   updatedAt: Date;
 };
 
@@ -84,6 +94,11 @@ export async function getStudioNavConfig(): Promise<StudioNavConfig> {
   return parseStudioNav(row.studioNavJson);
 }
 
+export async function getPortalConfig(): Promise<PortalConfig> {
+  const row = await getSiteSettings();
+  return parsePortal(row.portalJson);
+}
+
 export function maskSecret(value: string, keep = 4) {
   if (!value) return "";
   if (value.length <= keep) return "*".repeat(value.length);
@@ -102,6 +117,9 @@ export function publicSiteSettings(row: SiteSettingsRow) {
     wechatEnabled: row.wechatEnabled,
     alipayEnabled: row.alipayEnabled,
     wechatAppId: row.wechatAppId,
+    wechatAppSecret: row.wechatAppSecret
+      ? maskSecret(row.wechatAppSecret)
+      : "",
     wechatMchId: row.wechatMchId,
     wechatApiV3Key: maskSecret(row.wechatApiV3Key),
     wechatMchSerialNo: row.wechatMchSerialNo,
@@ -112,6 +130,10 @@ export function publicSiteSettings(row: SiteSettingsRow) {
         row.wechatApiV3Key &&
         row.wechatMchSerialNo &&
         row.wechatMchPrivateKey,
+    ),
+    wechatOauthConfigured: Boolean(
+      row.wechatAppId &&
+        (row.wechatAppSecret || process.env.WECHAT_APP_SECRET),
     ),
     alipayAppId: row.alipayAppId,
     alipayPrivateKey: row.alipayPrivateKey ? maskSecret(row.alipayPrivateKey, 8) : "",
@@ -152,6 +174,7 @@ export function publicSiteSettings(row: SiteSettingsRow) {
     orderForm: parseOrderForm(row.orderFormJson),
     decorate: parseDecorate(row.decorateJson),
     studioNav: parseStudioNav(row.studioNavJson),
+    portal: parsePortal(row.portalJson),
     updatedAt: row.updatedAt.toISOString(),
   };
 }

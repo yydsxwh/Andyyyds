@@ -12,6 +12,7 @@ import {
   stringifyOrderForm,
   type OrderFormFieldType,
 } from "@/lib/order-form";
+import { DEFAULT_PORTAL, stringifyPortal } from "@/lib/portal";
 import {
   DEFAULT_STUDIO_NAV,
   stringifyStudioNav,
@@ -76,6 +77,54 @@ const patchSchema = z.object({
       courses: z.array(navLinkSchema).max(20).optional(),
     })
     .optional(),
+  portal: z
+    .object({
+      nav: z
+        .array(
+          z.object({
+            key: z.string().min(1).max(40),
+            label: z.string().min(1).max(40),
+            href: z.string().min(1).max(300),
+            enabled: z.boolean().optional(),
+            comingSoon: z.boolean().optional(),
+          }),
+        )
+        .max(20)
+        .optional(),
+      company: z
+        .object({
+          title: z.string().max(80).optional(),
+          subtitle: z.string().max(200).optional(),
+          body: z.string().max(20000).optional(),
+          highlights: z
+            .array(
+              z.object({
+                label: z.string().max(40),
+                text: z.string().max(120),
+              }),
+            )
+            .max(8)
+            .optional(),
+        })
+        .optional(),
+      person: z
+        .object({
+          title: z.string().max(80).optional(),
+          subtitle: z.string().max(200).optional(),
+          body: z.string().max(20000).optional(),
+          highlights: z
+            .array(
+              z.object({
+                label: z.string().max(40),
+                text: z.string().max(120),
+              }),
+            )
+            .max(8)
+            .optional(),
+        })
+        .optional(),
+    })
+    .optional(),
 });
 
 export async function GET() {
@@ -87,6 +136,7 @@ export async function GET() {
       uiCopy: pub.uiCopy,
       orderForm: pub.orderForm,
       studioNav: pub.studioNav,
+      portal: pub.portal,
       updatedAt: pub.updatedAt,
     });
   } catch (error) {
@@ -136,6 +186,24 @@ export async function PATCH(req: Request) {
       });
     }
 
+    if (body.portal) {
+      data.portalJson = stringifyPortal({
+        nav: body.portal.nav || DEFAULT_PORTAL.nav,
+        company: {
+          ...DEFAULT_PORTAL.company,
+          ...(body.portal.company || {}),
+          highlights:
+            body.portal.company?.highlights || DEFAULT_PORTAL.company.highlights,
+        },
+        person: {
+          ...DEFAULT_PORTAL.person,
+          ...(body.portal.person || {}),
+          highlights:
+            body.portal.person?.highlights || DEFAULT_PORTAL.person.highlights,
+        },
+      });
+    }
+
     if (Object.keys(data).length === 0) {
       return NextResponse.json({ error: "没有可保存的内容" }, { status: 400 });
     }
@@ -150,6 +218,7 @@ export async function PATCH(req: Request) {
       uiCopy: pub.uiCopy,
       orderForm: pub.orderForm,
       studioNav: pub.studioNav,
+      portal: pub.portal,
       updatedAt: pub.updatedAt,
     });
   } catch (error) {

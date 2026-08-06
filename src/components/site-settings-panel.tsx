@@ -9,11 +9,13 @@ export type PublicSettings = {
   wechatEnabled: boolean;
   alipayEnabled: boolean;
   wechatAppId: string;
+  wechatAppSecret: string;
   wechatMchId: string;
   wechatApiV3Key: string;
   wechatMchSerialNo: string;
   wechatMchPrivateKey: string;
   wechatConfigured: boolean;
+  wechatOauthConfigured?: boolean;
   alipayAppId: string;
   alipayPrivateKey: string;
   alipayPublicKey: string;
@@ -64,6 +66,8 @@ export function SiteSettingsPanel({ initial }: Props) {
   const router = useRouter();
   const [form, setForm] = useState(() => ({
     ...initial,
+    wechatAppSecret: initial.wechatAppSecret || "",
+    wechatOauthConfigured: Boolean(initial.wechatOauthConfigured),
     ossRegion: initial.ossRegion || "oss-cn-hongkong",
     ossBucket: initial.ossBucket || "yydsxwh-course-media",
     ossPrefix: initial.ossPrefix || "uploads",
@@ -156,6 +160,7 @@ export function SiteSettingsPanel({ initial }: Props) {
         wechatEnabled: form.wechatEnabled,
         alipayEnabled: form.alipayEnabled,
         wechatAppId: form.wechatAppId,
+        wechatAppSecret: form.wechatAppSecret,
         wechatMchId: form.wechatMchId,
         wechatApiV3Key: form.wechatApiV3Key,
         wechatMchSerialNo: form.wechatMchSerialNo,
@@ -237,8 +242,11 @@ export function SiteSettingsPanel({ initial }: Props) {
           <div>
             <h2 className="text-lg font-semibold">微信支付</h2>
             <p className="mt-1 text-sm text-[var(--muted)]">
-              状态：{form.wechatConfigured ? "已配置" : "未配置完整"} · 回调
-              /api/payments/wechat/notify
+              状态：{form.wechatConfigured ? "已配置" : "未配置完整"}
+              {form.wechatOauthConfigured
+                ? " · 微信内直接支付已就绪"
+                : " · 未配 AppSecret（微信内无法直接调起支付）"}
+              · 回调 /api/payments/wechat/notify
             </p>
           </div>
           <label className="flex items-center gap-2 text-sm">
@@ -250,12 +258,30 @@ export function SiteSettingsPanel({ initial }: Props) {
             启用
           </label>
         </div>
+        <p className="rounded-2xl bg-[var(--bg-deep)]/60 px-3 py-2 text-xs leading-5 text-[var(--muted)]">
+          电脑端：扫码（Native）。手机浏览器：H5（需商户开通 H5
+          支付并配置域名）。微信内：JSAPI（需同一 AppID
+          的公众号 AppSecret，并在公众号后台设置网页授权域名{" "}
+          <code className="text-[var(--ink)]">www.yydsxwh.com</code>
+          ；支付目录与 JSAPI 安全域名按微信商户平台要求配置）。
+        </p>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="AppID">
             <input
               className={inputClass}
               value={form.wechatAppId}
               onChange={(e) => set("wechatAppId", e.target.value)}
+            />
+          </Field>
+          <Field
+            label="公众号 AppSecret（手机微信直接支付必填）"
+            hint="与上方 AppID 同属一个公众号。微信公众平台 → 开发 → 基本配置。已保存会打码，不改请留原样"
+          >
+            <input
+              className={inputClass}
+              value={form.wechatAppSecret}
+              onChange={(e) => set("wechatAppSecret", e.target.value)}
+              placeholder="填写后微信内可直接调起支付，无需扫码"
             />
           </Field>
           <Field label="商户号 mchid">
@@ -309,12 +335,33 @@ export function SiteSettingsPanel({ initial }: Props) {
             启用
           </label>
         </div>
+        <p className="rounded-2xl bg-[var(--bg-deep)]/60 px-3 py-2 text-xs leading-5 text-[var(--muted)]">
+          在{" "}
+          <a
+            className="text-[var(--brand)] underline"
+            href="https://open.alipay.com"
+            target="_blank"
+            rel="noreferrer"
+          >
+            open.alipay.com
+          </a>{" "}
+          创建应用并开通「手机网站支付」「电脑网站支付」。异步通知地址填{" "}
+          <code className="text-[var(--ink)]">
+            https://www.yydsxwh.com/api/payments/alipay/notify
+          </code>
+          ；回跳可用{" "}
+          <code className="text-[var(--ink)]">
+            https://www.yydsxwh.com/checkout/return
+          </code>
+          。密钥用 RSA2。支付方式建议选「微信 + 支付宝」。
+        </p>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="应用 AppID">
             <input
               className={inputClass}
               value={form.alipayAppId}
               onChange={(e) => set("alipayAppId", e.target.value)}
+              placeholder="2021xxxxxxxxxx"
             />
           </Field>
           <Field label="网关环境">
@@ -327,20 +374,28 @@ export function SiteSettingsPanel({ initial }: Props) {
               <option value="sandbox">沙箱</option>
             </select>
           </Field>
-          <Field label="应用私钥">
+          <Field
+            label="应用私钥"
+            hint="你自己生成的 RSA2 私钥。已保存会打码，不改请留原样"
+          >
             <textarea
               className={inputClass}
               rows={4}
               value={form.alipayPrivateKey}
               onChange={(e) => set("alipayPrivateKey", e.target.value)}
+              placeholder="-----BEGIN PRIVATE KEY----- ..."
             />
           </Field>
-          <Field label="支付宝公钥">
+          <Field
+            label="支付宝公钥"
+            hint="开放平台「支付宝公钥」，不是应用公钥。已保存会打码，不改请留原样"
+          >
             <textarea
               className={inputClass}
               rows={4}
               value={form.alipayPublicKey}
               onChange={(e) => set("alipayPublicKey", e.target.value)}
+              placeholder="-----BEGIN PUBLIC KEY----- ..."
             />
           </Field>
         </div>
