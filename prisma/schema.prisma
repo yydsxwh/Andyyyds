@@ -112,6 +112,9 @@ model SiteSettings {
   /// 店铺 DIY 装修配置（JSON）：Logo、首页 Banner 等视觉门面
   decorateJson String @default("")
 
+  /// 后台导航菜单配置（JSON）：顶部导航 + 课程中心子菜单的文案与链接
+  studioNavJson String @default("")
+
   updatedAt DateTime @updatedAt
 }
 

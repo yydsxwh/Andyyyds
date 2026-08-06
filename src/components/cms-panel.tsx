@@ -3,13 +3,19 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { OrderFormSettings } from "@/components/order-form-settings";
+import { StudioNavSettings } from "@/components/studio-nav-settings";
 import { DEFAULT_ORDER_FORM, type OrderFormConfig } from "@/lib/order-form";
+import {
+  DEFAULT_STUDIO_NAV,
+  type StudioNavConfig,
+} from "@/lib/studio-nav-config";
 import { DEFAULT_UI_COPY, type ComposeUiCopy } from "@/lib/ui-copy";
 
 type Props = {
   initial: {
     uiCopy: { compose: ComposeUiCopy };
     orderForm: OrderFormConfig;
+    studioNav: StudioNavConfig;
   };
 };
 
@@ -44,6 +50,17 @@ export function CmsPanel({ initial }: Props) {
     ...(initial.orderForm || {}),
     fields: initial.orderForm?.fields || [],
   }));
+  const [studioNav, setStudioNav] = useState<StudioNavConfig>(() => ({
+    topBase: initial.studioNav?.topBase?.length
+      ? initial.studioNav.topBase
+      : DEFAULT_STUDIO_NAV.topBase,
+    topAdmin: initial.studioNav?.topAdmin?.length
+      ? initial.studioNav.topAdmin
+      : DEFAULT_STUDIO_NAV.topAdmin,
+    courses: initial.studioNav?.courses?.length
+      ? initial.studioNav.courses
+      : DEFAULT_STUDIO_NAV.courses,
+  }));
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -63,7 +80,7 @@ export function CmsPanel({ initial }: Props) {
     const res = await fetch("/api/studio/cms", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ uiCopy, orderForm }),
+      body: JSON.stringify({ uiCopy, orderForm, studioNav }),
     });
     const data = await res.json();
     setSaving(false);
@@ -73,12 +90,15 @@ export function CmsPanel({ initial }: Props) {
     }
     if (data.uiCopy) setUiCopy(data.uiCopy);
     if (data.orderForm) setOrderForm(data.orderForm);
+    if (data.studioNav) setStudioNav(data.studioNav);
     setMessage("内容配置已保存");
     router.refresh();
   }
 
   return (
     <form onSubmit={save} className="space-y-6">
+      <StudioNavSettings value={studioNav} onChange={setStudioNav} />
+
       <OrderFormSettings value={orderForm} onChange={setOrderForm} />
 
       <div className="surface space-y-4 rounded-[28px] p-6">

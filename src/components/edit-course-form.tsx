@@ -338,9 +338,9 @@ export function EditCourseForm({ course, mediaAssets }: Props) {
               可改基础信息、章节目录、课时视频与试看设置。
             </p>
           </div>
-          <Link href="/studio" className="btn btn-secondary px-4 py-2 text-sm">
-            返回列表
-          </Link>
+        <Link href="/studio/courses" className="btn btn-secondary px-4 py-2 text-sm">
+          返回课程中心
+        </Link>
         </div>
 
         <div className="flex flex-wrap gap-2">

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { CoursesSubnav } from "@/components/courses-subnav";
 import { EditCourseForm } from "@/components/edit-course-form";
 import { StudioNav } from "@/components/studio-nav";
 import { getSession } from "@/lib/auth";
@@ -49,7 +50,8 @@ export default async function EditCoursePage({
 
   return (
     <div className="container space-y-6 py-12">
-      <StudioNav current="overview" />
+      <StudioNav current="courses" />
+      <CoursesSubnav current="list" />
       <EditCourseForm
         course={{
           id: course.id,
@@ -81,8 +83,8 @@ export default async function EditCoursePage({
         mediaAssets={mediaAssets}
       />
       <p className="text-center text-sm text-[var(--muted)]">
-        <Link href="/studio" className="text-[var(--brand)]">
-          ← 返回创作者中心
+        <Link href="/studio/courses" className="text-[var(--brand)]">
+          ← 返回课程中心
         </Link>
       </p>
     </div>

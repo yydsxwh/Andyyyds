@@ -1,20 +1,6 @@
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
-
-const baseLinks = [
-  { href: "/studio", label: "概览", key: "overview" },
-  { href: "/studio/media", label: "素材中心", key: "media" },
-  { href: "/studio/compose", label: "用素材做课", key: "compose" },
-  { href: "/studio/distribution", label: "分销管理", key: "distribution" },
-] as const;
-
-const adminLinks = [
-  { href: "/studio/orders", label: "订单查看", key: "orders" },
-  { href: "/studio/merchants", label: "商家管理", key: "merchants" },
-  { href: "/studio/decorate", label: "店铺装修", key: "decorate" },
-  { href: "/studio/cms", label: "内容管理", key: "cms" },
-  { href: "/studio/settings", label: "系统设置", key: "settings" },
-] as const;
+import { getStudioNavConfig } from "@/lib/site-settings";
 
 export async function StudioNav({
   current,
@@ -22,6 +8,7 @@ export async function StudioNav({
   current:
     | "overview"
     | "media"
+    | "courses"
     | "compose"
     | "distribution"
     | "orders"
@@ -30,17 +17,22 @@ export async function StudioNav({
     | "cms"
     | "settings";
 }) {
-  const session = await getSession();
+  const [session, nav] = await Promise.all([getSession(), getStudioNavConfig()]);
   const links =
-    session?.role === "ADMIN" ? [...baseLinks, ...adminLinks] : [...baseLinks];
+    session?.role === "ADMIN"
+      ? [...nav.topBase, ...nav.topAdmin]
+      : [...nav.topBase];
+
+  // 兼容旧 compose 高亮为课程中心
+  const activeKey = current === "compose" ? "courses" : current;
 
   return (
     <div className="flex flex-wrap gap-2">
       {links.map((link) => {
-        const active = current === link.key;
+        const active = activeKey === link.key;
         return (
           <Link
-            key={link.href}
+            key={link.key}
             href={link.href}
             className={`rounded-full px-4 py-2 text-sm ${
               active

@@ -1,6 +1,7 @@
 import { prisma } from "./db";
 import { parseDecorate, type DecorateConfig } from "./decorate";
 import { parseOrderForm, type OrderFormConfig } from "./order-form";
+import { parseStudioNav, type StudioNavConfig } from "./studio-nav-config";
 import { parseUiCopy, type UiCopy } from "./ui-copy";
 
 export type StorageProvider = "LOCAL" | "ALIYUN_OSS";
@@ -39,6 +40,7 @@ export type SiteSettingsRow = {
   uiCopyJson: string;
   orderFormJson: string;
   decorateJson: string;
+  studioNavJson: string;
   updatedAt: Date;
 };
 
@@ -75,6 +77,11 @@ export async function getOrderFormConfig(): Promise<OrderFormConfig> {
 export async function getDecorateConfig(): Promise<DecorateConfig> {
   const row = await getSiteSettings();
   return parseDecorate(row.decorateJson);
+}
+
+export async function getStudioNavConfig(): Promise<StudioNavConfig> {
+  const row = await getSiteSettings();
+  return parseStudioNav(row.studioNavJson);
 }
 
 export function maskSecret(value: string, keep = 4) {
@@ -144,6 +151,7 @@ export function publicSiteSettings(row: SiteSettingsRow) {
     uiCopy: parseUiCopy(row.uiCopyJson),
     orderForm: parseOrderForm(row.orderFormJson),
     decorate: parseDecorate(row.decorateJson),
+    studioNav: parseStudioNav(row.studioNavJson),
     updatedAt: row.updatedAt.toISOString(),
   };
 }

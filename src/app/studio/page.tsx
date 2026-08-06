@@ -78,9 +78,9 @@ export default async function StudioPage() {
           <div className="text-lg font-semibold">素材中心</div>
           <p className="mt-2 text-sm text-[var(--muted)]">上传视频、自由分类与长命名，多选后可组课售卖</p>
         </Link>
-        <Link href="/studio/compose" className="surface rounded-[24px] p-5 transition hover:-translate-y-0.5">
-          <div className="text-lg font-semibold">用素材做课 / 专栏</div>
-          <p className="mt-2 text-sm text-[var(--muted)]">勾选素材、排顺序、定价上架，一键生成可售产品</p>
+        <Link href="/studio/courses" className="surface rounded-[24px] p-5 transition hover:-translate-y-0.5">
+          <div className="text-lg font-semibold">课程中心</div>
+          <p className="mt-2 text-sm text-[var(--muted)]">管理课程/专栏，或用素材一键生成可售产品</p>
         </Link>
         <Link href="/studio/distribution" className="surface rounded-[24px] p-5 transition hover:-translate-y-0.5">
           <div className="text-lg font-semibold">分销管理</div>

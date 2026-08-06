@@ -365,7 +365,7 @@ export function MediaCenter({ initialCategories, initialAssets }: Props) {
       return;
     }
     const ids = selected.join(",");
-    router.push(`/studio/compose?assets=${encodeURIComponent(ids)}`);
+    router.push(`/studio/courses/compose?assets=${encodeURIComponent(ids)}`);
   }
 
   return (
@@ -378,7 +378,7 @@ export function MediaCenter({ initialCategories, initialAssets }: Props) {
           </p>
         </div>
         <button className="btn btn-accent" type="button" onClick={goCompose}>
-          用已选 {selected.length} 个素材做课
+          用已选 {selected.length} 个素材创建课程
         </button>
       </div>
 

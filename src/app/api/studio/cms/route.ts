@@ -12,6 +12,10 @@ import {
   stringifyOrderForm,
   type OrderFormFieldType,
 } from "@/lib/order-form";
+import {
+  DEFAULT_STUDIO_NAV,
+  stringifyStudioNav,
+} from "@/lib/studio-nav-config";
 import { DEFAULT_UI_COPY, stringifyUiCopy } from "@/lib/ui-copy";
 
 const composeCopySchema = z.object({
@@ -32,6 +36,12 @@ const composeCopySchema = z.object({
   publishLabel: z.string().max(80).optional(),
   submitLabelCourse: z.string().max(80).optional(),
   submitLabelColumn: z.string().max(80).optional(),
+});
+
+const navLinkSchema = z.object({
+  key: z.string().min(1).max(40),
+  label: z.string().min(1).max(40),
+  href: z.string().min(1).max(300),
 });
 
 const patchSchema = z.object({
@@ -59,6 +69,13 @@ const patchSchema = z.object({
         .optional(),
     })
     .optional(),
+  studioNav: z
+    .object({
+      topBase: z.array(navLinkSchema).max(20).optional(),
+      topAdmin: z.array(navLinkSchema).max(20).optional(),
+      courses: z.array(navLinkSchema).max(20).optional(),
+    })
+    .optional(),
 });
 
 export async function GET() {
@@ -69,6 +86,7 @@ export async function GET() {
     return NextResponse.json({
       uiCopy: pub.uiCopy,
       orderForm: pub.orderForm,
+      studioNav: pub.studioNav,
       updatedAt: pub.updatedAt,
     });
   } catch (error) {
@@ -110,6 +128,14 @@ export async function PATCH(req: Request) {
       });
     }
 
+    if (body.studioNav) {
+      data.studioNavJson = stringifyStudioNav({
+        topBase: body.studioNav.topBase || DEFAULT_STUDIO_NAV.topBase,
+        topAdmin: body.studioNav.topAdmin || DEFAULT_STUDIO_NAV.topAdmin,
+        courses: body.studioNav.courses || DEFAULT_STUDIO_NAV.courses,
+      });
+    }
+
     if (Object.keys(data).length === 0) {
       return NextResponse.json({ error: "没有可保存的内容" }, { status: 400 });
     }
@@ -123,6 +149,7 @@ export async function PATCH(req: Request) {
     return NextResponse.json({
       uiCopy: pub.uiCopy,
       orderForm: pub.orderForm,
+      studioNav: pub.studioNav,
       updatedAt: pub.updatedAt,
     });
   } catch (error) {
