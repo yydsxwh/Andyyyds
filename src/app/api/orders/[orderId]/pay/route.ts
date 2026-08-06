@@ -3,8 +3,10 @@ import { z } from "zod";
 import { createAlipayPagePay } from "@/lib/alipay";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { answersComplete } from "@/lib/order-form";
 import { fulfillPaidOrder } from "@/lib/orders";
 import { getPaymentChannels } from "@/lib/payments";
+import { getOrderFormConfig } from "@/lib/site-settings";
 import { createNativePayment } from "@/lib/wechat-pay";
 
 const bodySchema = z
@@ -37,6 +39,14 @@ export async function POST(
       slug: order.course.slug,
       status: "PAID",
     });
+  }
+
+  const orderForm = await getOrderFormConfig();
+  if (!answersComplete(orderForm, order.formAnswersJson)) {
+    return NextResponse.json(
+      { error: "请先填写完整的购买信息" },
+      { status: 400 },
+    );
   }
 
   let channel: "WECHAT" | "ALIPAY" | "MOCK" = "WECHAT";

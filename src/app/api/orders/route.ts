@@ -2,11 +2,17 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import {
+  stringifyStoredAnswers,
+  validateOrderFormAnswers,
+} from "@/lib/order-form";
+import { getOrderFormConfig } from "@/lib/site-settings";
 import { makeOrderNo } from "@/lib/utils";
 
 const schema = z.object({
   courseId: z.string().min(1),
   couponCode: z.string().optional(),
+  formAnswers: z.record(z.string(), z.string()).optional(),
 });
 
 export async function POST(req: Request) {
@@ -29,14 +35,36 @@ export async function POST(req: Request) {
       return NextResponse.json({ enrolled: true, slug: course.slug });
     }
 
+    const orderForm = await getOrderFormConfig();
+    const answersCheck = validateOrderFormAnswers(orderForm, body.formAnswers);
+    if (!answersCheck.ok) {
+      return NextResponse.json({ error: answersCheck.error }, { status: 400 });
+    }
+    const formAnswersJson = stringifyStoredAnswers(answersCheck.stored);
+
     if (course.isFree || course.price <= 0) {
-      await prisma.enrollment.create({
-        data: { userId: session.id, courseId: course.id },
-      });
-      await prisma.course.update({
-        where: { id: course.id },
-        data: { studentCount: { increment: 1 } },
-      });
+      await prisma.$transaction([
+        prisma.order.create({
+          data: {
+            orderNo: makeOrderNo(),
+            userId: session.id,
+            courseId: course.id,
+            amount: 0,
+            discount: 0,
+            status: "PAID",
+            payChannel: "FREE",
+            formAnswersJson,
+            paidAt: new Date(),
+          },
+        }),
+        prisma.enrollment.create({
+          data: { userId: session.id, courseId: course.id },
+        }),
+        prisma.course.update({
+          where: { id: course.id },
+          data: { studentCount: { increment: 1 } },
+        }),
+      ]);
       return NextResponse.json({ enrolled: true, slug: course.slug });
     }
 
@@ -78,6 +106,7 @@ export async function POST(req: Request) {
         amount,
         discount,
         couponId,
+        formAnswersJson,
         referralCode: user?.referredById
           ? (
               await prisma.user.findUnique({ where: { id: user.referredById } })

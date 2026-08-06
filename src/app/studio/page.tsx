@@ -98,6 +98,24 @@ export default async function StudioPage() {
               </p>
             </Link>
             <Link
+              href="/studio/decorate"
+              className="surface rounded-[24px] p-5 transition hover:-translate-y-0.5"
+            >
+              <div className="text-lg font-semibold">店铺装修</div>
+              <p className="mt-2 text-sm text-[var(--muted)]">
+                配置 Logo、首页主视觉与 Banner 等视觉门面
+              </p>
+            </Link>
+            <Link
+              href="/studio/cms"
+              className="surface rounded-[24px] p-5 transition hover:-translate-y-0.5"
+            >
+              <div className="text-lg font-semibold">内容管理</div>
+              <p className="mt-2 text-sm text-[var(--muted)]">
+                后台文案与下单信息采集字段配置
+              </p>
+            </Link>
+            <Link
               href="/studio/settings"
               className="surface rounded-[24px] p-5 transition hover:-translate-y-0.5"
             >
@@ -128,13 +146,24 @@ export default async function StudioPage() {
                     {course.title}
                   </div>
                   <div className="text-xs text-[var(--muted)]">
-                    {course.status} · {formatPrice(course.price)} · 报名{" "}
-                    {course._count.enrollments}
+                    {course.status === "PUBLISHED" ? "已上架" : "草稿"} ·{" "}
+                    {formatPrice(course.price)} · 报名 {course._count.enrollments}
                   </div>
                 </div>
-                <Link href={`/courses/${course.slug}`} className="text-sm text-[var(--brand)]">
-                  查看详情页
-                </Link>
+                <div className="flex flex-wrap gap-3 text-sm">
+                  <Link
+                    href={`/studio/courses/${course.id}/edit`}
+                    className="font-medium text-[var(--brand)]"
+                  >
+                    编辑
+                  </Link>
+                  <Link
+                    href={`/courses/${course.slug}`}
+                    className="text-[var(--muted)] hover:text-[var(--ink)]"
+                  >
+                    查看前台
+                  </Link>
+                </div>
               </div>
             ))}
             {courses.length === 0 ? (

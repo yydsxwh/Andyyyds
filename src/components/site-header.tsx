@@ -1,14 +1,30 @@
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
+import { DEFAULT_LOGO_URL } from "@/lib/decorate";
+import { getDecorateConfig } from "@/lib/site-settings";
 
 export async function SiteHeader() {
-  const session = await getSession();
+  const [session, decorate] = await Promise.all([
+    getSession(),
+    getDecorateConfig(),
+  ]);
+  const logoUrl = decorate.logoUrl || DEFAULT_LOGO_URL;
 
   return (
     <header className="sticky top-0 z-40 border-b border-[var(--line)] bg-[rgba(247,243,235,0.78)] backdrop-blur-md">
       <div className="container flex h-16 items-center justify-between gap-4">
-        <Link href="/" className="brand-mark text-2xl text-[var(--brand)]">
-          YYDS
+        <Link href="/" className="flex items-center gap-2.5">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={logoUrl}
+            alt={decorate.brandName || "歪歪艾斯"}
+            className="h-10 w-auto max-w-[200px] object-contain"
+          />
+          {decorate.showBrandText ? (
+            <span className="brand-mark text-lg text-[var(--ink)]">
+              {decorate.brandName}
+            </span>
+          ) : null}
         </Link>
         <nav className="hidden items-center gap-6 text-sm text-[var(--muted)] md:flex">
           <Link href="/courses" className="hover:text-[var(--ink)]">
@@ -27,8 +43,11 @@ export async function SiteHeader() {
               </Link>
               {session.role === "ADMIN" ? (
                 <>
-                  <Link href="/studio/merchants" className="hover:text-[var(--ink)]">
-                    商家管理
+                  <Link href="/studio/decorate" className="hover:text-[var(--ink)]">
+                    店铺装修
+                  </Link>
+                  <Link href="/studio/cms" className="hover:text-[var(--ink)]">
+                    内容管理
                   </Link>
                   <Link href="/studio/settings" className="hover:text-[var(--ink)]">
                     系统设置

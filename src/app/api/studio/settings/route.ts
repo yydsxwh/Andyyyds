@@ -1,13 +1,40 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { requireAdmin, studioErrorResponse } from "@/lib/studio";
+import {
+  DEFAULT_ORDER_FORM,
+  stringifyOrderForm,
+  type OrderFormFieldType,
+} from "@/lib/order-form";
+import { normalizePublicSiteUrl } from "@/lib/payments";
 import {
   getSiteSettings,
   invalidateSiteSettingsCache,
   pickSecretUpdate,
   publicSiteSettings,
 } from "@/lib/site-settings";
+import { requireAdmin, studioErrorResponse } from "@/lib/studio";
+import { DEFAULT_UI_COPY, stringifyUiCopy } from "@/lib/ui-copy";
+
+const composeCopySchema = z.object({
+  step2Title: z.string().max(80).optional(),
+  courseTypeLabel: z.string().max(40).optional(),
+  columnTypeLabel: z.string().max(40).optional(),
+  titleLabel: z.string().max(40).optional(),
+  titlePlaceholderCourse: z.string().max(120).optional(),
+  titlePlaceholderColumn: z.string().max(120).optional(),
+  subtitleLabel: z.string().max(40).optional(),
+  subtitlePlaceholder: z.string().max(120).optional(),
+  descriptionLabel: z.string().max(40).optional(),
+  descriptionPlaceholder: z.string().max(300).optional(),
+  priceLabel: z.string().max(40).optional(),
+  pricePlaceholder: z.string().max(40).optional(),
+  priceHint: z.string().max(120).optional(),
+  groupByCategoryLabel: z.string().max(80).optional(),
+  publishLabel: z.string().max(80).optional(),
+  submitLabelCourse: z.string().max(80).optional(),
+  submitLabelColumn: z.string().max(80).optional(),
+});
 
 const patchSchema = z.object({
   siteUrl: z.string().max(300).optional(),
@@ -31,6 +58,36 @@ const patchSchema = z.object({
   ossEndpoint: z.string().max(300).optional(),
   ossPublicBaseUrl: z.string().max(300).optional(),
   ossPrefix: z.string().max(120).optional(),
+  videoStorageProvider: z.enum(["LOCAL", "ALIYUN_VOD"]).optional(),
+  vodRegionId: z.string().max(64).optional(),
+  vodAccessKeyId: z.string().max(128).optional(),
+  vodAccessKeySecret: z.string().max(128).optional(),
+  vodTemplateGroupId: z.string().max(128).optional(),
+  vodPlayDomain: z.string().max(300).optional(),
+  uiCopy: z
+    .object({
+      compose: composeCopySchema.optional(),
+    })
+    .optional(),
+  orderForm: z
+    .object({
+      enabled: z.boolean().optional(),
+      title: z.string().max(40).optional(),
+      fields: z
+        .array(
+          z.object({
+            id: z.string().min(1).max(64),
+            label: z.string().min(1).max(40),
+            placeholder: z.string().max(80).optional(),
+            type: z.enum(["text", "textarea", "select", "date"]),
+            required: z.boolean(),
+            options: z.array(z.string().max(80)).max(50).optional(),
+          }),
+        )
+        .max(30)
+        .optional(),
+    })
+    .optional(),
 });
 
 export async function GET() {
@@ -68,6 +125,11 @@ export async function PATCH(req: Request) {
       "ossEndpoint",
       "ossPublicBaseUrl",
       "ossPrefix",
+      "videoStorageProvider",
+      "vodRegionId",
+      "vodAccessKeyId",
+      "vodTemplateGroupId",
+      "vodPlayDomain",
     ] as const;
 
     for (const key of plainKeys) {
@@ -83,6 +145,7 @@ export async function PATCH(req: Request) {
       ["alipayPrivateKey", body.alipayPrivateKey],
       ["alipayPublicKey", body.alipayPublicKey],
       ["ossAccessKeySecret", body.ossAccessKeySecret],
+      ["vodAccessKeySecret", body.vodAccessKeySecret],
     ] as const;
 
     for (const [key, incoming] of secretKeys) {
@@ -93,8 +156,35 @@ export async function PATCH(req: Request) {
       if (next !== undefined) data[key] = next;
     }
 
+    if (body.uiCopy?.compose) {
+      data.uiCopyJson = stringifyUiCopy({
+        compose: {
+          ...DEFAULT_UI_COPY.compose,
+          ...body.uiCopy.compose,
+        },
+      });
+    }
+
+    if (body.orderForm) {
+      const fields = (body.orderForm.fields || []).map((f) => ({
+        id: f.id,
+        label: f.label.trim(),
+        placeholder: (f.placeholder || "").trim(),
+        type: f.type as OrderFormFieldType,
+        required: f.required,
+        options: (f.options || []).map((o) => o.trim()).filter(Boolean),
+      }));
+      data.orderFormJson = stringifyOrderForm({
+        enabled:
+          body.orderForm.enabled ??
+          (fields.length > 0 ? true : DEFAULT_ORDER_FORM.enabled),
+        title: (body.orderForm.title || DEFAULT_ORDER_FORM.title).trim(),
+        fields,
+      });
+    }
+
     if (typeof data.siteUrl === "string") {
-      data.siteUrl = data.siteUrl.replace(/\/$/, "");
+      data.siteUrl = normalizePublicSiteUrl(data.siteUrl);
     }
 
     const row = await prisma.siteSettings.update({

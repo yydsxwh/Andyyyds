@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PRODUCT_TITLE_MAX } from "@/lib/media";
+import type { ComposeUiCopy } from "@/lib/ui-copy";
 
 type Asset = {
   id: string;
@@ -13,9 +14,14 @@ type Asset = {
 type Props = {
   assets: Asset[];
   initialSelectedIds: string[];
+  copy: ComposeUiCopy;
 };
 
-export function ComposeProductForm({ assets, initialSelectedIds }: Props) {
+export function ComposeProductForm({
+  assets,
+  initialSelectedIds,
+  copy,
+}: Props) {
   const router = useRouter();
   const [selected, setSelected] = useState<string[]>(
     initialSelectedIds.filter((id) => assets.some((a) => a.id === id)),
@@ -58,30 +64,62 @@ export function ComposeProductForm({ assets, initialSelectedIds }: Props) {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
     setError("");
-    const res = await fetch("/api/studio/compose", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        productType,
-        title,
-        subtitle,
-        description,
-        price: Number(price),
-        publish,
-        groupByCategory,
-        assetIds: selected,
-      }),
-    });
-    const data = await res.json();
-    setLoading(false);
-    if (!res.ok) {
-      setError(data.error || "创建失败");
+
+    if (selected.length === 0) {
+      setError("请至少选择 1 个素材");
       return;
     }
-    router.push(`/courses/${data.slug}`);
-    router.refresh();
+    const trimmedTitle = title.trim();
+    const trimmedDesc = description.trim();
+    if (trimmedTitle.length < 2) {
+      setError("标题至少需要 2 个字");
+      return;
+    }
+    if (trimmedDesc.length < 2) {
+      setError("产品介绍至少需要 2 个字");
+      return;
+    }
+    if (Number.isNaN(Number(price)) || Number(price) < 0) {
+      setError("请填写有效价格");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch("/api/studio/compose", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productType,
+          title: trimmedTitle,
+          subtitle,
+          description: trimmedDesc,
+          price: Number(price),
+          publish,
+          groupByCategory,
+          assetIds: selected,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        slug?: string;
+      };
+      if (!res.ok) {
+        setError(data.error || "创建失败");
+        return;
+      }
+      if (!data.slug) {
+        setError("创建成功但未返回链接，请到课程列表查看");
+        return;
+      }
+      router.push(`/courses/${data.slug}`);
+      router.refresh();
+    } catch {
+      setError("网络异常，请稍后重试");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -145,68 +183,94 @@ export function ComposeProductForm({ assets, initialSelectedIds }: Props) {
       </div>
 
       <div className="surface space-y-4 rounded-[28px] p-6">
-        <h2 className="text-lg font-semibold">2. 做成可售产品</h2>
+        <h2 className="text-lg font-semibold">{copy.step2Title}</h2>
         <div className="flex gap-2">
           <button
             type="button"
             className={`btn flex-1 ${productType === "COURSE" ? "btn-primary" : "btn-secondary"}`}
             onClick={() => setProductType("COURSE")}
           >
-            单课
+            {copy.courseTypeLabel}
           </button>
           <button
             type="button"
             className={`btn flex-1 ${productType === "COLUMN" ? "btn-primary" : "btn-secondary"}`}
             onClick={() => setProductType("COLUMN")}
           >
-            专栏
+            {copy.columnTypeLabel}
           </button>
         </div>
         <div>
+          <label className="mb-1 block text-sm text-[var(--muted)]">{copy.titleLabel}</label>
           <input
             className="field"
             value={title}
             maxLength={PRODUCT_TITLE_MAX}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder={productType === "COLUMN" ? "专栏标题" : "课程标题"}
+            placeholder={
+              productType === "COLUMN"
+                ? copy.titlePlaceholderColumn
+                : copy.titlePlaceholderCourse
+            }
             required
           />
           <div className="mt-1 text-right text-xs text-[var(--muted)]">
             {title.length}/{PRODUCT_TITLE_MAX}
           </div>
         </div>
-        <input
-          className="field"
-          value={subtitle}
-          maxLength={200}
-          onChange={(e) => setSubtitle(e.target.value)}
-          placeholder="一句话卖点（可选）"
-        />
-        <textarea
-          className="field min-h-32"
-          value={description}
-          maxLength={5000}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="产品介绍：适合谁、能解决什么、包含哪些内容"
-          required
-        />
-        <input
-          className="field"
-          type="number"
-          min="0"
-          step="1"
-          value={price}
-          onChange={(e) => setPrice(e.target.value)}
-          placeholder="售价（元）"
-          required
-        />
+        <div>
+          <label className="mb-1 block text-sm text-[var(--muted)]">{copy.subtitleLabel}</label>
+          <input
+            className="field"
+            value={subtitle}
+            maxLength={200}
+            onChange={(e) => setSubtitle(e.target.value)}
+            placeholder={copy.subtitlePlaceholder}
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm text-[var(--muted)]">{copy.descriptionLabel}</label>
+          <textarea
+            className="field min-h-32"
+            value={description}
+            minLength={2}
+            maxLength={5000}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder={copy.descriptionPlaceholder}
+            required
+          />
+          <div className="mt-1 text-right text-xs text-[var(--muted)]">
+            {description.trim().length}/5000（至少 2 个字）
+          </div>
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-[var(--ink)]">
+            {copy.priceLabel}
+          </label>
+          <div className="relative">
+            <input
+              className="field pr-12"
+              type="number"
+              min="0"
+              step="1"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              placeholder={copy.pricePlaceholder}
+              required
+            />
+            <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm text-[var(--muted)]">
+              元
+            </span>
+          </div>
+          <p className="mt-1 text-xs text-[var(--muted)]">{copy.priceHint}</p>
+        </div>
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"
             checked={groupByCategory}
             onChange={(e) => setGroupByCategory(e.target.checked)}
           />
-          按素材分类自动分章（适合专栏）
+          {copy.groupByCategoryLabel}
         </label>
         <label className="flex items-center gap-2 text-sm">
           <input
@@ -214,7 +278,7 @@ export function ComposeProductForm({ assets, initialSelectedIds }: Props) {
             checked={publish}
             onChange={(e) => setPublish(e.target.checked)}
           />
-          创建后立即上架售卖
+          {copy.publishLabel}
         </label>
         {error ? <p className="text-sm text-red-700">{error}</p> : null}
         <button
@@ -224,7 +288,7 @@ export function ComposeProductForm({ assets, initialSelectedIds }: Props) {
         >
           {loading
             ? "创建中..."
-            : `生成可售${productType === "COLUMN" ? "专栏" : "课程"}（${selected.length} 个素材）`}
+            : `${productType === "COLUMN" ? copy.submitLabelColumn : copy.submitLabelCourse}（${selected.length} 个素材）`}
         </button>
       </div>
     </form>

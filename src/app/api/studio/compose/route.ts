@@ -9,13 +9,30 @@ const schema = z.object({
   productType: z.enum(["COURSE", "COLUMN"]),
   title: z.string().trim().min(2).max(PRODUCT_TITLE_MAX),
   subtitle: z.string().trim().max(200).optional(),
-  description: z.string().trim().min(10).max(5000),
+  description: z.string().trim().min(2).max(5000),
   price: z.coerce.number().min(0),
   coverUrl: z.string().optional(),
   publish: z.boolean().optional(),
   assetIds: z.array(z.string()).min(1),
   groupByCategory: z.boolean().optional(),
 });
+
+type LessonInput = {
+  title: string;
+  sortOrder: number;
+  type: string;
+  content: string;
+  videoUrl: string;
+  durationSec: number;
+  isPreview: boolean;
+  mediaAssetId: string;
+};
+
+type ChapterInput = {
+  title: string;
+  sortOrder: number;
+  lessons: LessonInput[];
+};
 
 export async function POST(req: Request) {
   try {
@@ -35,7 +52,7 @@ export async function POST(req: Request) {
       .map((id) => assets.find((a) => a.id === id))
       .filter(Boolean) as typeof assets;
 
-    const baseSlug = slugify(body.title);
+    const baseSlug = slugify(body.title) || `course-${Date.now()}`;
     let slug = baseSlug;
     let i = 1;
     while (await prisma.course.findUnique({ where: { slug } })) {
@@ -45,27 +62,26 @@ export async function POST(req: Request) {
     const priceCents = Math.round(Number(body.price) * 100);
     const publish = body.publish ?? true;
 
-    const chaptersData = body.groupByCategory
+    const chaptersData: ChapterInput[] = body.groupByCategory
       ? buildChaptersByCategory(ordered)
       : [
           {
             title: body.productType === "COLUMN" ? "专栏目录" : "课程目录",
             sortOrder: 1,
-            lessons: {
-              create: ordered.map((asset, index) => ({
-                title: asset.name,
-                sortOrder: index + 1,
-                type: "VIDEO",
-                content: asset.description,
-                videoUrl: asset.fileUrl,
-                durationSec: asset.durationSec,
-                isPreview: index === 0,
-                mediaAssetId: asset.id,
-              })),
-            },
+            lessons: ordered.map((asset, index) => ({
+              title: asset.name,
+              sortOrder: index + 1,
+              type: "VIDEO",
+              content: asset.description || "",
+              videoUrl: asset.fileUrl,
+              durationSec: asset.durationSec || 0,
+              isPreview: index === 0,
+              mediaAssetId: asset.id,
+            })),
           },
         ];
 
+    // 分步创建，避免 SQLite 深层嵌套偶发失败
     const course = await prisma.course.create({
       data: {
         title: body.title,
@@ -85,9 +101,26 @@ export async function POST(req: Request) {
         status: publish ? "PUBLISHED" : "DRAFT",
         productType: body.productType,
         teacherId: session.id,
-        chapters: { create: chaptersData },
       },
     });
+
+    for (const chapter of chaptersData) {
+      const createdChapter = await prisma.chapter.create({
+        data: {
+          title: chapter.title,
+          sortOrder: chapter.sortOrder,
+          courseId: course.id,
+        },
+      });
+      if (chapter.lessons.length > 0) {
+        await prisma.lesson.createMany({
+          data: chapter.lessons.map((lesson) => ({
+            ...lesson,
+            chapterId: createdChapter.id,
+          })),
+        });
+      }
+    }
 
     return NextResponse.json({ id: course.id, slug: course.slug });
   } catch (error) {
@@ -105,7 +138,7 @@ function buildChaptersByCategory(
     durationSec: number;
     category: { name: string } | null;
   }>,
-) {
+): ChapterInput[] {
   const groups = new Map<string, typeof assets>();
   for (const asset of assets) {
     const key = asset.category?.name || "未分类";
@@ -117,17 +150,15 @@ function buildChaptersByCategory(
   return Array.from(groups.entries()).map(([title, list], chapterIndex) => ({
     title,
     sortOrder: chapterIndex + 1,
-    lessons: {
-      create: list.map((asset, index) => ({
-        title: asset.name,
-        sortOrder: index + 1,
-        type: "VIDEO",
-        content: asset.description,
-        videoUrl: asset.fileUrl,
-        durationSec: asset.durationSec,
-        isPreview: chapterIndex === 0 && index === 0,
-        mediaAssetId: asset.id,
-      })),
-    },
+    lessons: list.map((asset, index) => ({
+      title: asset.name,
+      sortOrder: index + 1,
+      type: "VIDEO",
+      content: asset.description || "",
+      videoUrl: asset.fileUrl,
+      durationSec: asset.durationSec || 0,
+      isPreview: chapterIndex === 0 && index === 0,
+      mediaAssetId: asset.id,
+    })),
   }));
 }

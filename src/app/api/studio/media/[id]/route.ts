@@ -69,7 +69,10 @@ export async function DELETE(
     }
 
     await prisma.mediaAsset.delete({ where: { id } });
-    await deleteStoredFile(asset.fileUrl, session.id);
+    await deleteStoredFile(asset.fileUrl, session.id, {
+      vodVideoId: asset.vodVideoId,
+      storageProvider: asset.storageProvider,
+    });
 
     return NextResponse.json({ ok: true });
   } catch (error) {

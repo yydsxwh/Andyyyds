@@ -4,6 +4,7 @@ import { ComposeProductForm } from "@/components/compose-product-form";
 import { StudioNav } from "@/components/studio-nav";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { getUiCopy } from "@/lib/site-settings";
 
 export const dynamic = "force-dynamic";
 
@@ -24,11 +25,14 @@ export default async function StudioComposePage({
     .map((x) => x.trim())
     .filter(Boolean);
 
-  const assets = await prisma.mediaAsset.findMany({
-    where: { ownerId: session.id },
-    include: { category: true },
-    orderBy: { updatedAt: "desc" },
-  });
+  const [assets, uiCopy] = await Promise.all([
+    prisma.mediaAsset.findMany({
+      where: { ownerId: session.id },
+      include: { category: true },
+      orderBy: { updatedAt: "desc" },
+    }),
+    getUiCopy(),
+  ]);
 
   return (
     <div className="container space-y-6 py-12">
@@ -49,7 +53,11 @@ export default async function StudioComposePage({
           ) : null}
         </p>
       </div>
-      <ComposeProductForm assets={assets} initialSelectedIds={initialSelectedIds} />
+      <ComposeProductForm
+        assets={assets}
+        initialSelectedIds={initialSelectedIds}
+        copy={uiCopy.compose}
+      />
     </div>
   );
 }

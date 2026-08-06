@@ -1,8 +1,10 @@
 import { notFound, redirect } from "next/navigation";
-import { CheckoutPay } from "@/components/checkout-pay";
+import { CheckoutOrderForm } from "@/components/checkout-order-form";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { parseStoredAnswers } from "@/lib/order-form";
 import { getPaymentChannels } from "@/lib/payments";
+import { getOrderFormConfig } from "@/lib/site-settings";
 import { formatPrice } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -26,12 +28,16 @@ export default async function CheckoutPage({
     redirect(`/learn/${order.course.slug}`);
   }
 
-  const channels = await getPaymentChannels();
+  const [channels, orderForm] = await Promise.all([
+    getPaymentChannels(),
+    getOrderFormConfig(),
+  ]);
+  const initialAnswers = parseStoredAnswers(order.formAnswersJson).values;
 
   return (
     <div className="container py-16">
       <div className="surface mx-auto max-w-lg rounded-[28px] p-8">
-        <h1 className="text-2xl font-semibold">确认支付</h1>
+        <h1 className="text-2xl font-semibold">确认订单</h1>
         <p className="mt-2 text-sm text-[var(--muted)]">订单号 {order.orderNo}</p>
         <div className="mt-6 space-y-3 text-sm">
           <div className="flex justify-between gap-4">
@@ -48,10 +54,12 @@ export default async function CheckoutPage({
           </div>
         </div>
         <div className="mt-8">
-          <CheckoutPay
+          <CheckoutOrderForm
             orderId={order.id}
             amount={order.amount}
             channels={channels}
+            orderForm={orderForm}
+            initialAnswers={initialAnswers}
           />
         </div>
       </div>

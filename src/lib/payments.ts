@@ -27,15 +27,46 @@ function envAlipayReady() {
   );
 }
 
+const DEFAULT_SITE_URL = "https://www.yydsxwh.com";
+
+/** 微信 notify_url 校验用的域名形态（避免缺协议、多余路径、空白导致 400） */
+export function normalizePublicSiteUrl(raw: string | null | undefined): string {
+  let value = (raw || "").trim().replace(/[\\\s\u3000]+/g, "");
+  if (!value) return DEFAULT_SITE_URL;
+
+  // 误把回调完整地址填进站点地址时，截回站点根
+  value = value.replace(
+    /\/api\/payments\/(wechat|alipay)\/notify\/?$/i,
+    "",
+  );
+
+  if (!/^https?:\/\//i.test(value)) {
+    value = `https://${value.replace(/^\/+/, "")}`;
+  }
+
+  try {
+    const u = new URL(value);
+    if (!u.hostname || !u.hostname.includes(".")) {
+      return DEFAULT_SITE_URL;
+    }
+    // 只保留协议 + 主机（+端口），支付回调不带站点子路径
+    const port =
+      u.port && u.port !== "80" && u.port !== "443" ? `:${u.port}` : "";
+    return `${u.protocol}//${u.hostname.toLowerCase()}${port}`;
+  } catch {
+    return DEFAULT_SITE_URL;
+  }
+}
+
 export async function getPublicSiteUrl() {
   const settings = await getSiteSettings();
   const fromDb = settings.siteUrl?.trim();
-  if (fromDb) return fromDb.replace(/\/$/, "");
-  return (
+  if (fromDb) return normalizePublicSiteUrl(fromDb);
+  return normalizePublicSiteUrl(
     process.env.NEXT_PUBLIC_SITE_URL ||
-    process.env.SITE_URL ||
-    "https://www.yydsxwh.com"
-  ).replace(/\/$/, "");
+      process.env.SITE_URL ||
+      DEFAULT_SITE_URL,
+  );
 }
 
 export async function getPaymentChannels(): Promise<PaymentChannels> {

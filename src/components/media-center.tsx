@@ -25,12 +25,71 @@ type Asset = {
   durationSec: number;
   categoryId: string | null;
   category: { id: string; name: string } | null;
+  storageProvider?: string;
+  vodVideoId?: string;
 };
 
 type Props = {
   initialCategories: Category[];
   initialAssets: Asset[];
 };
+
+type UploadProgress = {
+  fileIndex: number;
+  fileCount: number;
+  fileName: string;
+  percent: number;
+  loaded: number;
+  total: number;
+  speedBps: number;
+};
+
+function formatSpeed(bps: number) {
+  if (!Number.isFinite(bps) || bps <= 0) return "计算中…";
+  if (bps < 1024) return `${Math.round(bps)} B/s`;
+  if (bps < 1024 * 1024) return `${(bps / 1024).toFixed(1)} KB/s`;
+  return `${(bps / (1024 * 1024)).toFixed(2)} MB/s`;
+}
+
+function uploadWithProgress(
+  form: FormData,
+  onProgress: (loaded: number, total: number) => void,
+): Promise<{ ok: boolean; status: number; data: { asset?: Asset; error?: string } }> {
+  return new Promise((resolve) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/studio/media");
+    xhr.responseType = "json";
+    xhr.upload.onprogress = (event) => {
+      if (!event.lengthComputable) return;
+      onProgress(event.loaded, event.total);
+    };
+    xhr.onload = () => {
+      const data =
+        xhr.response && typeof xhr.response === "object"
+          ? xhr.response
+          : (() => {
+              try {
+                return JSON.parse(xhr.responseText || "{}");
+              } catch {
+                return { error: "上传响应无效" };
+              }
+            })();
+      resolve({
+        ok: xhr.status >= 200 && xhr.status < 300,
+        status: xhr.status,
+        data,
+      });
+    };
+    xhr.onerror = () => {
+      resolve({
+        ok: false,
+        status: 0,
+        data: { error: "网络错误，上传中断" },
+      });
+    };
+    xhr.send(form);
+  });
+}
 
 export function MediaCenter({ initialCategories, initialAssets }: Props) {
   const router = useRouter();
@@ -41,13 +100,25 @@ export function MediaCenter({ initialCategories, initialAssets }: Props) {
   const [query, setQuery] = useState("");
   const [message, setMessage] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(
+    null,
+  );
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [externalUrl, setExternalUrl] = useState("");
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [newCategoryName, setNewCategoryName] = useState("");
+
+  function assetNameForFile(file: File, index: number, total: number) {
+    const base = file.name.replace(/\.[^.]+$/, "").trim() || file.name;
+    const trimmed = name.trim();
+    if (!trimmed) return base.slice(0, ASSET_NAME_MAX);
+    if (total === 1) return trimmed.slice(0, ASSET_NAME_MAX);
+    const suffix = ` (${index + 1})`;
+    return `${trimmed.slice(0, Math.max(1, ASSET_NAME_MAX - suffix.length))}${suffix}`;
+  }
 
   const filtered = useMemo(() => {
     return assets.filter((asset) => {
@@ -131,26 +202,110 @@ export function MediaCenter({ initialCategories, initialAssets }: Props) {
     e.preventDefault();
     setUploading(true);
     setMessage("");
-    const form = new FormData();
-    form.set("name", name);
-    form.set("description", description);
-    if (categoryId) form.set("categoryId", categoryId);
-    if (externalUrl) form.set("externalUrl", externalUrl);
-    if (file) form.set("file", file);
+    setUploadProgress(null);
 
-    const res = await fetch("/api/studio/media", { method: "POST", body: form });
-    const data = await res.json();
-    setUploading(false);
-    if (!res.ok) {
-      setMessage(data.error || "上传失败");
+    if (files.length === 0 && !externalUrl.trim()) {
+      setUploading(false);
+      setMessage("请选择至少一个视频文件，或填写视频外链");
       return;
     }
-    setAssets((prev) => [data.asset, ...prev]);
-    setName("");
-    setDescription("");
-    setExternalUrl("");
-    setFile(null);
-    setMessage("素材已入库");
+
+    if (files.length === 0 && externalUrl.trim() && !name.trim()) {
+      setUploading(false);
+      setMessage("使用外链入库时请填写素材名称");
+      return;
+    }
+
+    const uploaded: Asset[] = [];
+    const errors: string[] = [];
+
+    if (files.length > 0) {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const form = new FormData();
+        form.set("name", assetNameForFile(file, i, files.length));
+        form.set("description", description);
+        if (categoryId) form.set("categoryId", categoryId);
+        form.set("file", file);
+
+        let lastLoaded = 0;
+        let lastAt = Date.now();
+        let speedBps = 0;
+
+        setUploadProgress({
+          fileIndex: i + 1,
+          fileCount: files.length,
+          fileName: file.name,
+          percent: 0,
+          loaded: 0,
+          total: file.size,
+          speedBps: 0,
+        });
+        setMessage(`正在上传 ${i + 1}/${files.length}：${file.name}`);
+
+        const result = await uploadWithProgress(form, (loaded, total) => {
+          const now = Date.now();
+          const dt = (now - lastAt) / 1000;
+          if (dt >= 0.25) {
+            speedBps = Math.max(0, (loaded - lastLoaded) / dt);
+            lastLoaded = loaded;
+            lastAt = now;
+          }
+          const percent = total > 0 ? Math.min(100, Math.round((loaded / total) * 100)) : 0;
+          setUploadProgress({
+            fileIndex: i + 1,
+            fileCount: files.length,
+            fileName: file.name,
+            percent,
+            loaded,
+            total,
+            speedBps,
+          });
+        });
+
+        if (!result.ok || !result.data.asset) {
+          errors.push(`${file.name}：${result.data.error || "上传失败"}`);
+          continue;
+        }
+        uploaded.push(result.data.asset);
+      }
+    } else {
+      const form = new FormData();
+      form.set("name", name.trim());
+      form.set("description", description);
+      if (categoryId) form.set("categoryId", categoryId);
+      form.set("externalUrl", externalUrl.trim());
+      setMessage("正在保存外链素材…");
+      const result = await uploadWithProgress(form, () => undefined);
+      if (!result.ok || !result.data.asset) {
+        setUploading(false);
+        setUploadProgress(null);
+        setMessage(result.data.error || "上传失败");
+        return;
+      }
+      uploaded.push(result.data.asset);
+    }
+
+    setUploading(false);
+    setUploadProgress(null);
+    if (uploaded.length > 0) {
+      setAssets((prev) => [...uploaded, ...prev]);
+      setName("");
+      setDescription("");
+      setExternalUrl("");
+      setFiles([]);
+    }
+    if (errors.length && uploaded.length) {
+      setMessage(`成功入库 ${uploaded.length} 个；失败 ${errors.length} 个。${errors[0]}`);
+    } else if (errors.length) {
+      setMessage(errors.join("；"));
+    } else {
+      setMessage(
+        uploaded.length > 1
+          ? `已入库 ${uploaded.length} 个素材`
+          : "素材已入库",
+      );
+    }
     router.refresh();
   }
 
@@ -227,9 +382,30 @@ export function MediaCenter({ initialCategories, initialAssets }: Props) {
         </button>
       </div>
 
-      {message ? (
+      {message || uploadProgress ? (
         <div className="rounded-2xl border border-[var(--line)] bg-white/70 px-4 py-3 text-sm">
-          {message}
+          {message ? <div>{message}</div> : null}
+          {uploadProgress ? (
+            <div className={message ? "mt-3" : ""}>
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--muted)]">
+                <span>
+                  第 {uploadProgress.fileIndex}/{uploadProgress.fileCount} 个 ·{" "}
+                  {uploadProgress.percent}%
+                </span>
+                <span>
+                  {formatBytes(uploadProgress.loaded)} /{" "}
+                  {formatBytes(uploadProgress.total)} ·{" "}
+                  {formatSpeed(uploadProgress.speedBps)}
+                </span>
+              </div>
+              <div className="mt-2 h-2 overflow-hidden rounded-full bg-[rgba(28,36,48,0.08)]">
+                <div
+                  className="h-full rounded-full bg-[var(--brand)] transition-[width] duration-150"
+                  style={{ width: `${uploadProgress.percent}%` }}
+                />
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -239,14 +415,19 @@ export function MediaCenter({ initialCategories, initialAssets }: Props) {
           <div>
             <label className="mb-1 block text-sm text-[var(--muted)]">
               素材名称（最多 {ASSET_NAME_MAX} 字）
+              {files.length > 1 ? " · 多选时可选，用作统一前缀" : ""}
             </label>
             <input
               className="field"
               value={name}
               maxLength={ASSET_NAME_MAX}
               onChange={(e) => setName(e.target.value)}
-              placeholder="例如：第 3 讲｜从痛点切入的详情页话术拆解与完整演示"
-              required
+              placeholder={
+                files.length > 1
+                  ? "可选：多文件统一前缀；留空则用各自文件名"
+                  : "例如：第 3 讲｜从痛点切入的详情页话术拆解与完整演示"
+              }
+              required={files.length === 0}
             />
             <div className="mt-1 text-right text-xs text-[var(--muted)]">
               {name.length}/{ASSET_NAME_MAX}
@@ -274,20 +455,39 @@ export function MediaCenter({ initialCategories, initialAssets }: Props) {
               </option>
             ))}
           </select>
-          <input
-            className="field"
-            type="file"
-            accept="video/mp4,video/webm,video/quicktime,video/x-msvideo,video/mpeg"
-            onChange={(e) => setFile(e.target.files?.[0] || null)}
-          />
+          <div>
+            <input
+              className="field"
+              type="file"
+              multiple
+              accept="video/mp4,video/webm,video/quicktime,video/x-msvideo,video/mpeg"
+              onChange={(e) => setFiles(Array.from(e.target.files || []))}
+            />
+            {files.length > 0 ? (
+              <p className="mt-2 text-xs text-[var(--muted)]">
+                已选 {files.length} 个文件
+                {files.length <= 3
+                  ? `：${files.map((f) => f.name).join("、")}`
+                  : `：${files
+                      .slice(0, 3)
+                      .map((f) => f.name)
+                      .join("、")} 等`}
+              </p>
+            ) : null}
+          </div>
           <input
             className="field"
             value={externalUrl}
             onChange={(e) => setExternalUrl(e.target.value)}
-            placeholder="或填写视频外链（http/https）"
+            placeholder="或填写单个视频外链（http/https）"
+            disabled={files.length > 0}
           />
           <button className="btn btn-primary w-full" disabled={uploading} type="submit">
-            {uploading ? "上传中..." : "保存到素材库"}
+            {uploading
+              ? "上传中..."
+              : files.length > 1
+                ? `保存 ${files.length} 个到素材库`
+                : "保存到素材库"}
           </button>
         </form>
 
@@ -400,7 +600,17 @@ export function MediaCenter({ initialCategories, initialAssets }: Props) {
                     <button className="btn btn-secondary px-3 py-2 text-sm" type="button" onClick={() => renameAsset(asset)}>
                       重命名
                     </button>
-                    <a className="btn btn-secondary px-3 py-2 text-sm" href={asset.fileUrl} target="_blank" rel="noreferrer">
+                    <a
+                      className="btn btn-secondary px-3 py-2 text-sm"
+                      href={
+                        asset.fileUrl.startsWith("vod:") ||
+                        asset.storageProvider === "ALIYUN_VOD"
+                          ? `/api/studio/media/${asset.id}/play`
+                          : asset.fileUrl
+                      }
+                      target="_blank"
+                      rel="noreferrer"
+                    >
                       预览
                     </a>
                     <button className="btn btn-secondary px-3 py-2 text-sm" type="button" onClick={() => removeAsset(asset.id)}>

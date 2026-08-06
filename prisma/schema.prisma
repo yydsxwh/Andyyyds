@@ -83,7 +83,7 @@ model SiteSettings {
   /// sandbox | production
   alipayGateway    String @default("production")
 
-  /// LOCAL | ALIYUN_OSS
+  /// 其他文件（图片/附件）存储：LOCAL | ALIYUN_OSS
   storageProvider   String @default("LOCAL")
   ossRegion         String @default("")
   ossBucket         String @default("")
@@ -92,6 +92,25 @@ model SiteSettings {
   ossEndpoint       String @default("")
   ossPublicBaseUrl  String @default("")
   ossPrefix         String @default("uploads")
+
+  /// 课程视频存储：LOCAL | ALIYUN_VOD（与 OSS 可同时启用）
+  videoStorageProvider String @default("LOCAL")
+  vodRegionId          String @default("cn-shanghai")
+  vodAccessKeyId       String @default("")
+  vodAccessKeySecret   String @default("")
+  /// 不转码模板组，常见值 VOD_NO_TRANSCODE
+  vodTemplateGroupId   String @default("VOD_NO_TRANSCODE")
+  /// 播放域名（选填，不含协议）
+  vodPlayDomain        String @default("")
+
+  /// 后台/表单文案配置（JSON），属轻量 CMS，不是店铺装修
+  uiCopyJson String @default("")
+
+  /// 下单信息采集字段配置（JSON）：商家自定义「所在学校」等表单项
+  orderFormJson String @default("")
+
+  /// 店铺 DIY 装修配置（JSON）：Logo、首页 Banner 等视觉门面
+  decorateJson String @default("")
 
   updatedAt DateTime @updatedAt
 }
@@ -136,6 +155,10 @@ model MediaAsset {
   mimeType    String         @default("")
   sizeBytes   Int            @default(0)
   durationSec Int            @default(0)
+  /// LOCAL | ALIYUN_OSS | ALIYUN_VOD | EXTERNAL
+  storageProvider String     @default("LOCAL")
+  /// 阿里云点播 VideoId
+  vodVideoId  String         @default("")
   ownerId     String
   owner       User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   categoryId  String?
@@ -271,6 +294,8 @@ model Order {
   codeUrl         String       @default("")
   couponId        String?
   referralCode    String?
+  /// 用户填写的下单信息采集答案（JSON）
+  formAnswersJson String       @default("")
   paidAt          DateTime?
   user            User         @relation(fields: [userId], references: [id])
   course          Course       @relation(fields: [courseId], references: [id])

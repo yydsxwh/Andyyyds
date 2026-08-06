@@ -14,9 +14,11 @@ type Props = {
     alipay: boolean;
     mockOnly: boolean;
   };
+  /** 发起支付前钩子（如下单信息采集未完成则返回 false） */
+  beforePay?: () => Promise<boolean>;
 };
 
-export function CheckoutPay({ orderId, amount, channels }: Props) {
+export function CheckoutPay({ orderId, amount, channels, beforePay }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -62,6 +64,15 @@ export function CheckoutPay({ orderId, amount, channels }: Props) {
     setActive("WECHAT");
     setLoading(true);
     setError("");
+    if (beforePay) {
+      const ok = await beforePay();
+      if (!ok) {
+        setLoading(false);
+        setError("请先完成上方必填信息");
+        setStatusText("请先填写信息");
+        return;
+      }
+    }
     setStatusText("正在生成微信支付二维码…");
     const res = await fetch(`/api/orders/${orderId}/pay`, {
       method: "POST",
@@ -97,6 +108,15 @@ export function CheckoutPay({ orderId, amount, channels }: Props) {
     setActive("ALIPAY");
     setLoading(true);
     setError("");
+    if (beforePay) {
+      const ok = await beforePay();
+      if (!ok) {
+        setLoading(false);
+        setError("请先完成上方必填信息");
+        setStatusText("请先填写信息");
+        return;
+      }
+    }
     setStatusText("正在跳转支付宝…");
     const res = await fetch(`/api/orders/${orderId}/pay`, {
       method: "POST",
@@ -121,6 +141,14 @@ export function CheckoutPay({ orderId, amount, channels }: Props) {
   async function mockPay() {
     setLoading(true);
     setError("");
+    if (beforePay) {
+      const ok = await beforePay();
+      if (!ok) {
+        setLoading(false);
+        setError("请先完成上方必填信息");
+        return;
+      }
+    }
     const res = await fetch(`/api/orders/${orderId}/pay`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

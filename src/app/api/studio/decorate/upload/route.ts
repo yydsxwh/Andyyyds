@@ -1,0 +1,51 @@
+import { NextResponse } from "next/server";
+import { storeUpload } from "@/lib/storage";
+import { requireAdmin, studioErrorResponse } from "@/lib/studio";
+
+export const runtime = "nodejs";
+
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const ALLOWED_IMAGE_MIME = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/jpg",
+  "image/webp",
+  "image/gif",
+  "image/svg+xml",
+]);
+
+export async function POST(req: Request) {
+  try {
+    const session = await requireAdmin();
+    const form = await req.formData();
+    const file = form.get("file");
+
+    if (!(file instanceof File) || file.size <= 0) {
+      return NextResponse.json({ error: "请选择图片文件" }, { status: 400 });
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      return NextResponse.json({ error: "图片不能超过 8MB" }, { status: 400 });
+    }
+    const mime = file.type || "application/octet-stream";
+    if (!ALLOWED_IMAGE_MIME.has(mime) && !/\.(png|jpe?g|webp|gif|svg)$/i.test(file.name)) {
+      return NextResponse.json(
+        { error: "仅支持 png / jpg / webp / gif / svg" },
+        { status: 400 },
+      );
+    }
+
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const stored = await storeUpload({
+      ownerId: session.id,
+      fileName: file.name || "image.png",
+      buffer,
+      mimeType: mime.startsWith("image/") ? mime : "image/png",
+      kind: "file",
+    });
+
+    return NextResponse.json({ url: stored.fileUrl });
+  } catch (error) {
+    const mapped = studioErrorResponse(error);
+    return NextResponse.json({ error: mapped.error }, { status: mapped.status });
+  }
+}

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { PurchasePanel } from "@/components/purchase-panel";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { getOrderFormConfig } from "@/lib/site-settings";
 import { formatDuration, formatPrice } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -38,6 +39,7 @@ export default async function CourseDetailPage({
     : false;
 
   const lessonCount = course.chapters.reduce((n, c) => n + c.lessons.length, 0);
+  const orderForm = await getOrderFormConfig();
 
   return (
     <div className="container grid gap-8 py-12 lg:grid-cols-[1.4fr_0.8fr]">
@@ -102,6 +104,7 @@ export default async function CourseDetailPage({
           isFree={course.isFree}
           enrolled={enrolled}
           slug={course.slug}
+          orderForm={orderForm}
         />
       </div>
     </div>

@@ -9,7 +9,10 @@ const baseLinks = [
 ] as const;
 
 const adminLinks = [
+  { href: "/studio/orders", label: "订单查看", key: "orders" },
   { href: "/studio/merchants", label: "商家管理", key: "merchants" },
+  { href: "/studio/decorate", label: "店铺装修", key: "decorate" },
+  { href: "/studio/cms", label: "内容管理", key: "cms" },
   { href: "/studio/settings", label: "系统设置", key: "settings" },
 ] as const;
 
@@ -21,7 +24,10 @@ export async function StudioNav({
     | "media"
     | "compose"
     | "distribution"
+    | "orders"
     | "merchants"
+    | "decorate"
+    | "cms"
     | "settings";
 }) {
   const session = await getSession();

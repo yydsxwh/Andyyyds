@@ -82,6 +82,8 @@ export async function POST(req: Request) {
     let fileName = "";
     let mimeType = "";
     let sizeBytes = 0;
+    let storageProvider = "LOCAL";
+    let vodVideoId = "";
 
     if (file instanceof File && file.size > 0) {
       if (file.size > MAX_UPLOAD_BYTES) {
@@ -95,16 +97,26 @@ export async function POST(req: Request) {
       }
 
       const buffer = Buffer.from(await file.arrayBuffer());
-      const stored = await storeUpload({
-        ownerId: session.id,
-        fileName: file.name || "video.mp4",
-        buffer,
-        mimeType: file.type || "video/mp4",
-      });
-      fileUrl = stored.fileUrl;
-      fileName = file.name;
-      mimeType = file.type || "video/mp4";
-      sizeBytes = file.size;
+      try {
+        const stored = await storeUpload({
+          ownerId: session.id,
+          fileName: file.name || "video.mp4",
+          buffer,
+          mimeType: file.type || "video/mp4",
+          title: parsed.name,
+          kind: "video",
+        });
+        fileUrl = stored.fileUrl;
+        fileName = file.name;
+        mimeType = file.type || "video/mp4";
+        sizeBytes = file.size;
+        storageProvider = stored.provider;
+        vodVideoId = stored.vodVideoId || "";
+      } catch (uploadError) {
+        const message =
+          uploadError instanceof Error ? uploadError.message : "上传失败";
+        return NextResponse.json({ error: message }, { status: 400 });
+      }
     } else if (externalUrl) {
       try {
         const url = new URL(externalUrl);
@@ -117,6 +129,7 @@ export async function POST(req: Request) {
       fileUrl = externalUrl;
       fileName = externalUrl.split("/").pop() || "external-video";
       mimeType = "video/mp4";
+      storageProvider = "EXTERNAL";
     } else {
       return NextResponse.json({ error: "请上传视频文件或填写视频链接" }, { status: 400 });
     }
@@ -131,6 +144,8 @@ export async function POST(req: Request) {
         mimeType,
         sizeBytes,
         durationSec: parsed.durationSec || 0,
+        storageProvider,
+        vodVideoId,
         ownerId: session.id,
         categoryId: parsed.categoryId || null,
       },

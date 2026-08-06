@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type Lesson = {
@@ -42,6 +42,40 @@ export function LearnPlayer({
   const [activeId, setActiveId] = useState(initialLessonId || flat[0]?.id);
   const active = flat.find((l) => l.id === activeId) || flat[0];
   const locked = active ? !(canAccessAll || active.isPreview) : true;
+  const [playSrc, setPlaySrc] = useState("");
+  const [playError, setPlayError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadPlayUrl() {
+      if (!active || locked || active.type !== "VIDEO" || !active.videoUrl) {
+        setPlaySrc("");
+        setPlayError("");
+        return;
+      }
+      if (!active.videoUrl.startsWith("vod:")) {
+        setPlaySrc(active.videoUrl);
+        setPlayError("");
+        return;
+      }
+      setPlaySrc("");
+      setPlayError("");
+      const res = await fetch(`/api/media/play?lessonId=${active.id}`, {
+        cache: "no-store",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (cancelled) return;
+      if (!res.ok) {
+        setPlayError(data.error || "获取播放地址失败");
+        return;
+      }
+      setPlaySrc(data.playUrl || "");
+    }
+    void loadPlayUrl();
+    return () => {
+      cancelled = true;
+    };
+  }, [active, locked]);
 
   async function markComplete() {
     if (!enrollmentId || !active) return;
@@ -75,7 +109,22 @@ export function LearnPlayer({
               </div>
             </div>
           ) : active.type === "VIDEO" && active.videoUrl ? (
-            <video className="aspect-video w-full bg-black" controls src={active.videoUrl} />
+            playError ? (
+              <div className="flex aspect-video items-center justify-center bg-[var(--bg-deep)] p-8 text-center text-sm text-red-700">
+                {playError}
+              </div>
+            ) : playSrc ? (
+              <video
+                key={playSrc}
+                className="aspect-video w-full bg-black"
+                controls
+                src={playSrc}
+              />
+            ) : (
+              <div className="flex aspect-video items-center justify-center bg-[var(--bg-deep)] text-sm text-[var(--muted)]">
+                正在加载播放地址…
+              </div>
+            )
           ) : active.type === "LIVE" ? (
             <div className="flex aspect-video items-center justify-center bg-[var(--bg-deep)] p-8 text-center">
               <div>

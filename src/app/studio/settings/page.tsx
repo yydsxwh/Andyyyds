@@ -19,7 +19,7 @@ export default async function StudioSettingsPage() {
       <div>
         <h1 className="text-3xl font-semibold">系统设置</h1>
         <p className="mt-2 text-sm text-[var(--muted)]">
-          配置微信支付、支付宝与素材存储方式。密钥仅站长可改，保存后即时生效，无需改服务器文件。
+          配置站点地址、支付，以及存储分流：课程视频用点播、其他文件用 OSS。文案请到「内容管理」，视觉请到「店铺装修」。
         </p>
       </div>
       <SiteSettingsPanel initial={settings} />

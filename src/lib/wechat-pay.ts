@@ -82,6 +82,7 @@ async function wechatRequest<T>(
     headers: {
       Authorization: auth,
       Accept: "application/json",
+      "Accept-Language": "zh-CN",
       "Content-Type": "application/json",
       "User-Agent": "yyds-course-platform",
     },
@@ -110,7 +111,14 @@ export async function createNativePayment(input: {
   amountCents: number;
 }) {
   const cfg = await getWechatConfig();
-  const notifyUrl = `${await getPublicSiteUrl()}/api/payments/wechat/notify`;
+  const siteUrl = await getPublicSiteUrl();
+  const notifyUrl = `${siteUrl}/api/payments/wechat/notify`;
+  // 微信要求 notify_url 必须是合法 http(s) 绝对地址
+  if (!/^https?:\/\/[^\s/?#]+/i.test(notifyUrl)) {
+    throw new Error(
+      `支付回调地址无效（${notifyUrl}）。请在系统设置把「站点公网地址」设为 https://www.yydsxwh.com`,
+    );
+  }
   const data = await wechatRequest<{ code_url?: string }>(
     "POST",
     "/v3/pay/transactions/native",

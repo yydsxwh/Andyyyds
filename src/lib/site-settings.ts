@@ -1,6 +1,10 @@
 import { prisma } from "./db";
+import { parseDecorate, type DecorateConfig } from "./decorate";
+import { parseOrderForm, type OrderFormConfig } from "./order-form";
+import { parseUiCopy, type UiCopy } from "./ui-copy";
 
 export type StorageProvider = "LOCAL" | "ALIYUN_OSS";
+export type VideoStorageProvider = "LOCAL" | "ALIYUN_VOD";
 export type PaymentModeSetting = "auto" | "mock" | "wechat" | "alipay" | "both";
 
 export type SiteSettingsRow = {
@@ -26,6 +30,15 @@ export type SiteSettingsRow = {
   ossEndpoint: string;
   ossPublicBaseUrl: string;
   ossPrefix: string;
+  videoStorageProvider: string;
+  vodRegionId: string;
+  vodAccessKeyId: string;
+  vodAccessKeySecret: string;
+  vodTemplateGroupId: string;
+  vodPlayDomain: string;
+  uiCopyJson: string;
+  orderFormJson: string;
+  decorateJson: string;
   updatedAt: Date;
 };
 
@@ -47,6 +60,21 @@ export async function getSiteSettings(): Promise<SiteSettingsRow> {
   });
   cache = { at: Date.now(), row };
   return row;
+}
+
+export async function getUiCopy(): Promise<UiCopy> {
+  const row = await getSiteSettings();
+  return parseUiCopy(row.uiCopyJson);
+}
+
+export async function getOrderFormConfig(): Promise<OrderFormConfig> {
+  const row = await getSiteSettings();
+  return parseOrderForm(row.orderFormJson);
+}
+
+export async function getDecorateConfig(): Promise<DecorateConfig> {
+  const row = await getSiteSettings();
+  return parseDecorate(row.decorateJson);
 }
 
 export function maskSecret(value: string, keep = 4) {
@@ -101,6 +129,21 @@ export function publicSiteSettings(row: SiteSettingsRow) {
         row.ossAccessKeyId &&
         row.ossAccessKeySecret,
     ),
+    videoStorageProvider: (row.videoStorageProvider ||
+      "LOCAL") as VideoStorageProvider,
+    vodRegionId: row.vodRegionId || "cn-shanghai",
+    vodAccessKeyId: row.vodAccessKeyId,
+    vodAccessKeySecret: row.vodAccessKeySecret
+      ? maskSecret(row.vodAccessKeySecret)
+      : "",
+    vodTemplateGroupId: row.vodTemplateGroupId || "VOD_NO_TRANSCODE",
+    vodPlayDomain: row.vodPlayDomain || "",
+    vodConfigured: Boolean(
+      row.vodAccessKeyId?.trim() && row.vodAccessKeySecret?.trim(),
+    ),
+    uiCopy: parseUiCopy(row.uiCopyJson),
+    orderForm: parseOrderForm(row.orderFormJson),
+    decorate: parseDecorate(row.decorateJson),
     updatedAt: row.updatedAt.toISOString(),
   };
 }

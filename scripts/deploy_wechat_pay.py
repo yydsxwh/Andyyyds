@@ -85,6 +85,13 @@ def main():
     run(c, f"mkdir -p {REMOTE_DIR}/.deploy_backup {REMOTE_DIR}/certs")
     run(c, f"cp -f {REMOTE_DIR}/.env {REMOTE_DIR}/.deploy_backup/.env || true")
     run(c, f"cp -f {REMOTE_DIR}/prisma/prod.db {REMOTE_DIR}/.deploy_backup/prod.db || true")
+    # 保留本地上传素材，避免部署后预览 404
+    run(
+        c,
+        f"rm -rf {REMOTE_DIR}/.deploy_backup/uploads && "
+        f"test -d {REMOTE_DIR}/public/uploads && "
+        f"cp -a {REMOTE_DIR}/public/uploads {REMOTE_DIR}/.deploy_backup/uploads || true",
+    )
     run(c, f"rm -rf {REMOTE_DIR}/src {REMOTE_DIR}/prisma {REMOTE_DIR}/public {REMOTE_DIR}/scripts")
     run(
         c,
@@ -95,6 +102,13 @@ def main():
         c,
         f"test -f {REMOTE_DIR}/.deploy_backup/prod.db && "
         f"cp -f {REMOTE_DIR}/.deploy_backup/prod.db {REMOTE_DIR}/prisma/prod.db || true",
+    )
+    run(
+        c,
+        f"test -d {REMOTE_DIR}/.deploy_backup/uploads && "
+        f"mkdir -p {REMOTE_DIR}/public && "
+        f"rm -rf {REMOTE_DIR}/public/uploads && "
+        f"cp -a {REMOTE_DIR}/.deploy_backup/uploads {REMOTE_DIR}/public/uploads || true",
     )
 
     # Ensure public site url for notify callback
