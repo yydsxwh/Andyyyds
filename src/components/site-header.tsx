@@ -14,7 +14,7 @@ import { resolveStoredAccessUrl } from "@/lib/storage";
 /**
  * 全站顶栏：门户导航（公司/个人/网课资料/商城等）+ 登录态相关入口
  * 课程广场与资料广场不占顶栏位，在 /courses|/materials 页内 Tab 切换。
- * 桌面端导航水平居中；字号由 --fs-nav / --fs-brand 控制（站长可在装扮里调）。
+ * 桌面端三栏网格居中导航，避免绝对定位换行后盖住下方按钮（曾导致误点进 404）。
  */
 export async function SiteHeader() {
   const [session, decorate, portal, studioNav] = await Promise.all([
@@ -57,15 +57,15 @@ export async function SiteHeader() {
   }
 
   return (
-    <header className="sticky top-0 z-40 overflow-visible border-b border-[var(--line)] bg-[rgba(255,255,255,0.82)] backdrop-blur-md">
+    <header className="sticky top-0 z-40 border-b border-[var(--line)] bg-[rgba(255,255,255,0.82)] backdrop-blur-md">
       {/*
-        三区布局：左品牌、中导航（绝对居中）、右账号。
-        不用固定 h-14 裁切大字号；min-height + 纵向居中适配站长调大的 --fs-nav。
+        左品牌 | 中导航 | 右账号：导航占中间列水平居中，不绝对定位到整页，
+        换行也只在顶栏内增高，不会盖住「下一步」等页面按钮。
       */}
-      <div className="relative flex min-h-14 w-full items-center gap-2 px-2.5 py-2 sm:min-h-16 sm:gap-3 sm:px-3 lg:px-4">
+      <div className="grid min-h-14 w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 px-2.5 py-2 sm:min-h-16 sm:gap-3 sm:px-3 lg:px-4">
         <Link
           href="/"
-          className="relative z-10 flex shrink-0 items-center gap-1.5 self-center sm:gap-2"
+          className="flex shrink-0 items-center gap-1.5 self-center sm:gap-2"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -83,9 +83,13 @@ export async function SiteHeader() {
           ) : null}
         </Link>
 
-        {/* 桌面导航绝对居中整条顶栏；汉堡菜单仍落在右侧账号区 */}
-        <div className="relative z-10 ml-auto flex min-w-0 items-center gap-2 sm:gap-3 lg:gap-4">
-          <SiteHeaderNav links={links} />
+        {/* 桌面导航：中间列居中；窄屏隐藏，改用右侧汉堡 */}
+        <div className="hidden min-w-0 justify-center lg:flex">
+          <SiteHeaderNav links={links} variant="desktop" />
+        </div>
+
+        <div className="flex min-w-0 items-center justify-end gap-2 sm:gap-3 lg:gap-4">
+          <SiteHeaderNav links={links} variant="mobile" />
           {session ? (
             <>
               {/* 右上角头像+昵称 → 个人中心；触控区域足够大，手机可点 */}

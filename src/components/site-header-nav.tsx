@@ -13,6 +13,8 @@ export type HeaderNavLink = {
 
 type Props = {
   links: HeaderNavLink[];
+  /** desktop=中间列居中菜单；mobile=汉堡（仅窄屏显示） */
+  variant?: "desktop" | "mobile";
 };
 
 function DesktopDropdown({
@@ -108,7 +110,39 @@ function DesktopDropdown({
   );
 }
 
-export function SiteHeaderNav({ links }: Props) {
+function DesktopNav({ links }: { links: HeaderNavLink[] }) {
+  return (
+    <nav
+      className="flex max-w-full items-center justify-center overflow-x-auto text-[var(--muted)] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      aria-label="主导航"
+      style={{ fontSize: "var(--fs-nav)" }}
+    >
+      {/* 单行横向滚动，避免换行溢出盖住页面主按钮 */}
+      <div className="flex flex-nowrap items-center justify-center gap-x-5 xl:gap-x-7">
+        {links.map((link) =>
+          link.children?.length ? (
+            <DesktopDropdown
+              key={`dd-${link.label}`}
+              label={link.label}
+              href={link.href}
+              children={link.children}
+            />
+          ) : link.href ? (
+            <Link
+              key={link.href + link.label}
+              href={link.href}
+              className="whitespace-nowrap hover:text-[var(--ink)]"
+            >
+              {link.label}
+            </Link>
+          ) : null,
+        )}
+      </div>
+    </nav>
+  );
+}
+
+function MobileNav({ links }: { links: HeaderNavLink[] }) {
   const [open, setOpen] = useState(false);
   const [mobileOpenKey, setMobileOpenKey] = useState<string | null>(null);
 
@@ -122,43 +156,10 @@ export function SiteHeaderNav({ links }: Props) {
   }, [open]);
 
   return (
-    <>
-      {/*
-        相对顶栏整条水平居中：pointer-events 仅落在链接上，避免挡住左右品牌/账号点击。
-        字号读 --fs-nav（站长可在网站装扮里调）。
-      */}
-      <nav
-        className="pointer-events-none absolute inset-x-0 top-1/2 z-0 hidden -translate-y-1/2 justify-center lg:flex"
-        aria-label="主导航"
-      >
-        <div
-          className="pointer-events-auto flex max-w-[min(100%,56rem)] flex-wrap items-center justify-center gap-x-5 gap-y-1 text-[var(--muted)] xl:gap-x-7"
-          style={{ fontSize: "var(--fs-nav)" }}
-        >
-          {links.map((link) =>
-            link.children?.length ? (
-              <DesktopDropdown
-                key={`dd-${link.label}`}
-                label={link.label}
-                href={link.href}
-                children={link.children}
-              />
-            ) : link.href ? (
-              <Link
-                key={link.href + link.label}
-                href={link.href}
-                className="whitespace-nowrap hover:text-[var(--ink)]"
-              >
-                {link.label}
-              </Link>
-            ) : null,
-          )}
-        </div>
-      </nav>
-
+    <div className="relative lg:hidden">
       <button
         type="button"
-        className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[var(--line)] bg-white/70 text-[var(--ink)] lg:hidden"
+        className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[var(--line)] bg-white/70 text-[var(--ink)]"
         aria-expanded={open}
         aria-label={open ? "关闭菜单" : "打开菜单"}
         onClick={() => setOpen((v) => !v)}
@@ -176,9 +177,9 @@ export function SiteHeaderNav({ links }: Props) {
       </button>
 
       {open ? (
-        <div className="absolute inset-x-0 top-full z-50 border-b border-[var(--line)] bg-white/97 px-3 py-3 shadow-lg backdrop-blur-md lg:hidden">
+        <div className="absolute right-0 top-full z-50 mt-2 w-[min(100vw-1.5rem,20rem)] rounded-2xl border border-[var(--line)] bg-white/97 px-2 py-2 shadow-lg backdrop-blur-md">
           <nav
-            className="flex flex-col gap-1"
+            className="flex max-h-[70vh] flex-col gap-1 overflow-y-auto"
             style={{ fontSize: "var(--fs-nav)" }}
           >
             {links.map((link) => {
@@ -248,6 +249,13 @@ export function SiteHeaderNav({ links }: Props) {
           </nav>
         </div>
       ) : null}
-    </>
+    </div>
   );
+}
+
+export function SiteHeaderNav({ links, variant = "desktop" }: Props) {
+  if (variant === "mobile") {
+    return <MobileNav links={links} />;
+  }
+  return <DesktopNav links={links} />;
 }

@@ -82,6 +82,8 @@ export function ComposeProductForm({
   } | null>(null);
   /** 刚做完框选时吞掉随后的 click，避免再 toggle 一次 */
   const suppressCardClickRef = useRef(false);
+  /** Shift 范围点选的锚点（最近一次非 Shift 点击） */
+  const selectionAnchorIdRef = useRef<string | null>(null);
 
   const selectedAssets = useMemo(
     () =>
@@ -100,6 +102,10 @@ export function ComposeProductForm({
     setChecked((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
+  }
+
+  function isCtrlOrMeta(e: { ctrlKey: boolean; metaKey: boolean }) {
+    return e.ctrlKey || e.metaKey;
   }
 
   function registerCardEl(id: string, el: HTMLElement | null) {
@@ -132,30 +138,36 @@ export function ComposeProductForm({
     return hit;
   }
 
+  function rangeIdsBetween(fromId: string, toId: string) {
+    const ids = catalogAssets.map((a) => a.id);
+    const from = ids.indexOf(fromId);
+    const to = ids.indexOf(toId);
+    if (from < 0 || to < 0) return [toId];
+    const start = Math.min(from, to);
+    const end = Math.max(from, to);
+    return ids.slice(start, end + 1);
+  }
+
   function onCatalogPointerDown(e: React.PointerEvent<HTMLDivElement>) {
     // 触控留给整卡点选与列表滚动；框选仅鼠标左键
     if (e.pointerType !== "mouse" || e.button !== 0) return;
     const target = e.target as HTMLElement | null;
     if (target?.closest("[data-drag-handle]")) return;
-    if (target?.closest("input, button, a")) return;
+    if (target?.closest("button, a")) return;
 
     const list = catalogListRef.current;
     if (!list) return;
     const rect = list.getBoundingClientRect();
+    // 先不 capture：普通点击要正常冒泡到卡片 onClick；超过阈值再 capture
     marqueeSessionRef.current = {
       pointerId: e.pointerId,
       originX: e.clientX - rect.left + list.scrollLeft,
       originY: e.clientY - rect.top + list.scrollTop,
       active: false,
-      // Shift 追加勾选，否则框选结果替换当前勾选
-      additive: e.shiftKey,
+      // Ctrl / Shift 框选：在原有勾选上追加
+      additive: e.shiftKey || isCtrlOrMeta(e),
       baseChecked: [...checked],
     };
-    try {
-      list.setPointerCapture(e.pointerId);
-    } catch {
-      // ignore
-    }
   }
 
   function onCatalogPointerMove(e: React.PointerEvent<HTMLDivElement>) {
@@ -169,14 +181,19 @@ export function ComposeProductForm({
     const y = e.clientY - rect.top + list.scrollTop;
     const dx = x - session.originX;
     const dy = y - session.originY;
-    if (
-      !session.active &&
-      Math.hypot(dx, dy) < MARQUEE_THRESHOLD_PX
-    ) {
+    if (!session.active && Math.hypot(dx, dy) < MARQUEE_THRESHOLD_PX) {
       return;
     }
-    session.active = true;
-    suppressCardClickRef.current = true;
+
+    if (!session.active) {
+      session.active = true;
+      suppressCardClickRef.current = true;
+      try {
+        list.setPointerCapture(e.pointerId);
+      } catch {
+        // ignore
+      }
+    }
 
     // 内容坐标：绝对定位子元素会随列表滚动，需用 scroll 后的坐标系
     const box = {
@@ -214,9 +231,35 @@ export function ComposeProductForm({
     }
   }
 
-  function onCatalogCardClick(id: string) {
+  /**
+   * 点选：
+   * - 单击：勾选 / 再点取消（toggle）
+   * - Ctrl/Cmd+单击：同样 toggle，便于多选加减
+   * - Shift+单击：从锚点到当前项范围勾选（再加 Ctrl 则并入已有）
+   */
+  function onCatalogCardClick(id: string, e: React.MouseEvent | React.KeyboardEvent) {
     if (suppressCardClickRef.current) return;
+
+    const shift = "shiftKey" in e && e.shiftKey;
+    const ctrl = isCtrlOrMeta({
+      ctrlKey: "ctrlKey" in e ? e.ctrlKey : false,
+      metaKey: "metaKey" in e ? e.metaKey : false,
+    });
+
+    if (shift) {
+      const anchor = selectionAnchorIdRef.current || id;
+      const range = rangeIdsBetween(anchor, id);
+      if (ctrl) {
+        setChecked((prev) => [...new Set([...prev, ...range])]);
+      } else {
+        setChecked(range);
+      }
+      return;
+    }
+
+    // 普通点击 / Ctrl 点击：点选与再点取消
     toggleChecked(id);
+    selectionAnchorIdRef.current = id;
   }
 
   function addToSelected(ids: string[]) {
@@ -384,7 +427,7 @@ export function ComposeProductForm({
                 </span>
               </div>
               <p className="text-sm text-[var(--muted)]">
-                点击整张卡片即可勾选；按住鼠标左键拖动可框选多个。右侧把手可拖到导入区；手机上点卡片即可。
+                单击卡片勾选，再点取消；Ctrl 点选加减；Shift 点选范围；拖动可框选。右侧「拖」可导入；手机点卡片即可。
               </p>
               <div
                 ref={catalogListRef}
@@ -403,11 +446,11 @@ export function ComposeProductForm({
                       role="checkbox"
                       aria-checked={isChecked}
                       tabIndex={0}
-                      onClick={() => onCatalogCardClick(asset.id)}
+                      onClick={(e) => onCatalogCardClick(asset.id, e)}
                       onKeyDown={(e) => {
                         if (e.key === " " || e.key === "Enter") {
                           e.preventDefault();
-                          onCatalogCardClick(asset.id);
+                          onCatalogCardClick(asset.id, e);
                         }
                       }}
                       className={`flex min-h-12 cursor-pointer items-start gap-3 rounded-2xl border px-3 py-3 ${
@@ -429,7 +472,7 @@ export function ComposeProductForm({
                           {asset.name}
                         </span>
                         <span className="mt-1 block text-xs text-[var(--muted)]">
-                          {asset.category?.name || "未分类"} · 点卡片勾选
+                          {asset.category?.name || "未分类"} · 点选 / Ctrl / Shift
                         </span>
                       </span>
                       {/* 拖拽把手与框选分离，避免整卡 draggable 抢鼠标 */}
@@ -590,9 +633,11 @@ export function ComposeProductForm({
             </p>
             <button
               type="button"
-              className="btn btn-accent"
+              className="btn btn-accent relative z-10"
               disabled={selected.length === 0}
-              onClick={() => {
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
                 setError("");
                 setStep(2);
               }}
