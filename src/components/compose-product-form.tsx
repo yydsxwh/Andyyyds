@@ -1,9 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PRODUCT_TITLE_MAX } from "@/lib/media";
+import { productDetailPath } from "@/lib/product-types";
 import type { ComposeUiCopy } from "@/lib/ui-copy";
+
+/** 超过该像素才算拖拽框选，避免误当成点击 */
+const MARQUEE_THRESHOLD_PX = 6;
 
 type Asset = {
   id: string;
@@ -11,9 +15,13 @@ type Asset = {
   category: { name: string } | null;
 };
 
+type ProductTypeChoice = "COURSE" | "COLUMN" | "MATERIAL";
+
 type Props = {
   assets: Asset[];
   initialSelectedIds: string[];
+  /** 深链预选类型：如从「创建资料」入口带 ?type=MATERIAL */
+  initialProductType?: ProductTypeChoice;
   copy: ComposeUiCopy;
 };
 
@@ -23,9 +31,17 @@ type DragPayload =
 
 const DRAG_MIME = "application/x-yyds-compose-asset";
 
+function normalizeProductType(
+  value: ProductTypeChoice | undefined,
+): ProductTypeChoice {
+  if (value === "COLUMN" || value === "MATERIAL") return value;
+  return "COURSE";
+}
+
 export function ComposeProductForm({
   assets,
   initialSelectedIds,
+  initialProductType,
   copy,
 }: Props) {
   const router = useRouter();
@@ -34,7 +50,9 @@ export function ComposeProductForm({
   const [selected, setSelected] = useState<string[]>(
     initialSelectedIds.filter((id) => assets.some((a) => a.id === id)),
   );
-  const [productType, setProductType] = useState<"COURSE" | "COLUMN">("COURSE");
+  const [productType, setProductType] = useState<ProductTypeChoice>(() =>
+    normalizeProductType(initialProductType),
+  );
   const [title, setTitle] = useState("");
   const [subtitle, setSubtitle] = useState("");
   const [description, setDescription] = useState("");
@@ -45,6 +63,25 @@ export function ComposeProductForm({
   const [error, setError] = useState("");
   const [dragOverSelected, setDragOverSelected] = useState(false);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  /** 左侧目录框选矩形（相对 list 可视区域） */
+  const [marquee, setMarquee] = useState<{
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const catalogListRef = useRef<HTMLDivElement>(null);
+  const cardElsRef = useRef<Map<string, HTMLElement>>(new Map());
+  const marqueeSessionRef = useRef<{
+    pointerId: number;
+    originX: number;
+    originY: number;
+    active: boolean;
+    additive: boolean;
+    baseChecked: string[];
+  } | null>(null);
+  /** 刚做完框选时吞掉随后的 click，避免再 toggle 一次 */
+  const suppressCardClickRef = useRef(false);
 
   const selectedAssets = useMemo(
     () =>
@@ -63,6 +100,123 @@ export function ComposeProductForm({
     setChecked((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
+  }
+
+  function registerCardEl(id: string, el: HTMLElement | null) {
+    if (el) cardElsRef.current.set(id, el);
+    else cardElsRef.current.delete(id);
+  }
+
+  /** box 为列表内容坐标（含 scrollTop/Left）；与卡片可视矩形做相交判断 */
+  function idsIntersectingMarquee(
+    list: HTMLDivElement,
+    box: { left: number; top: number; width: number; height: number },
+  ) {
+    const listRect = list.getBoundingClientRect();
+    const abs = {
+      left: listRect.left + box.left - list.scrollLeft,
+      top: listRect.top + box.top - list.scrollTop,
+      right: listRect.left + box.left - list.scrollLeft + box.width,
+      bottom: listRect.top + box.top - list.scrollTop + box.height,
+    };
+    const hit: string[] = [];
+    for (const [id, el] of cardElsRef.current) {
+      const r = el.getBoundingClientRect();
+      const overlap =
+        r.left < abs.right &&
+        r.right > abs.left &&
+        r.top < abs.bottom &&
+        r.bottom > abs.top;
+      if (overlap) hit.push(id);
+    }
+    return hit;
+  }
+
+  function onCatalogPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    // 触控留给整卡点选与列表滚动；框选仅鼠标左键
+    if (e.pointerType !== "mouse" || e.button !== 0) return;
+    const target = e.target as HTMLElement | null;
+    if (target?.closest("[data-drag-handle]")) return;
+    if (target?.closest("input, button, a")) return;
+
+    const list = catalogListRef.current;
+    if (!list) return;
+    const rect = list.getBoundingClientRect();
+    marqueeSessionRef.current = {
+      pointerId: e.pointerId,
+      originX: e.clientX - rect.left + list.scrollLeft,
+      originY: e.clientY - rect.top + list.scrollTop,
+      active: false,
+      // Shift 追加勾选，否则框选结果替换当前勾选
+      additive: e.shiftKey,
+      baseChecked: [...checked],
+    };
+    try {
+      list.setPointerCapture(e.pointerId);
+    } catch {
+      // ignore
+    }
+  }
+
+  function onCatalogPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    const session = marqueeSessionRef.current;
+    if (!session || session.pointerId !== e.pointerId) return;
+    const list = catalogListRef.current;
+    if (!list) return;
+
+    const rect = list.getBoundingClientRect();
+    const x = e.clientX - rect.left + list.scrollLeft;
+    const y = e.clientY - rect.top + list.scrollTop;
+    const dx = x - session.originX;
+    const dy = y - session.originY;
+    if (
+      !session.active &&
+      Math.hypot(dx, dy) < MARQUEE_THRESHOLD_PX
+    ) {
+      return;
+    }
+    session.active = true;
+    suppressCardClickRef.current = true;
+
+    // 内容坐标：绝对定位子元素会随列表滚动，需用 scroll 后的坐标系
+    const box = {
+      left: Math.min(session.originX, x),
+      top: Math.min(session.originY, y),
+      width: Math.abs(dx),
+      height: Math.abs(dy),
+    };
+    setMarquee(box);
+
+    const hit = idsIntersectingMarquee(list, box);
+    if (session.additive) {
+      setChecked([...new Set([...session.baseChecked, ...hit])]);
+    } else {
+      setChecked(hit);
+    }
+  }
+
+  function endCatalogMarquee(e: React.PointerEvent<HTMLDivElement>) {
+    const session = marqueeSessionRef.current;
+    if (!session || session.pointerId !== e.pointerId) return;
+    marqueeSessionRef.current = null;
+    setMarquee(null);
+    const list = catalogListRef.current;
+    try {
+      list?.releasePointerCapture(e.pointerId);
+    } catch {
+      // ignore
+    }
+    if (session.active) {
+      // 下一帧再允许卡片 click，避免 pointerup 后的 click 反选
+      window.setTimeout(() => {
+        suppressCardClickRef.current = false;
+      }, 0);
+    }
+  }
+
+  function onCatalogCardClick(id: string) {
+    if (suppressCardClickRef.current) return;
+    toggleChecked(id);
   }
 
   function addToSelected(ids: string[]) {
@@ -202,7 +356,7 @@ export function ComposeProductForm({
         setError("创建成功但未返回链接，请到课程列表查看");
         return;
       }
-      router.push(`/courses/${data.slug}`);
+      router.push(productDetailPath(data.slug, productType));
       router.refresh();
     } catch {
       setError("网络异常，请稍后重试");
@@ -230,43 +384,84 @@ export function ComposeProductForm({
                 </span>
               </div>
               <p className="text-sm text-[var(--muted)]">
-                勾选多个素材后点「加入已选」，或用鼠标按住拖到右侧导入区。
+                点击整张卡片即可勾选；按住鼠标左键拖动可框选多个。右侧把手可拖到导入区；手机上点卡片即可。
               </p>
-              <div className="max-h-[480px] space-y-2 overflow-y-auto pr-1">
+              <div
+                ref={catalogListRef}
+                className="relative max-h-[480px] space-y-2 overflow-y-auto pr-1 select-none"
+                onPointerDown={onCatalogPointerDown}
+                onPointerMove={onCatalogPointerMove}
+                onPointerUp={endCatalogMarquee}
+                onPointerCancel={endCatalogMarquee}
+              >
                 {catalogAssets.map((asset) => {
                   const isChecked = checked.includes(asset.id);
                   return (
                     <div
                       key={asset.id}
-                      draggable
-                      onDragStart={(e) => {
-                        setDragData(e, { source: "catalog", id: asset.id });
+                      ref={(el) => registerCardEl(asset.id, el)}
+                      role="checkbox"
+                      aria-checked={isChecked}
+                      tabIndex={0}
+                      onClick={() => onCatalogCardClick(asset.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === " " || e.key === "Enter") {
+                          e.preventDefault();
+                          onCatalogCardClick(asset.id);
+                        }
                       }}
-                      className={`flex cursor-grab items-start gap-3 rounded-2xl border px-3 py-3 active:cursor-grabbing ${
+                      className={`flex min-h-12 cursor-pointer items-start gap-3 rounded-2xl border px-3 py-3 ${
                         isChecked
-                          ? "border-[var(--brand)] bg-[rgba(15,107,92,0.06)]"
+                          ? "border-[var(--brand)] bg-[var(--brand-soft)]"
                           : "border-[var(--line)] bg-white/60"
                       }`}
                     >
                       <input
                         type="checkbox"
-                        className="mt-1"
+                        className="pointer-events-none mt-1"
                         checked={isChecked}
-                        onChange={() => toggleChecked(asset.id)}
-                        onClick={(e) => e.stopPropagation()}
-                        aria-label={`选择 ${asset.name}`}
+                        readOnly
+                        tabIndex={-1}
+                        aria-hidden
                       />
                       <span className="min-w-0 flex-1">
                         <span className="block break-words font-medium leading-snug">
                           {asset.name}
                         </span>
                         <span className="mt-1 block text-xs text-[var(--muted)]">
-                          {asset.category?.name || "未分类"} · 拖拽可导入
+                          {asset.category?.name || "未分类"} · 点卡片勾选
                         </span>
+                      </span>
+                      {/* 拖拽把手与框选分离，避免整卡 draggable 抢鼠标 */}
+                      <span
+                        data-drag-handle
+                        draggable
+                        title="拖到右侧导入"
+                        aria-label={`拖拽导入 ${asset.name}`}
+                        onClick={(e) => e.stopPropagation()}
+                        onDragStart={(e) => {
+                          e.stopPropagation();
+                          setDragData(e, { source: "catalog", id: asset.id });
+                        }}
+                        className="mt-0.5 inline-flex min-h-10 min-w-10 shrink-0 cursor-grab items-center justify-center rounded-xl border border-[var(--line)] bg-white/90 text-xs text-[var(--muted)] active:cursor-grabbing"
+                      >
+                        拖
                       </span>
                     </div>
                   );
                 })}
+                {marquee ? (
+                  <div
+                    aria-hidden
+                    className="pointer-events-none absolute z-10 rounded-md border border-[var(--brand)] bg-[var(--brand-soft)]/50"
+                    style={{
+                      left: marquee.left,
+                      top: marquee.top,
+                      width: marquee.width,
+                      height: marquee.height,
+                    }}
+                  />
+                ) : null}
               </div>
               {assets.length === 0 ? (
                 <p className="text-sm text-[var(--muted)]">
@@ -328,7 +523,7 @@ export function ComposeProductForm({
 
               {selectedAssets.length === 0 ? (
                 <div className="flex min-h-[200px] items-center justify-center rounded-2xl border border-dashed border-[var(--line)] bg-white/50 px-4 py-8 text-center text-sm text-[var(--muted)]">
-                  拖拽素材到此处，或勾选后点「加入已选」
+                  拖拽素材到此处，或点选/框选后点「加入已选」
                 </div>
               ) : (
                 <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
@@ -441,27 +636,34 @@ export function ComposeProductForm({
           <div className="surface space-y-4 rounded-[28px] p-6">
             <h2 className="text-lg font-semibold">{copy.step2Title}</h2>
             <div className="flex items-center gap-2">
-              <div className="flex min-w-0 flex-1 gap-2">
+              <div className="flex min-w-0 flex-1 flex-wrap gap-2">
                 <button
                   type="button"
-                  className={`btn flex-1 ${productType === "COURSE" ? "btn-primary" : "btn-secondary"}`}
+                  className={`btn min-h-11 flex-1 ${productType === "COURSE" ? "btn-primary" : "btn-secondary"}`}
                   onClick={() => setProductType("COURSE")}
                 >
                   {copy.courseTypeLabel}
                 </button>
                 <button
                   type="button"
-                  className={`btn flex-1 ${productType === "COLUMN" ? "btn-primary" : "btn-secondary"}`}
+                  className={`btn min-h-11 flex-1 ${productType === "COLUMN" ? "btn-primary" : "btn-secondary"}`}
                   onClick={() => setProductType("COLUMN")}
                 >
                   {copy.columnTypeLabel}
+                </button>
+                <button
+                  type="button"
+                  className={`btn min-h-11 flex-1 ${productType === "MATERIAL" ? "btn-primary" : "btn-secondary"}`}
+                  onClick={() => setProductType("MATERIAL")}
+                >
+                  资料
                 </button>
               </div>
               <span className="group relative shrink-0">
                 <button
                   type="button"
                   className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--line)] bg-white/80 text-xs font-medium text-[var(--muted)] transition hover:border-[var(--brand)] hover:text-[var(--brand)] focus-visible:border-[var(--brand)] focus-visible:text-[var(--brand)] focus-visible:outline-none"
-                  aria-label="单课与专栏的区别"
+                  aria-label="单课、专栏与资料的区别"
                   aria-describedby="product-type-help"
                 >
                   ?
@@ -479,6 +681,10 @@ export function ComposeProductForm({
                     <span className="font-medium text-[var(--brand)]">专栏</span>
                     ：做成系列/合集产品，前台展示为「专栏」，适合多内容打包或按分类分章售卖。
                   </span>
+                  <span className="mt-1.5 block">
+                    <span className="font-medium text-[var(--brand)]">资料</span>
+                    ：文档/图片/音视频等打包售卖，出现在「资料广场」，支持优惠券与分销分享。
+                  </span>
                 </span>
               </span>
             </div>
@@ -492,9 +698,11 @@ export function ComposeProductForm({
                 maxLength={PRODUCT_TITLE_MAX}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder={
-                  productType === "COLUMN"
-                    ? copy.titlePlaceholderColumn
-                    : copy.titlePlaceholderCourse
+                  productType === "MATERIAL"
+                    ? "例如：考研真题资料包"
+                    : productType === "COLUMN"
+                      ? copy.titlePlaceholderColumn
+                      : copy.titlePlaceholderCourse
                 }
                 required
               />
@@ -587,7 +795,13 @@ export function ComposeProductForm({
               >
                 {loading
                   ? "创建中..."
-                  : `${productType === "COLUMN" ? copy.submitLabelColumn : copy.submitLabelCourse}（${selected.length} 个素材）`}
+                  : `${
+                      productType === "MATERIAL"
+                        ? "创建资料并上架"
+                        : productType === "COLUMN"
+                          ? copy.submitLabelColumn
+                          : copy.submitLabelCourse
+                    }（${selected.length} 个素材）`}
               </button>
             </div>
           </div>
@@ -614,7 +828,7 @@ function StepPill({
         active
           ? "bg-[var(--brand)] text-white"
           : done
-            ? "bg-[rgba(15,107,92,0.12)] text-[var(--brand)]"
+            ? "bg-[var(--brand-soft)] text-[var(--brand)]"
             : "bg-[var(--bg)] text-[var(--muted)]"
       }`}
     >

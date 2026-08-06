@@ -1,3 +1,19 @@
+import { DEFAULT_SITE_HERO_URL } from "@/lib/cover-images";
+import {
+  DEFAULT_BACKGROUND_ID,
+  DEFAULT_FONT_SIZES,
+  DEFAULT_LAYOUT_DENSITY,
+  DEFAULT_PALETTE_ID,
+  DEFAULT_THEME_PACK_ID,
+  backgroundById,
+  normalizeFontSizes,
+  normalizeLayoutDensity,
+  paletteById,
+  themePackById,
+  type FontSizesConfig,
+  type LayoutDensity,
+} from "@/lib/site-theme";
+
 export type DecorateBanner = {
   id: string;
   url: string;
@@ -15,12 +31,22 @@ export type DecorateConfig = {
   /** 首页右侧主视觉；若 banners 非空则优先用 banners[0] */
   heroImageUrl: string;
   banners: DecorateBanner[];
+  /** 一键主题包 id（仅记录来源；实际生效看 palette/background） */
+  themePackId: string;
+  /** 配色方案 id → CSS 变量 */
+  paletteId: string;
+  /** 背景方案 id → body 背景层 */
+  backgroundId: string;
+  /** 轻量版式密度 */
+  layoutDensity: LayoutDensity;
+  /** 各区块字号（px），站长在「网站装扮 → 字号」调整 */
+  fontSizes: FontSizesConfig;
 };
 
 export const DEFAULT_LOGO_URL = "/brand/logo.png";
 
-const DEFAULT_HERO_IMAGE =
-  "https://images.unsplash.com/photo-1524178232363-1fb2b075b655?auto=format&fit=crop&w=1400&q=80";
+/** 首页主视觉：本地 public/covers，与课程封面图库一致 */
+const DEFAULT_HERO_IMAGE = DEFAULT_SITE_HERO_URL;
 
 export const DEFAULT_DECORATE: DecorateConfig = {
   logoUrl: DEFAULT_LOGO_URL,
@@ -38,6 +64,11 @@ export const DEFAULT_DECORATE: DecorateConfig = {
       alt: "学员在线学习",
     },
   ],
+  themePackId: DEFAULT_THEME_PACK_ID,
+  paletteId: DEFAULT_PALETTE_ID,
+  backgroundId: DEFAULT_BACKGROUND_ID,
+  layoutDensity: DEFAULT_LAYOUT_DENSITY,
+  fontSizes: { ...DEFAULT_FONT_SIZES },
 };
 
 function newId() {
@@ -49,6 +80,27 @@ export function newBanner(partial?: Partial<DecorateBanner>): DecorateBanner {
     id: partial?.id || newId(),
     url: (partial?.url || "").trim(),
     alt: (partial?.alt || "").trim(),
+  };
+}
+
+function resolveThemeFields(parsed: Partial<DecorateConfig>) {
+  // 若只存了 themePackId，用主题包补齐配色/背景，保证旧数据与一键装扮一致
+  const pack = themePackById(parsed.themePackId);
+  const paletteId = paletteById(
+    parsed.paletteId || pack?.paletteId || DEFAULT_PALETTE_ID,
+  ).id;
+  const backgroundId = backgroundById(
+    parsed.backgroundId || pack?.backgroundId || DEFAULT_BACKGROUND_ID,
+  ).id;
+  const themePackId =
+    (parsed.themePackId || "").trim() ||
+    (pack ? pack.id : DEFAULT_THEME_PACK_ID);
+  return {
+    themePackId,
+    paletteId,
+    backgroundId,
+    layoutDensity: normalizeLayoutDensity(parsed.layoutDensity),
+    fontSizes: normalizeFontSizes(parsed.fontSizes),
   };
 }
 
@@ -69,6 +121,7 @@ export function parseDecorate(raw: string | null | undefined): DecorateConfig {
 
     const brandName =
       (parsed.brandName || DEFAULT_DECORATE.brandName).trim() || "歪歪艾斯";
+    const theme = resolveThemeFields(parsed);
     return {
       logoUrl: (parsed.logoUrl || DEFAULT_DECORATE.logoUrl).trim() || DEFAULT_LOGO_URL,
       siteName:
@@ -89,6 +142,7 @@ export function parseDecorate(raw: string | null | undefined): DecorateConfig {
         (parsed.heroImageUrl || banners[0]?.url || DEFAULT_DECORATE.heroImageUrl).trim() ||
         DEFAULT_HERO_IMAGE,
       banners: banners.length ? banners : structuredClone(DEFAULT_DECORATE.banners),
+      ...theme,
     };
   } catch {
     return structuredClone(DEFAULT_DECORATE);

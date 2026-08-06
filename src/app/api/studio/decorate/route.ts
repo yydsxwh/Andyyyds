@@ -6,6 +6,16 @@ import {
   parseDecorate,
   stringifyDecorate,
 } from "@/lib/decorate";
+import {
+  DEFAULT_BACKGROUND_ID,
+  DEFAULT_LAYOUT_DENSITY,
+  DEFAULT_PALETTE_ID,
+  backgroundById,
+  normalizeFontSizes,
+  normalizeLayoutDensity,
+  paletteById,
+  themePackById,
+} from "@/lib/site-theme";
 import { requireAdmin, studioErrorResponse } from "@/lib/studio";
 import {
   getSiteSettings,
@@ -27,6 +37,20 @@ const patchSchema = z.object({
   heroSubtext: z.string().max(500).optional(),
   heroImageUrl: z.string().max(800).optional(),
   banners: z.array(bannerSchema).max(20).optional(),
+  themePackId: z.string().max(64).optional(),
+  paletteId: z.string().max(64).optional(),
+  backgroundId: z.string().max(64).optional(),
+  layoutDensity: z.enum(["default", "compact", "airy"]).optional(),
+  fontSizes: z
+    .object({
+      nav: z.number().optional(),
+      brand: z.number().optional(),
+      heroTitle: z.number().optional(),
+      heroSubtext: z.number().optional(),
+      sectionTitle: z.number().optional(),
+      sectionDesc: z.number().optional(),
+    })
+    .optional(),
 });
 
 export async function GET() {
@@ -59,6 +83,29 @@ export async function PATCH(req: Request) {
 
     const brandName =
       (body.brandName ?? current.brandName).trim() || DEFAULT_DECORATE.brandName;
+
+    // 一键主题包优先：若显式传了 themePackId 且能解析，用包内配色/背景覆盖
+    let themePackId = (body.themePackId ?? current.themePackId).trim();
+    let paletteId = (body.paletteId ?? current.paletteId).trim();
+    let backgroundId = (body.backgroundId ?? current.backgroundId).trim();
+    const pack = themePackById(themePackId);
+    if (body.themePackId !== undefined && pack) {
+      themePackId = pack.id;
+      // 仅当本次没单独改配色/背景时，才用主题包覆盖
+      if (body.paletteId === undefined) paletteId = pack.paletteId;
+      if (body.backgroundId === undefined) backgroundId = pack.backgroundId;
+    }
+    paletteId = paletteById(paletteId || DEFAULT_PALETTE_ID).id;
+    backgroundId = backgroundById(backgroundId || DEFAULT_BACKGROUND_ID).id;
+    const layoutDensity = normalizeLayoutDensity(
+      body.layoutDensity ?? current.layoutDensity ?? DEFAULT_LAYOUT_DENSITY,
+    );
+    // 字号可局部 PATCH：未传的键保留库中值
+    const fontSizes = normalizeFontSizes({
+      ...current.fontSizes,
+      ...(body.fontSizes || {}),
+    });
+
     const next = {
       logoUrl: (body.logoUrl ?? current.logoUrl).trim() || DEFAULT_DECORATE.logoUrl,
       siteName:
@@ -76,6 +123,11 @@ export async function PATCH(req: Request) {
         (body.heroImageUrl ?? banners[0]?.url ?? current.heroImageUrl).trim() ||
         DEFAULT_DECORATE.heroImageUrl,
       banners: banners.length ? banners : structuredClone(DEFAULT_DECORATE.banners),
+      themePackId: themePackId || "",
+      paletteId,
+      backgroundId,
+      layoutDensity,
+      fontSizes,
     };
 
     const row = await prisma.siteSettings.update({

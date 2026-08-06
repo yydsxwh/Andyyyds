@@ -1,26 +1,24 @@
 import type { Metadata, Viewport } from "next";
-import { Manrope, Fraunces } from "next/font/google";
+import type { CSSProperties } from "react";
+import { ReferralCapture } from "@/components/referral-capture";
 import { SiteHeader } from "@/components/site-header";
 import { DEFAULT_DECORATE, DEFAULT_LOGO_URL } from "@/lib/decorate";
 import { getDecorateConfig } from "@/lib/site-settings";
+import { buildThemeStyleVars, paletteById } from "@/lib/site-theme";
 import "./globals.css";
 
-export const viewport: Viewport = {
-  width: "device-width",
-  initialScale: 1,
-  viewportFit: "cover",
-  themeColor: "#f7f3eb",
-};
+// 不用 next/font/google：香港机器构建时常拉不到 fonts.googleapis.com 导致整站发版失败。
+// 字体栈在 globals.css 的 --font-body / --font-display 中定义。
 
-const body = Manrope({
-  variable: "--font-body",
-  subsets: ["latin"],
-});
-
-const display = Fraunces({
-  variable: "--font-display",
-  subsets: ["latin"],
-});
+export async function generateViewport(): Promise<Viewport> {
+  const decorate = await getDecorateConfig();
+  return {
+    width: "device-width",
+    initialScale: 1,
+    viewportFit: "cover",
+    themeColor: paletteById(decorate.paletteId).tokens.bg,
+  };
+}
 
 export async function generateMetadata(): Promise<Metadata> {
   const decorate = await getDecorateConfig();
@@ -46,10 +44,18 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     decorate.siteName?.trim() ||
     decorate.brandName?.trim() ||
     DEFAULT_DECORATE.siteName;
+  // 站长装扮：把配色/背景写入 html，全站（含微信内）即时读 CSS 变量
+  const themeStyle = buildThemeStyleVars({
+    paletteId: decorate.paletteId,
+    backgroundId: decorate.backgroundId,
+    layoutDensity: decorate.layoutDensity,
+    fontSizes: decorate.fontSizes,
+  }) as CSSProperties;
 
   return (
-    <html lang="zh-CN" className={`${body.variable} ${display.variable} h-full`}>
+    <html lang="zh-CN" className="h-full" style={themeStyle}>
       <body className="min-h-full flex flex-col antialiased">
+        <ReferralCapture />
         <SiteHeader />
         <main className="flex-1">{children}</main>
         <footer className="border-t border-[var(--line)] py-8 text-sm text-[var(--muted)]">
@@ -62,7 +68,10 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                 className="h-8 w-auto max-w-[160px] object-contain"
               />
               {decorate.showBrandText ? (
-                <span className="brand-mark text-lg text-[var(--ink)]">
+                <span
+                  className="brand-mark text-[var(--ink)]"
+                  style={{ fontSize: "var(--fs-brand)" }}
+                >
                   {decorate.brandName}
                 </span>
               ) : null}

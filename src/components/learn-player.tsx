@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type Lesson = {
@@ -44,6 +44,9 @@ export function LearnPlayer({
   const locked = active ? !(canAccessAll || active.isPreview) : true;
   const [playSrc, setPlaySrc] = useState("");
   const [playError, setPlayError] = useState("");
+  /** CSS 伪横屏全屏（不依赖系统旋转权限） */
+  const [landscapeFs, setLandscapeFs] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -53,11 +56,7 @@ export function LearnPlayer({
         setPlayError("");
         return;
       }
-      if (!active.videoUrl.startsWith("vod:")) {
-        setPlaySrc(active.videoUrl);
-        setPlayError("");
-        return;
-      }
+      // 点播与私有 OSS 均走服务端签发，避免直链 403
       setPlaySrc("");
       setPlayError("");
       const res = await fetch(`/api/media/play?lessonId=${active.id}`, {
@@ -77,6 +76,36 @@ export function LearnPlayer({
     };
   }, [active, locked]);
 
+  // 切课时退出伪全屏，避免旧视频仍盖住页面
+  useEffect(() => {
+    setLandscapeFs(false);
+  }, [activeId]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const body = document.body;
+    if (landscapeFs) {
+      root.classList.add("learn-landscape-fs");
+      body.classList.add("learn-landscape-fs");
+    } else {
+      root.classList.remove("learn-landscape-fs");
+      body.classList.remove("learn-landscape-fs");
+    }
+    return () => {
+      root.classList.remove("learn-landscape-fs");
+      body.classList.remove("learn-landscape-fs");
+    };
+  }, [landscapeFs]);
+
+  useEffect(() => {
+    if (!landscapeFs) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLandscapeFs(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [landscapeFs]);
+
   async function markComplete() {
     if (!enrollmentId || !active) return;
     await fetch("/api/progress", {
@@ -91,6 +120,19 @@ export function LearnPlayer({
     router.refresh();
   }
 
+  /**
+   * 横屏全屏：用 CSS 把播放器旋成横屏铺满（不依赖系统「竖屏锁定」）。
+   * iPhone 点原生全屏按钮时常仍锁竖屏，所以单独提供此入口。
+   */
+  function enterLandscapeFullscreen() {
+    setLandscapeFs(true);
+    void videoRef.current?.play().catch(() => undefined);
+  }
+
+  function exitLandscapeFullscreen() {
+    setLandscapeFs(false);
+  }
+
   if (!active) {
     return <p className="text-[var(--muted)]">暂无课时</p>;
   }
@@ -98,7 +140,10 @@ export function LearnPlayer({
   return (
     <div className="grid gap-6 lg:grid-cols-[1.35fr_0.75fr]">
       <div className="space-y-4">
-        <div className="surface overflow-hidden rounded-[28px]">
+        <div
+          className="learn-video-shell surface overflow-hidden rounded-[28px]"
+          data-landscape-fs={landscapeFs ? "1" : "0"}
+        >
           {locked ? (
             <div className="flex aspect-video items-center justify-center bg-[var(--bg-deep)] p-8 text-center">
               <div>
@@ -114,25 +159,56 @@ export function LearnPlayer({
                 {playError}
               </div>
             ) : playSrc ? (
-              <video
-                key={playSrc}
-                className="aspect-video w-full bg-black"
-                controls
-                playsInline
-                preload="metadata"
-                src={playSrc}
-                // 微信 X5 内核内联播放
-                {...{
-                  "webkit-playsinline": "true",
-                  "x5-playsinline": "true",
-                  "x5-video-player-type": "h5",
-                }}
-              />
+              <>
+                <video
+                  key={playSrc}
+                  ref={videoRef}
+                  className="aspect-video w-full bg-black"
+                  controls
+                  playsInline
+                  preload="metadata"
+                  src={playSrc}
+                  onError={() =>
+                    setPlayError(
+                      "视频无法播放：文件可能已失效，请联系老师重新上传素材",
+                    )
+                  }
+                  // 微信 Android X5：允许横屏全屏；iOS 仍靠下方「横屏全屏」按钮
+                  {...{
+                    "webkit-playsinline": "true",
+                    "x5-playsinline": "true",
+                    "x5-video-player-type": "h5",
+                    "x5-video-player-fullscreen": "true",
+                    "x5-video-orientation": "landscape",
+                  }}
+                />
+                {landscapeFs ? (
+                  <button
+                    type="button"
+                    className="learn-fs-exit"
+                    onClick={exitLandscapeFullscreen}
+                  >
+                    退出全屏
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="learn-fs-enter"
+                    onClick={enterLandscapeFullscreen}
+                  >
+                    横屏全屏
+                  </button>
+                )}
+              </>
             ) : (
               <div className="flex aspect-video items-center justify-center bg-[var(--bg-deep)] text-sm text-[var(--muted)]">
                 正在加载播放地址…
               </div>
             )
+          ) : active.type === "VIDEO" && !active.videoUrl ? (
+            <div className="flex aspect-video items-center justify-center bg-[var(--bg-deep)] p-8 text-center text-sm text-[var(--muted)]">
+              本课时尚未绑定视频，请老师在课程编辑中选择素材
+            </div>
           ) : active.type === "LIVE" ? (
             <div className="flex aspect-video items-center justify-center bg-[var(--bg-deep)] p-8 text-center">
               <div>

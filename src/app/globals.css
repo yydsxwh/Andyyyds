@@ -1,23 +1,49 @@
 @import "tailwindcss";
 
+/* 清新明亮 · 国际化 · 现代科技感（冷色白底 + 天蓝主色 + 喜火点缀） */
 :root {
-  --bg: #f3efe6;
-  --bg-deep: #e8e1d4;
-  --ink: #1c2430;
-  --muted: #5c6673;
-  --line: rgba(28, 36, 48, 0.12);
-  --brand: #0f6b5c;
-  --brand-strong: #0a4f44;
-  --accent: #d9772f;
-  --card: rgba(255, 252, 246, 0.86);
-  --shadow: 0 18px 50px rgba(28, 36, 48, 0.08);
+  --bg: #f5f9fc;
+  --bg-deep: #e8f1f8;
+  --ink: #0f172a;
+  --muted: #5b6b7c;
+  --line: rgba(15, 23, 42, 0.1);
+  --brand: #0ea5e9;
+  --brand-strong: #0284c7;
+  --brand-soft: rgba(14, 165, 233, 0.1);
+  /* 喜火：精致玫红/珊瑚，作点缀而非主色 */
+  --fire: #f43f5e;
+  --fire-strong: #e11d48;
+  --fire-soft: rgba(244, 63, 94, 0.1);
+  --accent: var(--fire);
+  --accent-soft: var(--fire-soft);
+  --card: rgba(255, 255, 255, 0.92);
+  --shadow: 0 16px 40px rgba(15, 23, 42, 0.06);
+  /* 网站装扮：背景层与轻量版式密度（可由 layout 注入覆盖） */
+  --site-bg-layers:
+    radial-gradient(ellipse 80% 50% at 10% -10%, rgba(14, 165, 233, 0.14), transparent 55%),
+    radial-gradient(ellipse 55% 38% at 88% 4%, rgba(244, 63, 94, 0.07), transparent 52%),
+    radial-gradient(ellipse 45% 30% at 70% 100%, rgba(244, 63, 94, 0.04), transparent 55%),
+    linear-gradient(180deg, #ffffff 0%, var(--bg) 45%, #eef5fb 100%);
+  --surface-radius: 28px;
+  --surface-pad: 1.5rem;
+  /* 站长可在「网站装扮 → 字号」覆盖；默认导航略大于原先 16px */
+  --fs-nav: 18px;
+  --fs-brand: 18px;
+  --fs-hero-title: 36px;
+  --fs-hero-sub: 17px;
+  --fs-section-title: 24px;
+  --fs-section-desc: 14px;
+  /* 构建不依赖 Google Fonts；有本机/系统字体时优先，否则中文系统黑体 */
+  --font-body: "Manrope", "Segoe UI", "PingFang SC", "Microsoft YaHei",
+    sans-serif;
+  --font-display: "Space Grotesk", "Segoe UI", "PingFang SC", "Microsoft YaHei",
+    sans-serif;
 }
 
 @theme inline {
   --color-background: var(--bg);
   --color-foreground: var(--ink);
   --font-sans: var(--font-body);
-  --font-display: var(--font-display);
 }
 
 * {
@@ -32,10 +58,9 @@ body {
   margin: 0;
   min-height: 100vh;
   color: var(--ink);
-  background:
-    radial-gradient(circle at 12% -10%, rgba(15, 107, 92, 0.16), transparent 36%),
-    radial-gradient(circle at 88% 8%, rgba(217, 119, 47, 0.14), transparent 30%),
-    linear-gradient(180deg, #f7f3eb 0%, var(--bg) 42%, #ebe4d8 100%);
+  /* 站长装扮写入 --site-bg-layers；无配置时回退 :root 默认层 */
+  background: var(--site-bg-layers);
+  background-attachment: scroll;
   font-family: var(--font-body), "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
@@ -51,21 +76,58 @@ select {
   font: inherit;
 }
 
+/* 内容区加宽：减少宽屏左右留白，多排内容 */
 .container {
-  width: min(1120px, calc(100% - 2rem));
+  width: min(1600px, calc(100% - 1rem));
   margin-inline: auto;
 }
 
+@media (min-width: 1280px) {
+  .container {
+    width: min(1760px, calc(100% - 1.5rem));
+  }
+}
+
 .brand-mark {
-  font-family: var(--font-display), serif;
-  letter-spacing: 0.02em;
+  position: relative;
+  display: inline-block;
+  font-family: var(--font-display), var(--font-body), sans-serif;
+  letter-spacing: -0.02em;
+}
+
+.brand-mark::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 12%;
+  bottom: -0.12em;
+  height: 0.12em;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    var(--fire) 0%,
+    rgba(244, 63, 94, 0.35) 55%,
+    transparent 100%
+  );
+  opacity: 0.85;
+  pointer-events: none;
 }
 
 .surface {
   background: var(--card);
   border: 1px solid var(--line);
-  backdrop-filter: blur(10px);
+  border-radius: var(--surface-radius);
+  backdrop-filter: blur(12px);
   box-shadow: var(--shadow);
+}
+
+/* 装扮「紧凑/留白」时可选：给未写死 padding 的表面一点呼吸感 */
+.surface-pad {
+  padding: var(--surface-pad);
+}
+
+.surface-fire {
+  box-shadow: var(--shadow), 0 0 0 1px rgba(244, 63, 94, 0.08);
 }
 
 .btn {
@@ -74,10 +136,13 @@ select {
   justify-content: center;
   gap: 0.4rem;
   border-radius: 999px;
+  /* 触控友好：约 44px 高，微信内也易点 */
+  min-height: 2.75rem;
   padding: 0.75rem 1.25rem;
   border: 1px solid transparent;
   font-weight: 600;
-  transition: transform 160ms ease, background 160ms ease, color 160ms ease;
+  transition: transform 160ms ease, background 160ms ease, color 160ms ease,
+    box-shadow 160ms ease;
 }
 
 .btn:hover {
@@ -85,37 +150,101 @@ select {
 }
 
 .btn-primary {
-  background: var(--brand);
-  color: #fff7ee;
+  background: linear-gradient(135deg, var(--brand) 0%, var(--brand-strong) 100%);
+  color: #ffffff;
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--brand) 28%, transparent);
 }
 
 .btn-primary:hover {
-  background: var(--brand-strong);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--brand) 70%, white) 0%,
+    var(--brand) 100%
+  );
 }
 
 .btn-secondary {
-  background: transparent;
+  background: #ffffff;
   border-color: var(--line);
   color: var(--ink);
 }
 
+.btn-secondary:hover {
+  border-color: color-mix(in srgb, var(--brand) 40%, transparent);
+  color: var(--brand-strong);
+}
+
+.btn-fire {
+  background: linear-gradient(135deg, var(--fire) 0%, var(--fire-strong) 100%);
+  color: #ffffff;
+  box-shadow: 0 8px 20px rgba(244, 63, 94, 0.22);
+}
+
+.btn-fire:hover {
+  background: linear-gradient(135deg, #fb7185 0%, var(--fire) 100%);
+}
+
 .btn-accent {
-  background: var(--accent);
-  color: #fff8f1;
+  background: linear-gradient(135deg, var(--fire) 0%, var(--fire-strong) 100%);
+  color: #ffffff;
+  box-shadow: 0 8px 18px rgba(244, 63, 94, 0.2);
+}
+
+.btn-accent:hover {
+  background: linear-gradient(135deg, #fb7185 0%, var(--fire) 100%);
+}
+
+.badge-fire {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.2rem 0.65rem;
+  background: var(--fire-soft);
+  color: var(--fire-strong);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.hero-glow {
+  position: relative;
+}
+
+.hero-glow::before {
+  content: "";
+  position: absolute;
+  inset: -12% -8% auto;
+  height: 70%;
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(244, 63, 94, 0.16),
+    rgba(14, 165, 233, 0.08) 45%,
+    transparent 70%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+.hero-glow > * {
+  position: relative;
+  z-index: 1;
 }
 
 .field {
   width: 100%;
   border: 1px solid var(--line);
-  background: #fffdf8;
+  background: #ffffff;
   border-radius: 14px;
   padding: 0.85rem 1rem;
+  /* ≥16px，避免 iOS/微信 WebView 聚焦时整页缩放 */
+  font-size: 1rem;
   outline: none;
 }
 
 .field:focus {
-  border-color: rgba(15, 107, 92, 0.45);
-  box-shadow: 0 0 0 4px rgba(15, 107, 92, 0.12);
+  border-color: color-mix(in srgb, var(--brand) 55%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 12%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--fire) 14%, transparent);
 }
 
 .fade-up {
@@ -149,4 +278,83 @@ select {
   50% {
     transform: translateY(-8px);
   }
+}
+
+/* 学习页伪横屏全屏：iPhone/微信常锁竖屏，用旋转层铺满以便横屏看课 */
+html.learn-landscape-fs,
+body.learn-landscape-fs {
+  overflow: hidden !important;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
+.learn-video-shell {
+  position: relative;
+}
+
+.learn-video-shell[data-landscape-fs="1"] {
+  position: fixed;
+  z-index: 10050;
+  background: #000;
+  /* 竖屏设备：把壳旋成横屏占满视口 */
+  top: 0;
+  left: 100vw;
+  width: 100vh;
+  height: 100vw;
+  max-width: none;
+  transform: rotate(90deg);
+  transform-origin: top left;
+  border-radius: 0;
+  overflow: hidden;
+}
+
+/* 真横屏时不必再旋转，直接铺满 */
+@media (orientation: landscape) {
+  .learn-video-shell[data-landscape-fs="1"] {
+    inset: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    transform: none;
+  }
+}
+
+.learn-video-shell[data-landscape-fs="1"] video {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  aspect-ratio: auto;
+  object-fit: contain;
+  background: #000;
+}
+
+.learn-fs-exit {
+  position: absolute;
+  top: max(0.5rem, env(safe-area-inset-top, 0px));
+  right: max(0.5rem, env(safe-area-inset-right, 0px));
+  z-index: 2;
+  min-height: 2.75rem;
+  padding: 0.55rem 1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.learn-fs-enter {
+  /* 放右上，避免挡住底部原生进度条/全屏键 */
+  position: absolute;
+  top: 0.65rem;
+  right: 0.65rem;
+  z-index: 2;
+  min-height: 2.75rem;
+  padding: 0.55rem 0.95rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 600;
 }

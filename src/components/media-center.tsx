@@ -6,7 +6,12 @@ import {
   ASSET_DESC_MAX,
   ASSET_NAME_MAX,
   MEDIA_CATEGORY_NAME_MAX,
+  MEDIA_KINDS,
+  MEDIA_KIND_LABEL,
+  MEDIA_UPLOAD_ACCEPT,
+  type MediaKind,
   formatBytes,
+  isMediaKind,
 } from "@/lib/media";
 
 type Category = {
@@ -19,6 +24,8 @@ type Asset = {
   id: string;
   name: string;
   description: string;
+  /** 媒体类型 mediaKind，与用户自由分类 category 分离 */
+  type: string;
   fileUrl: string;
   fileName: string;
   sizeBytes: number;
@@ -32,6 +39,10 @@ type Asset = {
 type Props = {
   initialCategories: Category[];
   initialAssets: Asset[];
+  /** 老师不可删素材；站长/商家/代理可删 */
+  canDelete?: boolean;
+  /** 老师不可创建可售课程；站长/商家/代理可以 */
+  canCreateSellable?: boolean;
 };
 
 type UploadProgress = {
@@ -49,6 +60,20 @@ function formatSpeed(bps: number) {
   if (bps < 1024) return `${Math.round(bps)} B/s`;
   if (bps < 1024 * 1024) return `${(bps / 1024).toFixed(1)} KB/s`;
   return `${(bps / (1024 * 1024)).toFixed(2)} MB/s`;
+}
+
+/** 上传失败旁展示短中文，避免阿里云 StringToSign 全文撑爆界面 */
+function shortUploadError(raw: string | undefined, fallback = "上传失败") {
+  const text = (raw || "").trim();
+  if (!text) return fallback;
+  if (
+    /signature is not matched/i.test(text) ||
+    /server string to sign/i.test(text)
+  ) {
+    return "点播密钥校验失败，请在系统设置重新填写 AccessKey";
+  }
+  if (text.length > 100) return `${text.slice(0, 90)}…`;
+  return text;
 }
 
 function uploadWithProgress(
@@ -91,15 +116,23 @@ function uploadWithProgress(
   });
 }
 
-export function MediaCenter({ initialCategories, initialAssets }: Props) {
+export function MediaCenter({
+  initialCategories,
+  initialAssets,
+  canDelete = true,
+  canCreateSellable = true,
+}: Props) {
   const router = useRouter();
   const [categories, setCategories] = useState(initialCategories);
   const [assets, setAssets] = useState(initialAssets);
   const [activeCategory, setActiveCategory] = useState<string>("all");
+  /** 按媒体类型筛选；与用户自由分类 activeCategory 独立 */
+  const [activeMediaKind, setActiveMediaKind] = useState<"all" | MediaKind>("all");
   const [selected, setSelected] = useState<string[]>([]);
   const [query, setQuery] = useState("");
   const [message, setMessage] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(
     null,
   );
@@ -120,6 +153,21 @@ export function MediaCenter({ initialCategories, initialAssets }: Props) {
     return `${trimmed.slice(0, Math.max(1, ASSET_NAME_MAX - suffix.length))}${suffix}`;
   }
 
+  const kindCounts = useMemo(() => {
+    const counts: Record<MediaKind, number> = {
+      VIDEO: 0,
+      IMAGE: 0,
+      AUDIO: 0,
+      DOCUMENT: 0,
+      OTHER: 0,
+    };
+    for (const asset of assets) {
+      const kind = isMediaKind(asset.type) ? asset.type : "OTHER";
+      counts[kind] += 1;
+    }
+    return counts;
+  }, [assets]);
+
   const filtered = useMemo(() => {
     return assets.filter((asset) => {
       const byCategory =
@@ -128,19 +176,71 @@ export function MediaCenter({ initialCategories, initialAssets }: Props) {
           : activeCategory === "uncategorized"
             ? !asset.categoryId
             : asset.categoryId === activeCategory;
+      const byKind =
+        activeMediaKind === "all"
+          ? true
+          : (isMediaKind(asset.type) ? asset.type : "OTHER") === activeMediaKind;
       const byQuery =
         !query ||
         asset.name.includes(query) ||
         asset.description.includes(query) ||
         asset.fileName.includes(query);
-      return byCategory && byQuery;
+      return byCategory && byKind && byQuery;
     });
-  }, [assets, activeCategory, query]);
+  }, [assets, activeCategory, activeMediaKind, query]);
 
   function toggleSelect(id: string) {
     setSelected((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
+  }
+
+  const filteredIds = useMemo(() => filtered.map((a) => a.id), [filtered]);
+  const allFilteredSelected =
+    filteredIds.length > 0 && filteredIds.every((id) => selected.includes(id));
+
+  function toggleSelectAllFiltered() {
+    if (allFilteredSelected) {
+      setSelected((prev) => prev.filter((id) => !filteredIds.includes(id)));
+      return;
+    }
+    setSelected((prev) => [...new Set([...prev, ...filteredIds])]);
+  }
+
+  async function removeSelectedAssets() {
+    if (!canDelete) {
+      setMessage("当前角色不可删除素材");
+      return;
+    }
+    if (selected.length === 0) {
+      setMessage("请先勾选要删除的素材");
+      return;
+    }
+    if (
+      !window.confirm(
+        `确认删除已选的 ${selected.length} 个素材？删除后不可恢复。`,
+      )
+    ) {
+      return;
+    }
+    setBulkDeleting(true);
+    setMessage("");
+    const res = await fetch("/api/studio/media", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: selected }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setBulkDeleting(false);
+    if (!res.ok) {
+      setMessage(data.error || "批量删除失败");
+      return;
+    }
+    const deleted: string[] = data.deletedIds || selected;
+    setAssets((prev) => prev.filter((a) => !deleted.includes(a.id)));
+    setSelected((prev) => prev.filter((id) => !deleted.includes(id)));
+    setMessage(`已删除 ${data.deletedCount ?? deleted.length} 个素材`);
+    router.refresh();
   }
 
   async function createCategory() {
@@ -182,6 +282,10 @@ export function MediaCenter({ initialCategories, initialAssets }: Props) {
   }
 
   async function deleteCategory(id: string) {
+    if (!canDelete) {
+      setMessage("当前角色不可删除分类");
+      return;
+    }
     if (!window.confirm("删除分类后，素材会变为未分类，确认吗？")) return;
     const res = await fetch(`/api/studio/media-categories/${id}`, { method: "DELETE" });
     const data = await res.json();
@@ -206,7 +310,7 @@ export function MediaCenter({ initialCategories, initialAssets }: Props) {
 
     if (files.length === 0 && !externalUrl.trim()) {
       setUploading(false);
-      setMessage("请选择至少一个视频文件，或填写视频外链");
+      setMessage("请选择至少一个文件，或填写外链");
       return;
     }
 
@@ -216,7 +320,38 @@ export function MediaCenter({ initialCategories, initialAssets }: Props) {
       return;
     }
 
-    const uploaded: Asset[] = [];
+    /** 每成功一个就立刻插入列表，避免等整批结束才刷新 */
+    const prependAsset = (asset: Asset) => {
+      setAssets((prev) => [asset, ...prev]);
+      if (asset.categoryId) {
+        setCategories((prev) =>
+          prev.map((c) =>
+            c.id === asset.categoryId
+              ? {
+                  ...c,
+                  _count: { assets: (c._count?.assets ?? 0) + 1 },
+                }
+              : c,
+          ),
+        );
+      }
+      // 若当前筛选会把刚上传的素材藏起来，切到「全部」保证列表里立刻能看见
+      const kind = isMediaKind(asset.type) ? asset.type : "OTHER";
+      setActiveMediaKind((prev) =>
+        prev === "all" || prev === kind ? prev : "all",
+      );
+      if (
+        activeCategory !== "all" &&
+        activeCategory !== "uncategorized" &&
+        asset.categoryId !== activeCategory
+      ) {
+        setActiveCategory("all");
+      } else if (activeCategory === "uncategorized" && asset.categoryId) {
+        setActiveCategory("all");
+      }
+    };
+
+    let uploadedCount = 0;
     const errors: string[] = [];
 
     if (files.length > 0) {
@@ -264,10 +399,16 @@ export function MediaCenter({ initialCategories, initialAssets }: Props) {
         });
 
         if (!result.ok || !result.data.asset) {
-          errors.push(`${file.name}：${result.data.error || "上传失败"}`);
+          errors.push(
+            `${file.name}：${shortUploadError(result.data.error)}`,
+          );
           continue;
         }
-        uploaded.push(result.data.asset);
+        uploadedCount += 1;
+        prependAsset(result.data.asset);
+        setMessage(
+          `已入库 ${uploadedCount}/${files.length}：${result.data.asset.name}`,
+        );
       }
     } else {
       const form = new FormData();
@@ -280,29 +421,29 @@ export function MediaCenter({ initialCategories, initialAssets }: Props) {
       if (!result.ok || !result.data.asset) {
         setUploading(false);
         setUploadProgress(null);
-        setMessage(result.data.error || "上传失败");
+        setMessage(shortUploadError(result.data.error));
         return;
       }
-      uploaded.push(result.data.asset);
+      uploadedCount += 1;
+      prependAsset(result.data.asset);
     }
 
     setUploading(false);
     setUploadProgress(null);
-    if (uploaded.length > 0) {
-      setAssets((prev) => [...uploaded, ...prev]);
+    if (uploadedCount > 0) {
       setName("");
       setDescription("");
       setExternalUrl("");
       setFiles([]);
     }
-    if (errors.length && uploaded.length) {
-      setMessage(`成功入库 ${uploaded.length} 个；失败 ${errors.length} 个。${errors[0]}`);
+    if (errors.length && uploadedCount) {
+      setMessage(`成功入库 ${uploadedCount} 个；失败 ${errors.length} 个。${errors[0]}`);
     } else if (errors.length) {
       setMessage(errors.join("；"));
     } else {
       setMessage(
-        uploaded.length > 1
-          ? `已入库 ${uploaded.length} 个素材`
+        uploadedCount > 1
+          ? `已入库 ${uploadedCount} 个素材`
           : "素材已入库",
       );
     }
@@ -348,6 +489,10 @@ export function MediaCenter({ initialCategories, initialAssets }: Props) {
   }
 
   async function removeAsset(id: string) {
+    if (!canDelete) {
+      setMessage("当前角色不可删除素材");
+      return;
+    }
     if (!window.confirm("确认删除该素材？")) return;
     const res = await fetch(`/api/studio/media/${id}`, { method: "DELETE" });
     const data = await res.json();
@@ -374,12 +519,36 @@ export function MediaCenter({ initialCategories, initialAssets }: Props) {
         <div>
           <h1 className="text-3xl font-semibold">素材中心</h1>
           <p className="mt-2 text-sm text-[var(--muted)]">
-            上传视频、自由分类与长命名（最多 {ASSET_NAME_MAX} 字），再多选做成可售课程或专栏。
+            上传视频/图片/音频/文档，自动识别媒体类型；用户分类可自行整理（最多{" "}
+            {ASSET_NAME_MAX} 字命名）
+            {canCreateSellable
+              ? "，再多选做成可售单课、专栏或资料。"
+              : "。老师不可新建可售产品，请在已分配课程中维护内容。"}
           </p>
         </div>
-        <button className="btn btn-accent" type="button" onClick={goCompose}>
-          用已选 {selected.length} 个素材创建课程
-        </button>
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end">
+          {canDelete ? (
+            <button
+              className="btn btn-secondary w-full sm:w-auto"
+              type="button"
+              disabled={bulkDeleting || selected.length === 0}
+              onClick={() => void removeSelectedAssets()}
+            >
+              {bulkDeleting
+                ? "删除中…"
+                : `删除已选 ${selected.length} 个`}
+            </button>
+          ) : null}
+          {canCreateSellable ? (
+            <button
+              className="btn btn-accent w-full sm:w-auto"
+              type="button"
+              onClick={goCompose}
+            >
+              用已选 {selected.length} 个素材创建课程/资料
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {message || uploadProgress ? (
@@ -411,7 +580,7 @@ export function MediaCenter({ initialCategories, initialAssets }: Props) {
 
       <div className="grid gap-6 lg:grid-cols-[0.9fr_1.2fr]">
         <form onSubmit={uploadAsset} className="surface space-y-3 rounded-[28px] p-6">
-          <h2 className="text-lg font-semibold">上传 / 入库视频</h2>
+          <h2 className="text-lg font-semibold">上传 / 入库素材</h2>
           <div>
             <label className="mb-1 block text-sm text-[var(--muted)]">
               素材名称（最多 {ASSET_NAME_MAX} 字）
@@ -460,12 +629,12 @@ export function MediaCenter({ initialCategories, initialAssets }: Props) {
               className="field"
               type="file"
               multiple
-              accept="video/mp4,video/webm,video/quicktime,video/x-msvideo,video/mpeg"
+              accept={MEDIA_UPLOAD_ACCEPT}
               onChange={(e) => setFiles(Array.from(e.target.files || []))}
             />
             {files.length > 0 ? (
               <p className="mt-2 text-xs text-[var(--muted)]">
-                已选 {files.length} 个文件
+                已选 {files.length} 个文件（入库时按 MIME/扩展名自动分类）
                 {files.length <= 3
                   ? `：${files.map((f) => f.name).join("、")}`
                   : `：${files
@@ -473,13 +642,17 @@ export function MediaCenter({ initialCategories, initialAssets }: Props) {
                       .map((f) => f.name)
                       .join("、")} 等`}
               </p>
-            ) : null}
+            ) : (
+              <p className="mt-2 text-xs text-[var(--muted)]">
+                支持视频、图片、音频、文档（如 mp4 / jpg / mp3 / pdf）
+              </p>
+            )}
           </div>
           <input
             className="field"
             value={externalUrl}
             onChange={(e) => setExternalUrl(e.target.value)}
-            placeholder="或填写单个视频外链（http/https）"
+            placeholder="或填写单个外链（http/https）"
             disabled={files.length > 0}
           />
           <button className="btn btn-primary w-full" disabled={uploading} type="submit">
@@ -492,61 +665,92 @@ export function MediaCenter({ initialCategories, initialAssets }: Props) {
         </form>
 
         <div className="surface space-y-4 rounded-[28px] p-6">
-          <h2 className="text-lg font-semibold">素材分类</h2>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <input
-              className="field"
-              value={newCategoryName}
-              maxLength={MEDIA_CATEGORY_NAME_MAX}
-              onChange={(e) => setNewCategoryName(e.target.value)}
-              placeholder={`新建分类名（最多 ${MEDIA_CATEGORY_NAME_MAX} 字）`}
-            />
-            <button className="btn btn-secondary" type="button" onClick={createCategory}>
-              新建分类
-            </button>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              className={`rounded-full px-3 py-1.5 text-sm ${activeCategory === "all" ? "bg-[var(--brand)] text-white" : "border border-[var(--line)]"}`}
-              onClick={() => setActiveCategory("all")}
-            >
-              全部 ({assets.length})
-            </button>
-            <button
-              type="button"
-              className={`rounded-full px-3 py-1.5 text-sm ${activeCategory === "uncategorized" ? "bg-[var(--brand)] text-white" : "border border-[var(--line)]"}`}
-              onClick={() => setActiveCategory("uncategorized")}
-            >
-              未分类
-            </button>
-            {categories.map((c) => (
-              <div
-                key={c.id}
-                className={`flex items-center gap-1 rounded-full border px-2 py-1 text-sm ${
-                  activeCategory === c.id
-                    ? "border-[var(--brand)] bg-[var(--brand)] text-white"
-                    : "border-[var(--line)]"
-                }`}
+          <div>
+            <h2 className="text-lg font-semibold">用户分类</h2>
+            <p className="mt-1 text-xs text-[var(--muted)]">
+              自建文件夹式归类，可随时改名 / 移动；与列表里的媒体类型筛选互不影响
+            </p>
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+              <input
+                className="field"
+                value={newCategoryName}
+                maxLength={MEDIA_CATEGORY_NAME_MAX}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                placeholder={`新建分类名（最多 ${MEDIA_CATEGORY_NAME_MAX} 字）`}
+              />
+              <button
+                className="btn btn-secondary w-full shrink-0 sm:w-auto"
+                type="button"
+                onClick={createCategory}
               >
-                <button type="button" onClick={() => setActiveCategory(c.id)}>
-                  {c.name} ({c._count?.assets ?? 0})
-                </button>
-                <button type="button" className="opacity-80" onClick={() => renameCategory(c.id, c.name)}>
-                  改
-                </button>
-                <button type="button" className="opacity-80" onClick={() => deleteCategory(c.id)}>
-                  删
-                </button>
-              </div>
-            ))}
+                新建分类
+              </button>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                className={`min-h-10 rounded-full px-3.5 py-2 text-sm ${activeCategory === "all" ? "bg-[var(--brand)] text-white" : "border border-[var(--line)]"}`}
+                onClick={() => setActiveCategory("all")}
+              >
+                全部分类 ({assets.length})
+              </button>
+              <button
+                type="button"
+                className={`min-h-10 rounded-full px-3.5 py-2 text-sm ${activeCategory === "uncategorized" ? "bg-[var(--brand)] text-white" : "border border-[var(--line)]"}`}
+                onClick={() => setActiveCategory("uncategorized")}
+              >
+                未分类
+              </button>
+              {categories.map((c) => (
+                <div
+                  key={c.id}
+                  className={`flex min-h-10 items-center gap-1 rounded-full border px-2 py-1 text-sm ${
+                    activeCategory === c.id
+                      ? "border-[var(--brand)] bg-[var(--brand)] text-white"
+                      : "border-[var(--line)]"
+                  }`}
+                >
+                  <button
+                    type="button"
+                    className="px-1.5 py-1"
+                    onClick={() => setActiveCategory(c.id)}
+                  >
+                    {c.name} ({c._count?.assets ?? 0})
+                  </button>
+                  {/* 改/删始终可见，不依赖 hover */}
+                  <button
+                    type="button"
+                    className="min-h-8 min-w-8 rounded-full px-2 py-1 opacity-90"
+                    aria-label={`重命名分类 ${c.name}`}
+                    onClick={() => renameCategory(c.id, c.name)}
+                  >
+                    改
+                  </button>
+                  {canDelete ? (
+                    <button
+                      type="button"
+                      className="min-h-8 min-w-8 rounded-full px-2 py-1 opacity-90"
+                      aria-label={`删除分类 ${c.name}`}
+                      onClick={() => deleteCategory(c.id)}
+                    >
+                      删
+                    </button>
+                  ) : null}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
 
       <div className="surface rounded-[28px] p-6">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-lg font-semibold">素材列表</h2>
+          <div>
+            <h2 className="text-lg font-semibold">素材列表</h2>
+            <p className="mt-1 text-xs text-[var(--muted)]">
+              按媒体类型筛选；上传成功会立刻出现在下方
+            </p>
+          </div>
           <input
             className="field sm:max-w-xs"
             value={query}
@@ -555,14 +759,88 @@ export function MediaCenter({ initialCategories, initialAssets }: Props) {
           />
         </div>
 
+        {/* 媒体类型与列表合并：筛选当前列表内容 */}
+        <div className="mb-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            className={`min-h-10 rounded-full px-3.5 py-2 text-sm ${
+              activeMediaKind === "all"
+                ? "bg-[var(--brand)] text-white"
+                : "border border-[var(--line)]"
+            }`}
+            onClick={() => setActiveMediaKind("all")}
+          >
+            全部类型 ({assets.length})
+          </button>
+          {MEDIA_KINDS.map((kind) => (
+            <button
+              key={kind}
+              type="button"
+              className={`min-h-10 rounded-full px-3.5 py-2 text-sm ${
+                activeMediaKind === kind
+                  ? "bg-[var(--brand)] text-white"
+                  : "border border-[var(--line)]"
+              }`}
+              onClick={() => setActiveMediaKind(kind)}
+            >
+              {MEDIA_KIND_LABEL[kind]} ({kindCounts[kind]})
+            </button>
+          ))}
+        </div>
+
+        {/* 多选工具条：全选当前筛选结果 + 批量删除 */}
+        <div className="mb-4 flex flex-col gap-2 rounded-2xl border border-[var(--line)] bg-white/50 px-3 py-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          <label className="flex min-h-10 cursor-pointer items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={allFilteredSelected}
+              disabled={filteredIds.length === 0}
+              onChange={toggleSelectAllFiltered}
+            />
+            <span>
+              全选当前列表（{filteredIds.length}）
+              {selected.length > 0 ? (
+                <span className="text-[var(--muted)]">
+                  {" "}
+                  · 已选 {selected.length}
+                </span>
+              ) : null}
+            </span>
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {selected.length > 0 ? (
+              <button
+                type="button"
+                className="btn btn-secondary min-h-10 px-3 text-sm"
+                onClick={() => setSelected([])}
+              >
+                清除选择
+              </button>
+            ) : null}
+            {canDelete ? (
+              <button
+                type="button"
+                className="btn btn-secondary min-h-10 px-3 text-sm"
+                disabled={bulkDeleting || selected.length === 0}
+                onClick={() => void removeSelectedAssets()}
+              >
+                {bulkDeleting
+                  ? "删除中…"
+                  : `一键删除已选（${selected.length}）`}
+              </button>
+            ) : null}
+          </div>
+        </div>
+
         <div className="space-y-3">
           {filtered.map((asset) => {
             const checked = selected.includes(asset.id);
+            const mediaKind: MediaKind = isMediaKind(asset.type) ? asset.type : "OTHER";
             return (
               <div
                 key={asset.id}
                 className={`rounded-2xl border px-4 py-3 ${
-                  checked ? "border-[var(--brand)] bg-[rgba(15,107,92,0.06)]" : "border-[var(--line)] bg-white/60"
+                  checked ? "border-[var(--brand)] bg-[var(--brand-soft)]" : "border-[var(--line)] bg-white/60"
                 }`}
               >
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start">
@@ -574,7 +852,12 @@ export function MediaCenter({ initialCategories, initialAssets }: Props) {
                       onChange={() => toggleSelect(asset.id)}
                     />
                     <span>
-                      <span className="block font-medium leading-snug break-words">{asset.name}</span>
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium leading-snug break-words">{asset.name}</span>
+                        <span className="rounded-full border border-[var(--line)] bg-white/80 px-2 py-0.5 text-[11px] text-[var(--muted)]">
+                          {MEDIA_KIND_LABEL[mediaKind]}
+                        </span>
+                      </span>
                       <span className="mt-1 block text-xs text-[var(--muted)]">
                         {asset.category?.name || "未分类"} · {formatBytes(asset.sizeBytes || 0)}
                         {asset.fileName ? ` · ${asset.fileName}` : ""}
@@ -584,9 +867,9 @@ export function MediaCenter({ initialCategories, initialAssets }: Props) {
                       ) : null}
                     </span>
                   </label>
-                  <div className="flex flex-1 flex-wrap items-center gap-2">
+                  <div className="flex w-full flex-1 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                     <select
-                      className="field py-2"
+                      className="field py-2.5"
                       value={asset.categoryId || ""}
                       onChange={(e) => moveAsset(asset, e.target.value)}
                     >
@@ -597,32 +880,40 @@ export function MediaCenter({ initialCategories, initialAssets }: Props) {
                         </option>
                       ))}
                     </select>
-                    <button className="btn btn-secondary px-3 py-2 text-sm" type="button" onClick={() => renameAsset(asset)}>
-                      重命名
-                    </button>
-                    <a
-                      className="btn btn-secondary px-3 py-2 text-sm"
-                      href={
-                        asset.fileUrl.startsWith("vod:") ||
-                        asset.storageProvider === "ALIYUN_VOD"
-                          ? `/api/studio/media/${asset.id}/play`
-                          : asset.fileUrl
-                      }
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      预览
-                    </a>
-                    <button className="btn btn-secondary px-3 py-2 text-sm" type="button" onClick={() => removeAsset(asset.id)}>
-                      删除
-                    </button>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        className="btn btn-secondary min-h-10 flex-1 px-3 py-2 text-sm sm:flex-none"
+                        type="button"
+                        onClick={() => renameAsset(asset)}
+                      >
+                        重命名
+                      </button>
+                      <a
+                        className="btn btn-secondary min-h-10 flex-1 px-3 py-2 text-sm sm:flex-none"
+                        // 一律走签发接口：本地 /uploads 直链在文件丢失时只会显示框架 404
+                        href={`/api/studio/media/${asset.id}/play`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        预览
+                      </a>
+                      {canDelete ? (
+                        <button
+                          className="btn btn-secondary min-h-10 flex-1 px-3 py-2 text-sm sm:flex-none"
+                          type="button"
+                          onClick={() => removeAsset(asset.id)}
+                        >
+                          删除
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
               </div>
             );
           })}
           {filtered.length === 0 ? (
-            <p className="py-10 text-center text-sm text-[var(--muted)]">暂无素材，先上传一个视频吧</p>
+            <p className="py-10 text-center text-sm text-[var(--muted)]">暂无匹配素材，试试换筛选或上传文件</p>
           ) : null}
         </div>
       </div>

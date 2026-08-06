@@ -2,6 +2,13 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { CoverImagePicker } from "@/components/cover-image-picker";
+import {
+  postSave,
+  SaveFeedback,
+  type SaveStatus,
+} from "@/components/save-feedback";
+import { COVER_IMAGES } from "@/lib/cover-images";
 import {
   DEFAULT_DECORATE,
   DEFAULT_LOGO_URL,
@@ -46,7 +53,7 @@ export function DecoratePanel({ initial }: Props) {
   }));
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [message, setMessage] = useState("");
+  const [feedback, setFeedback] = useState<SaveStatus>(null);
   const [bannerTarget, setBannerTarget] = useState<"new" | string>("new");
 
   function patch(partial: Partial<DecorateConfig>) {
@@ -76,18 +83,17 @@ export function DecoratePanel({ initial }: Props) {
     const body = new FormData();
     body.append("file", file);
     setUploading(true);
-    setMessage("");
-    const res = await fetch("/api/studio/decorate/upload", {
+    setFeedback(null);
+    const result = await postSave("/api/studio/decorate/upload", {
       method: "POST",
       body,
     });
-    const data = await res.json();
     setUploading(false);
-    if (!res.ok) {
-      setMessage(data.error || "上传失败");
+    if (!result.ok) {
+      setFeedback({ kind: "error", text: result.error || "上传失败" });
       return null;
     }
-    return data.url as string;
+    return typeof result.data.url === "string" ? result.data.url : null;
   }
 
   async function onLogoFile(file: File | null) {
@@ -95,7 +101,7 @@ export function DecoratePanel({ initial }: Props) {
     const url = await uploadImage(file);
     if (url) {
       patch({ logoUrl: url });
-      setMessage("Logo 已上传，记得保存");
+      setFeedback({ kind: "ok", text: "Logo 已上传，记得点保存" });
     }
   }
 
@@ -107,30 +113,41 @@ export function DecoratePanel({ initial }: Props) {
       patch({
         banners: [...form.banners, newBanner({ url, alt: file.name })],
       });
-      setMessage("已添加 Banner，记得保存");
+      setFeedback({ kind: "ok", text: "已添加 Banner，记得点保存" });
     } else {
       updateBanner(bannerTarget, { url });
-      setMessage("Banner 图片已更新，记得保存");
+      setFeedback({ kind: "ok", text: "Banner 图片已更新，记得点保存" });
     }
   }
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
-    setMessage("");
-    const res = await fetch("/api/studio/decorate", {
+    setFeedback(null);
+    // 只提交门面字段，避免覆盖「网站装扮」里已保存的主题/配色/背景/字号
+    const result = await postSave("/api/studio/decorate", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
+      body: JSON.stringify({
+        logoUrl: form.logoUrl,
+        siteName: form.siteName,
+        brandName: form.brandName,
+        showBrandText: form.showBrandText,
+        heroHeadline: form.heroHeadline,
+        heroSubtext: form.heroSubtext,
+        heroImageUrl: form.heroImageUrl,
+        banners: form.banners,
+      }),
     });
-    const data = await res.json();
     setSaving(false);
-    if (!res.ok) {
-      setMessage(data.error || "保存失败");
+    if (!result.ok) {
+      setFeedback({ kind: "error", text: result.error || "保存失败" });
       return;
     }
-    if (data.decorate) setForm(data.decorate);
-    setMessage("店铺装修已保存，前台即时生效");
+    if (result.data.decorate) {
+      setForm(result.data.decorate as DecorateConfig);
+    }
+    setFeedback({ kind: "ok", text: "门面装修已保存成功" });
     router.refresh();
   }
 
@@ -368,15 +385,38 @@ export function DecoratePanel({ initial }: Props) {
         >
           添加图片位（粘贴 URL）
         </button>
+
+        <CoverImagePicker
+          title="选用推荐主视觉（写入第一张 Banner，也可先添加图片位）"
+          value={form.banners[0]?.url || ""}
+          onChange={(url) => {
+            const cover = COVER_IMAGES.find((c) => c.url === url);
+            const alt = cover?.label || "首页主视觉";
+            if (form.banners.length === 0) {
+              patch({
+                banners: [newBanner({ url, alt })],
+                heroImageUrl: url,
+              });
+              return;
+            }
+            const [first, ...rest] = form.banners;
+            patch({
+              banners: [{ ...first, url, alt: first.alt || alt }, ...rest],
+              heroImageUrl: url,
+            });
+          }}
+        />
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <button type="submit" className="btn btn-primary" disabled={saving}>
-          {saving ? "保存中…" : "保存店铺装修"}
+        <button
+          type="submit"
+          className="btn btn-primary min-h-11"
+          disabled={saving || uploading}
+        >
+          {saving ? "保存中…" : "保存门面装修"}
         </button>
-        {message ? (
-          <span className="text-sm text-[var(--brand-strong)]">{message}</span>
-        ) : null}
+        <SaveFeedback status={feedback} />
       </div>
     </form>
   );
