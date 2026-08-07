@@ -397,6 +397,13 @@ export function MeetupPlaceMapPicker({
           </button>
         </div>
 
+        <p
+          className="border-b border-[var(--line)] bg-[var(--line)]/25 px-4 py-2.5 text-xs leading-relaxed text-[var(--ink)] sm:px-5 sm:text-sm"
+          role="note"
+        >
+          地图与搜索供参考，请核对地点文案；精确导航请用高德/腾讯/苹果/google地图打开。
+        </p>
+
         <div className="relative z-20 border-b border-[var(--line)] px-4 py-3 sm:px-5">
           <label className="sr-only" htmlFor="meetup-map-place-search">
             搜索地点

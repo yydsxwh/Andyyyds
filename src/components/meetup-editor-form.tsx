@@ -345,6 +345,9 @@ export function MeetupEditorForm({
           required
           maxLength={120}
         />
+        <p className="mt-1.5 text-xs leading-relaxed text-[var(--muted)]">
+          地图与搜索供参考，请核对地点文案；精确导航请用高德/腾讯/苹果/google地图打开。
+        </p>
         <div className="mt-2 flex flex-col gap-2 sm:flex-row">
           <button
             type="button"

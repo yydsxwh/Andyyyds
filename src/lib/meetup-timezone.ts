@@ -3,65 +3,15 @@
  * 默认 Asia/Shanghai（北京时间）；国外局可搜城市带出时区。
  */
 
+import { MEETUP_TZ_CITIES_DATA } from "@/lib/meetup-tz-cities-data";
+import type { MeetupTzCity } from "@/lib/meetup-timezone-types";
+
+export type { MeetupTzCity } from "@/lib/meetup-timezone-types";
+
 export const DEFAULT_MEETUP_TIMEZONE = "Asia/Shanghai";
 
-export type MeetupTzCity = {
-  id: string;
-  labelZh: string;
-  labelEn: string;
-  timeZone: string;
-  countryZh: string;
-};
-
-/** 常用城市（中英可搜）；覆盖国内与主要海外目的地，无需 key */
-export const MEETUP_TZ_CITIES: MeetupTzCity[] = [
-  { id: "beijing", labelZh: "北京", labelEn: "Beijing", timeZone: "Asia/Shanghai", countryZh: "中国" },
-  { id: "shanghai", labelZh: "上海", labelEn: "Shanghai", timeZone: "Asia/Shanghai", countryZh: "中国" },
-  { id: "guangzhou", labelZh: "广州", labelEn: "Guangzhou", timeZone: "Asia/Shanghai", countryZh: "中国" },
-  { id: "shenzhen", labelZh: "深圳", labelEn: "Shenzhen", timeZone: "Asia/Shanghai", countryZh: "中国" },
-  { id: "chengdu", labelZh: "成都", labelEn: "Chengdu", timeZone: "Asia/Shanghai", countryZh: "中国" },
-  { id: "hangzhou", labelZh: "杭州", labelEn: "Hangzhou", timeZone: "Asia/Shanghai", countryZh: "中国" },
-  { id: "hongkong", labelZh: "香港", labelEn: "Hong Kong", timeZone: "Asia/Hong_Kong", countryZh: "中国" },
-  { id: "taipei", labelZh: "台北", labelEn: "Taipei", timeZone: "Asia/Taipei", countryZh: "中国" },
-  { id: "macau", labelZh: "澳门", labelEn: "Macau", timeZone: "Asia/Macau", countryZh: "中国" },
-  { id: "tokyo", labelZh: "东京", labelEn: "Tokyo", timeZone: "Asia/Tokyo", countryZh: "日本" },
-  { id: "osaka", labelZh: "大阪", labelEn: "Osaka", timeZone: "Asia/Tokyo", countryZh: "日本" },
-  { id: "seoul", labelZh: "首尔", labelEn: "Seoul", timeZone: "Asia/Seoul", countryZh: "韩国" },
-  { id: "singapore", labelZh: "新加坡", labelEn: "Singapore", timeZone: "Asia/Singapore", countryZh: "新加坡" },
-  { id: "bangkok", labelZh: "曼谷", labelEn: "Bangkok", timeZone: "Asia/Bangkok", countryZh: "泰国" },
-  { id: "kualalumpur", labelZh: "吉隆坡", labelEn: "Kuala Lumpur", timeZone: "Asia/Kuala_Lumpur", countryZh: "马来西亚" },
-  { id: "jakarta", labelZh: "雅加达", labelEn: "Jakarta", timeZone: "Asia/Jakarta", countryZh: "印尼" },
-  { id: "manila", labelZh: "马尼拉", labelEn: "Manila", timeZone: "Asia/Manila", countryZh: "菲律宾" },
-  { id: "hanoi", labelZh: "河内", labelEn: "Hanoi", timeZone: "Asia/Bangkok", countryZh: "越南" },
-  { id: "dubai", labelZh: "迪拜", labelEn: "Dubai", timeZone: "Asia/Dubai", countryZh: "阿联酋" },
-  { id: "delhi", labelZh: "新德里", labelEn: "New Delhi", timeZone: "Asia/Kolkata", countryZh: "印度" },
-  { id: "mumbai", labelZh: "孟买", labelEn: "Mumbai", timeZone: "Asia/Kolkata", countryZh: "印度" },
-  { id: "newyork", labelZh: "纽约", labelEn: "New York", timeZone: "America/New_York", countryZh: "美国" },
-  { id: "losangeles", labelZh: "洛杉矶", labelEn: "Los Angeles", timeZone: "America/Los_Angeles", countryZh: "美国" },
-  { id: "sanfrancisco", labelZh: "旧金山", labelEn: "San Francisco", timeZone: "America/Los_Angeles", countryZh: "美国" },
-  { id: "chicago", labelZh: "芝加哥", labelEn: "Chicago", timeZone: "America/Chicago", countryZh: "美国" },
-  { id: "seattle", labelZh: "西雅图", labelEn: "Seattle", timeZone: "America/Los_Angeles", countryZh: "美国" },
-  { id: "miami", labelZh: "迈阿密", labelEn: "Miami", timeZone: "America/New_York", countryZh: "美国" },
-  { id: "boston", labelZh: "波士顿", labelEn: "Boston", timeZone: "America/New_York", countryZh: "美国" },
-  { id: "honolulu", labelZh: "檀香山", labelEn: "Honolulu", timeZone: "Pacific/Honolulu", countryZh: "美国" },
-  { id: "toronto", labelZh: "多伦多", labelEn: "Toronto", timeZone: "America/Toronto", countryZh: "加拿大" },
-  { id: "vancouver", labelZh: "温哥华", labelEn: "Vancouver", timeZone: "America/Vancouver", countryZh: "加拿大" },
-  { id: "mexico", labelZh: "墨西哥城", labelEn: "Mexico City", timeZone: "America/Mexico_City", countryZh: "墨西哥" },
-  { id: "saopaulo", labelZh: "圣保罗", labelEn: "Sao Paulo", timeZone: "America/Sao_Paulo", countryZh: "巴西" },
-  { id: "london", labelZh: "伦敦", labelEn: "London", timeZone: "Europe/London", countryZh: "英国" },
-  { id: "paris", labelZh: "巴黎", labelEn: "Paris", timeZone: "Europe/Paris", countryZh: "法国" },
-  { id: "berlin", labelZh: "柏林", labelEn: "Berlin", timeZone: "Europe/Berlin", countryZh: "德国" },
-  { id: "amsterdam", labelZh: "阿姆斯特丹", labelEn: "Amsterdam", timeZone: "Europe/Amsterdam", countryZh: "荷兰" },
-  { id: "rome", labelZh: "罗马", labelEn: "Rome", timeZone: "Europe/Rome", countryZh: "意大利" },
-  { id: "madrid", labelZh: "马德里", labelEn: "Madrid", timeZone: "Europe/Madrid", countryZh: "西班牙" },
-  { id: "moscow", labelZh: "莫斯科", labelEn: "Moscow", timeZone: "Europe/Moscow", countryZh: "俄罗斯" },
-  { id: "istanbul", labelZh: "伊斯坦布尔", labelEn: "Istanbul", timeZone: "Europe/Istanbul", countryZh: "土耳其" },
-  { id: "sydney", labelZh: "悉尼", labelEn: "Sydney", timeZone: "Australia/Sydney", countryZh: "澳大利亚" },
-  { id: "melbourne", labelZh: "墨尔本", labelEn: "Melbourne", timeZone: "Australia/Melbourne", countryZh: "澳大利亚" },
-  { id: "auckland", labelZh: "奥克兰", labelEn: "Auckland", timeZone: "Pacific/Auckland", countryZh: "新西兰" },
-  { id: "cairo", labelZh: "开罗", labelEn: "Cairo", timeZone: "Africa/Cairo", countryZh: "埃及" },
-  { id: "johannesburg", labelZh: "约翰内斯堡", labelEn: "Johannesburg", timeZone: "Africa/Johannesburg", countryZh: "南非" },
-];
+/** 本地城市库（独立数据文件，勿把无关巨型库塞进无关页面） */
+export const MEETUP_TZ_CITIES: MeetupTzCity[] = MEETUP_TZ_CITIES_DATA;
 
 /** 快捷入口（表单顶部胶囊） */
 export const MEETUP_TZ_QUICK_PICKS = [
@@ -72,6 +22,37 @@ export const MEETUP_TZ_QUICK_PICKS = [
   "tokyo",
   "sydney",
 ] as const;
+
+/**
+ * 同一 IANA 区多城时，展示用「代表性城市」标签，避免奥马哈把芝加哥区显示成奥马哈。
+ * 用户点选具体城市后仍以该 IANA 存库；墙钟偏移一致即可。
+ */
+const PREFERRED_TZ_LABEL_ZH: Record<string, string> = {
+  "Asia/Shanghai": "北京时间",
+  "Asia/Hong_Kong": "香港",
+  "Asia/Taipei": "台北",
+  "Asia/Tokyo": "东京",
+  "Asia/Seoul": "首尔",
+  "Asia/Singapore": "新加坡",
+  "Asia/Bangkok": "曼谷",
+  "Asia/Dubai": "迪拜",
+  "Asia/Kolkata": "新德里",
+  "America/New_York": "纽约",
+  "America/Chicago": "芝加哥",
+  "America/Denver": "丹佛",
+  "America/Los_Angeles": "洛杉矶",
+  "America/Toronto": "多伦多",
+  "America/Vancouver": "温哥华",
+  "America/Sao_Paulo": "圣保罗",
+  "Europe/London": "伦敦",
+  "Europe/Paris": "巴黎",
+  "Europe/Berlin": "柏林",
+  "Europe/Moscow": "莫斯科",
+  "Australia/Sydney": "悉尼",
+  "Pacific/Auckland": "奥克兰",
+  "Africa/Cairo": "开罗",
+  "Africa/Johannesburg": "约翰内斯堡",
+};
 
 export function isValidIanaTimeZone(timeZone: string): boolean {
   if (!timeZone || typeof timeZone !== "string") return false;
@@ -227,15 +208,12 @@ export function getZonedParts(date: Date, timeZone: string): ZonedParts {
   };
 }
 
-/** 时区短标签：优先中文城市名，否则 IANA 尾段 */
+/** 时区短标签：优先代表性中文城市名，否则库内首个匹配或 IANA 尾段 */
 export function meetupTimeZoneLabel(timeZone: string): string {
   const tz = normalizeMeetupTimeZone(timeZone);
+  if (PREFERRED_TZ_LABEL_ZH[tz]) return PREFERRED_TZ_LABEL_ZH[tz];
   const city = MEETUP_TZ_CITIES.find((c) => c.timeZone === tz);
-  if (city) {
-    // 同一时区多城时用「北京时间」类表述
-    if (tz === "Asia/Shanghai") return "北京时间";
-    return city.labelZh;
-  }
+  if (city) return city.labelZh;
   const tail = tz.split("/").pop() || tz;
   return tail.replace(/_/g, " ");
 }
@@ -254,27 +232,44 @@ export function formatTimeZoneOffsetLabel(
   return name || tz;
 }
 
-export function searchMeetupTzCities(query: string, limit = 12): MeetupTzCity[] {
-  const q = query.trim().toLowerCase();
+function citySearchHaystack(c: MeetupTzCity): string {
+  const alias = (c.aliases || []).join(" ");
+  return `${c.labelZh} ${c.labelEn} ${alias} ${c.countryZh} ${c.timeZone}`.toLowerCase();
+}
+
+/**
+ * 本地库中英/别名搜索。空关键词返回快捷胶囊城市；有关键词按匹配强度排序。
+ * 奥马哈等冷门但重要城市走本地库，不依赖 Nominatim。
+ */
+export function searchMeetupTzCities(query: string, limit = 20): MeetupTzCity[] {
+  const raw = query.trim();
+  const q = raw.toLowerCase();
   if (!q) {
     return MEETUP_TZ_CITIES.filter((c) =>
       (MEETUP_TZ_QUICK_PICKS as readonly string[]).includes(c.id),
     );
   }
   const scored = MEETUP_TZ_CITIES.map((c) => {
-    const hay = `${c.labelZh} ${c.labelEn} ${c.countryZh} ${c.timeZone}`.toLowerCase();
+    const enLower = c.labelEn.toLowerCase();
+    const aliases = c.aliases || [];
     let score = 0;
-    if (c.labelZh === query.trim()) score += 100;
-    if (c.labelEn.toLowerCase() === q) score += 90;
-    if (c.labelZh.includes(query.trim())) score += 50;
-    if (c.labelEn.toLowerCase().includes(q)) score += 40;
-    if (c.countryZh.includes(query.trim())) score += 20;
-    if (c.timeZone.toLowerCase().includes(q)) score += 30;
-    if (hay.includes(q)) score += 10;
+    if (c.labelZh === raw) score += 100;
+    if (enLower === q) score += 90;
+    if (aliases.some((a) => a === raw || a.toLowerCase() === q)) score += 85;
+    if (c.labelZh.startsWith(raw)) score += 70;
+    if (enLower.startsWith(q)) score += 65;
+    if (c.labelZh.includes(raw)) score += 50;
+    if (enLower.includes(q)) score += 40;
+    if (aliases.some((a) => a.includes(raw) || a.toLowerCase().includes(q))) {
+      score += 45;
+    }
+    if (c.countryZh.includes(raw)) score += 15;
+    if (c.timeZone.toLowerCase().includes(q)) score += 25;
+    if (score === 0 && citySearchHaystack(c).includes(q)) score += 10;
     return { c, score };
   })
     .filter((x) => x.score > 0)
-    .sort((a, b) => b.score - a.score);
+    .sort((a, b) => b.score - a.score || a.c.labelZh.localeCompare(b.c.labelZh, "zh"));
   return scored.slice(0, limit).map((x) => x.c);
 }
 

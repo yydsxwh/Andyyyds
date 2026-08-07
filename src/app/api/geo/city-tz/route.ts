@@ -45,7 +45,8 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "关键词过长" }, { status: 400 });
   }
 
-  const local = searchMeetupTzCities(q, 10).map((c) => toHit(c, "local"));
+  // 本地库已大幅扩充（首都/省会/经济中心），优先返回本地命中
+  const local = searchMeetupTzCities(q, 20).map((c) => toHit(c, "local"));
   if (local.length >= 5) {
     return NextResponse.json({ results: local });
   }

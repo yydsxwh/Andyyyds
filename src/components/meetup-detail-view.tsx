@@ -224,7 +224,12 @@ export function MeetupDetailView({
     endsAt,
     meetup.timezone || undefined,
   );
-  const mapLink = `https://uri.amap.com/search?keyword=${encodeURIComponent(meetup.place)}`;
+  const placeQuery = encodeURIComponent(meetup.place);
+  /** 站内地图仅供参考；详情保留高德并补充多端外链，方便用户精确导航核对 */
+  const amapLink = `https://uri.amap.com/search?keyword=${placeQuery}`;
+  const tencentMapLink = `https://apis.map.qq.com/uri/v1/search?keyword=${placeQuery}&referer=yyds`;
+  const appleMapLink = `https://maps.apple.com/?q=${placeQuery}`;
+  const googleMapLink = `https://www.google.com/maps/search/?api=1&query=${placeQuery}`;
 
   const tagLine = [
     meetupCategoryLabel(meetup.category),
@@ -460,17 +465,56 @@ export function MeetupDetailView({
           </div>
           <div className="flex gap-3">
             <span className="w-10 shrink-0 text-[var(--muted)]">地点</span>
-            <a
-              href={mapLink}
-              target="_blank"
-              rel="noreferrer"
-              className="min-h-11 font-medium text-[var(--brand-strong)] underline-offset-2 hover:underline"
-            >
-              {meetup.place}
-              <span className="ml-1 text-xs font-normal text-[var(--muted)]">
-                打开地图
-              </span>
-            </a>
+            <div className="min-w-0 space-y-1.5">
+              <a
+                href={amapLink}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex min-h-11 items-center font-medium text-[var(--brand-strong)] underline-offset-2 hover:underline touch-manipulation"
+              >
+                {meetup.place}
+                <span className="ml-1 text-xs font-normal text-[var(--muted)]">
+                  高德地图
+                </span>
+              </a>
+              <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
+                <a
+                  href={amapLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="min-h-9 inline-flex items-center text-[var(--brand-strong)] underline-offset-2 hover:underline touch-manipulation"
+                >
+                  高德
+                </a>
+                <a
+                  href={tencentMapLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="min-h-9 inline-flex items-center text-[var(--brand-strong)] underline-offset-2 hover:underline touch-manipulation"
+                >
+                  腾讯
+                </a>
+                <a
+                  href={appleMapLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="min-h-9 inline-flex items-center text-[var(--brand-strong)] underline-offset-2 hover:underline touch-manipulation"
+                >
+                  苹果
+                </a>
+                <a
+                  href={googleMapLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="min-h-9 inline-flex items-center text-[var(--brand-strong)] underline-offset-2 hover:underline touch-manipulation"
+                >
+                  Google
+                </a>
+              </div>
+              <p className="text-xs leading-relaxed text-[var(--muted)]">
+                地点文案供参考；精确导航请用上方外部地图打开核对。
+              </p>
+            </div>
           </div>
           <div className="flex gap-3">
             <span className="w-10 shrink-0 text-[var(--muted)]">状态</span>
