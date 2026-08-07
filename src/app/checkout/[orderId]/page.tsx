@@ -26,7 +26,10 @@ export default async function CheckoutPage({
   if (!order || order.userId !== session.id) notFound();
 
   if (order.status === "PAID") {
-    // 商城订单回订单详情；专栏回详情选子课；单课/资料进学习页
+    // 约搭回活动详情；商城回订单；专栏回详情选子课；单课/资料进学习页
+    if (order.course.productType === "MEETUP") {
+      redirect(productDetailPath(order.course.slug, "MEETUP"));
+    }
     if (order.course.productType === "PRODUCT") {
       redirect(`/orders/${order.id}`);
     }

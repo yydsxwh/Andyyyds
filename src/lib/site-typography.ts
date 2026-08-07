@@ -1123,6 +1123,8 @@ export const DEFAULT_TYPOGRAPHY: TypographyConfig = {
   sectionDesc: { ...DEFAULT_ROLE_TYPOGRAPHY },
   portalCardTitle: { ...DEFAULT_ROLE_TYPOGRAPHY },
   portalCardDesc: { ...DEFAULT_ROLE_TYPOGRAPHY },
+  // 旧 decorateJson 无此字段时由 normalizeTypography 补默认，兼容升级
+  filterTag: { ...DEFAULT_ROLE_TYPOGRAPHY },
 };
 
 const EFFECT_IDS = new Set(TEXT_EFFECTS.map((e) => e.id));

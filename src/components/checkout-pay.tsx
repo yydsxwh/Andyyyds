@@ -119,9 +119,13 @@ export function CheckoutPay({ orderId, amount, channels, beforePay }: Props) {
   const goAfterPay = useCallback(
     (slug: string, productType?: string) => {
       stopPolling();
-      // 专栏套餐回详情页选所含单课学习
-      if (productType === "COLUMN") {
+      // 约搭报名成功回活动详情；专栏回详情选子课；其余进学习页
+      if (productType === "MEETUP") {
+        router.push(`/meetup/${slug}`);
+      } else if (productType === "COLUMN") {
         router.push(`/courses/${slug}`);
+      } else if (productType === "PRODUCT") {
+        router.push(`/orders`);
       } else {
         router.push(`/learn/${slug}`);
       }

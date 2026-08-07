@@ -35,12 +35,15 @@ export default async function CourseDetailPage({
 
   if (!course || course.status !== "PUBLISHED") notFound();
 
-  // 资料 / 商城商品走各自详情，避免两套 URL 并存
+  // 资料 / 商城 / 约搭壳走各自详情，避免两套 URL 并存
   if (course.productType === "MATERIAL") {
     redirect(`/materials/${encodeURIComponent(slug)}`);
   }
   if (course.productType === "PRODUCT") {
     redirect(`/shop/${encodeURIComponent(slug)}`);
+  }
+  if (course.productType === "MEETUP") {
+    redirect(`/meetup/${encodeURIComponent(slug)}`);
   }
 
   const isColumn = course.productType === "COLUMN";

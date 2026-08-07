@@ -6,6 +6,7 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { PRODUCT_PLAZA_ORDER_BY } from "@/lib/product-display-order";
 import { isAdmin } from "@/lib/roles";
+import { typoRoleClass, typoRoleStyle } from "@/lib/site-typography";
 import type {
   AnimationModuleProps,
   AudioModuleProps,
@@ -271,7 +272,8 @@ function CategoriesBlock({
             <Link
               key={cat.id}
               href={`/courses?category=${encodeURIComponent(cat.slug)}`}
-              className="rounded-full border border-[var(--line)] bg-white/80 px-3 py-2 text-sm"
+              className={`rounded-full border border-[var(--line)] bg-white/80 px-3 py-2 touch-manipulation ${typoRoleClass("filterTag")}`}
+              style={typoRoleStyle("filterTag")}
             >
               {cat.name}
             </Link>

@@ -4,6 +4,7 @@ import {
   meetupCategoryLabel,
   meetupStatusLabel,
 } from "@/lib/meetup";
+import { formatPrice } from "@/lib/utils";
 
 export type MeetupCardData = {
   id: string;
@@ -16,6 +17,8 @@ export type MeetupCardData = {
   status: string;
   joinCount: number;
   host: { name: string };
+  /** 报名费（分）；0 或未传视为免费 */
+  priceCents?: number;
 };
 
 export function MeetupCard({ meetup }: { meetup: MeetupCardData }) {
@@ -60,13 +63,20 @@ export function MeetupCard({ meetup }: { meetup: MeetupCardData }) {
         </h3>
         <p className="text-sm text-[var(--muted)]">{formatMeetupWhen(startsAt)}</p>
         <p className="truncate text-sm text-[var(--ink)]">{meetup.place}</p>
-        <div className="flex items-center justify-between gap-3 pt-1 text-sm text-[var(--muted)]">
-          <span>发起人 {meetup.host.name}</span>
-          <span>
-            {meetup.joinCount}/{meetup.maxPeople}
-            {spotsLeft > 0 && meetup.status === "OPEN" ? ` · 余 ${spotsLeft}` : ""}
+        <div className="flex items-center justify-between gap-3 pt-2">
+          <span className="text-sm font-semibold text-emerald-600">
+            {(meetup.priceCents || 0) > 0
+              ? formatPrice(meetup.priceCents || 0)
+              : "免费"}
+          </span>
+          <span className="text-sm text-[var(--muted)]">
+            {meetup.joinCount}/{meetup.maxPeople}人
+            {spotsLeft > 0 && meetup.status === "OPEN" ? ` · 余${spotsLeft}` : ""}
           </span>
         </div>
+        <p className="pt-1 text-xs text-[var(--muted)]">
+          发起人 {meetup.host.name}
+        </p>
       </div>
     </Link>
   );

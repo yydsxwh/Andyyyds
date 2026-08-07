@@ -10,6 +10,7 @@ import {
   SHOP_SORT_LABEL,
   type ShopSort,
 } from "@/lib/shop";
+import { typoRoleClass, typoRoleStyle } from "@/lib/site-typography";
 import { withSignedCoverUrls } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
@@ -100,14 +101,16 @@ export default async function ShopPage({
             </button>
           </form>
 
+          {/* 商城分类横滑胶囊：字号走装扮「筛选标签」，微信内可横滑点选 */}
           <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
             <Link
               href={hrefFor({ category: "" })}
-              className={`inline-flex min-h-10 shrink-0 items-center rounded-full px-3.5 text-sm ${
+              className={`inline-flex min-h-10 shrink-0 items-center rounded-full px-3.5 touch-manipulation ${typoRoleClass("filterTag")} ${
                 !category
                   ? "bg-[var(--brand)] text-white"
                   : "border border-[var(--line)] bg-[var(--card)]"
               }`}
+              style={typoRoleStyle("filterTag")}
             >
               全部
             </Link>
@@ -115,11 +118,12 @@ export default async function ShopPage({
               <Link
                 key={c.id}
                 href={hrefFor({ category: c.slug })}
-                className={`inline-flex min-h-10 shrink-0 items-center rounded-full px-3.5 text-sm ${
+                className={`inline-flex min-h-10 shrink-0 items-center rounded-full px-3.5 touch-manipulation ${typoRoleClass("filterTag")} ${
                   category === c.slug
                     ? "bg-[var(--brand)] text-white"
                     : "border border-[var(--line)] bg-[var(--card)]"
                 }`}
+                style={typoRoleStyle("filterTag")}
               >
                 {c.name}
               </Link>

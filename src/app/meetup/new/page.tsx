@@ -26,7 +26,7 @@ export default async function MeetupNewPage() {
         </Link>
         <h1 className="mt-3 text-2xl font-semibold sm:text-3xl">发起约搭</h1>
         <p className="mt-2 text-sm text-[var(--muted)]">
-          写清时间地点与人数，搭子看到就能报名。你本人自动占一席。
+          封面、分档名额、报名费、安心说明与图文详情都可配。你本人自动占第一档一席（不收费）。
         </p>
       </div>
       <MeetupCreateForm />

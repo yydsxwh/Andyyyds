@@ -1,13 +1,14 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { MeetupActions } from "@/components/meetup-actions";
+import {
+  MeetupDetailView,
+  type MeetupDetailData,
+} from "@/components/meetup-detail-view";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import {
-  formatMeetupWhen,
-  meetupCategoryLabel,
-  meetupStatusLabel,
-} from "@/lib/meetup";
+import { parseJsonStringArray } from "@/lib/meetup-meta";
+import { ensureMeetupProductCourse } from "@/lib/meetup-product";
+import { canManageMeetups } from "@/lib/roles";
+import { getOrderFormConfig } from "@/lib/site-settings";
 
 export const dynamic = "force-dynamic";
 
@@ -34,10 +35,11 @@ export default async function MeetupDetailPage({
   const { id } = await params;
   const session = await getSession();
 
-  const meetup = await prisma.meetup.findUnique({
+  let meetup = await prisma.meetup.findUnique({
     where: { id },
     include: {
       host: { select: { id: true, name: true, avatarUrl: true } },
+      slots: { orderBy: { sortOrder: "asc" } },
       joins: {
         include: {
           user: { select: { id: true, name: true, avatarUrl: true } },
@@ -49,112 +51,87 @@ export default async function MeetupDetailPage({
 
   if (!meetup) notFound();
 
-  const alreadyJoined = session
-    ? meetup.joins.some((j) => j.userId === session.id)
-    : false;
-  const spotsLeft = Math.max(meetup.maxPeople - meetup.joins.length, 0);
+  if (!meetup.productCourseId) {
+    await ensureMeetupProductCourse(prisma, meetup);
+    meetup = (await prisma.meetup.findUnique({
+      where: { id },
+      include: {
+        host: { select: { id: true, name: true, avatarUrl: true } },
+        slots: { orderBy: { sortOrder: "asc" } },
+        joins: {
+          include: {
+            user: { select: { id: true, name: true, avatarUrl: true } },
+          },
+          orderBy: { createdAt: "asc" },
+        },
+      },
+    }))!;
+  }
+
+  const inviteCode = session
+    ? (
+        await prisma.user.findUnique({
+          where: { id: session.id },
+          select: { referralCode: true },
+        })
+      )?.referralCode || ""
+    : "";
+
+  const orderForm = await getOrderFormConfig();
+
+  const data: MeetupDetailData = {
+    id: meetup.id,
+    title: meetup.title,
+    description: meetup.description,
+    contentHtml: meetup.contentHtml || "",
+    priceCents: meetup.priceCents,
+    category: meetup.category,
+    startsAt: meetup.startsAt.toISOString(),
+    endsAt: meetup.endsAt ? meetup.endsAt.toISOString() : null,
+    place: meetup.place,
+    maxPeople: meetup.maxPeople,
+    coverUrl: meetup.coverUrl || "",
+    tags: parseJsonStringArray(meetup.tagsJson),
+    feeIncludes: meetup.feeIncludes || "",
+    refundPolicy: meetup.refundPolicy || "",
+    autoRefund: Boolean(meetup.autoRefund),
+    gallery: parseJsonStringArray(meetup.galleryJson),
+    contactUrl: meetup.contactUrl || "",
+    status: meetup.status,
+    hostId: meetup.hostId,
+    productCourseId: meetup.productCourseId || null,
+    slots: meetup.slots.map((s) => ({
+      id: s.id,
+      name: s.name,
+      maxPeople: s.maxPeople,
+      joinCount: meetup.joins.filter((j) => j.slotId === s.id).length,
+    })),
+    host: {
+      id: meetup.host.id,
+      name: meetup.host.name,
+      avatarUrl: meetup.host.avatarUrl || "",
+    },
+    joins: meetup.joins.map((j) => ({
+      id: j.id,
+      userId: j.userId,
+      slotId: j.slotId || null,
+      user: {
+        id: j.user.id,
+        name: j.user.name,
+        avatarUrl: j.user.avatarUrl || "",
+      },
+    })),
+  };
 
   return (
-    <div className="container py-10 sm:py-12">
-      <Link href="/meetup" className="text-sm text-[var(--brand)]">
-        ← 返回约搭广场
-      </Link>
-
-      <div className="mt-6 grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
-        <div className="space-y-6">
-          {meetup.coverUrl ? (
-            <div className="surface overflow-hidden rounded-[28px]">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={meetup.coverUrl}
-                alt=""
-                className="aspect-[16/9] w-full object-cover"
-              />
-            </div>
-          ) : null}
-
-          <div className="surface rounded-[28px] p-5 sm:p-8">
-            <div className="flex flex-wrap gap-2">
-              <span className="rounded-full bg-[var(--brand)]/10 px-3 py-1 text-xs text-[var(--brand)]">
-                {meetupCategoryLabel(meetup.category)}
-              </span>
-              <span className="rounded-full border border-[var(--line)] px-3 py-1 text-xs text-[var(--muted)]">
-                {meetupStatusLabel(meetup.status)}
-              </span>
-            </div>
-            <h1 className="mt-4 text-2xl font-semibold leading-tight sm:text-3xl">
-              {meetup.title}
-            </h1>
-            <dl className="mt-6 space-y-3 text-sm">
-              <div className="flex gap-3">
-                <dt className="w-16 shrink-0 text-[var(--muted)]">时间</dt>
-                <dd>{formatMeetupWhen(meetup.startsAt)}</dd>
-              </div>
-              <div className="flex gap-3">
-                <dt className="w-16 shrink-0 text-[var(--muted)]">地点</dt>
-                <dd className="break-words">{meetup.place}</dd>
-              </div>
-              <div className="flex gap-3">
-                <dt className="w-16 shrink-0 text-[var(--muted)]">人数</dt>
-                <dd>
-                  {meetup.joins.length}/{meetup.maxPeople}
-                  {spotsLeft > 0 && meetup.status === "OPEN"
-                    ? `（还可报名 ${spotsLeft} 人）`
-                    : ""}
-                </dd>
-              </div>
-              <div className="flex gap-3">
-                <dt className="w-16 shrink-0 text-[var(--muted)]">发起人</dt>
-                <dd>{meetup.host.name}</dd>
-              </div>
-            </dl>
-            {meetup.description ? (
-              <div className="mt-6 border-t border-[var(--line)] pt-6">
-                <h2 className="text-sm font-medium text-[var(--muted)]">活动说明</h2>
-                <p className="mt-2 whitespace-pre-wrap text-sm leading-7">
-                  {meetup.description}
-                </p>
-              </div>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="space-y-6">
-          <div className="surface rounded-[28px] p-5 sm:p-6">
-            <h2 className="text-lg font-semibold">报名</h2>
-            <div className="mt-4">
-              <MeetupActions
-                meetupId={meetup.id}
-                status={meetup.status}
-                hostId={meetup.hostId}
-                currentUserId={session?.id ?? null}
-                alreadyJoined={alreadyJoined}
-              />
-            </div>
-          </div>
-
-          <div className="surface rounded-[28px] p-5 sm:p-6">
-            <h2 className="text-lg font-semibold">
-              已报名（{meetup.joins.length}）
-            </h2>
-            <ul className="mt-4 space-y-3">
-              {meetup.joins.map((j) => (
-                <li
-                  key={j.id}
-                  className="flex min-h-11 items-center justify-between gap-3 text-sm"
-                >
-                  <span className="font-medium">{j.user.name}</span>
-                  {j.userId === meetup.hostId ? (
-                    <span className="text-xs text-[var(--brand)]">发起人</span>
-                  ) : (
-                    <span className="text-xs text-[var(--muted)]">搭子</span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      </div>
-    </div>
+    <MeetupDetailView
+      meetup={data}
+      currentUserId={session?.id ?? null}
+      inviteCode={inviteCode}
+      orderForm={orderForm}
+      canManageAsAdmin={
+        session ? canManageMeetups(session.role) : false
+      }
+    />
   );
 }

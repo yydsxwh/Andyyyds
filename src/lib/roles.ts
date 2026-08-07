@@ -106,6 +106,15 @@ export function canManageMerchants(role: string): boolean {
   return role === "ADMIN";
 }
 
+/**
+ * 站长后台管理全站约搭（/studio/meetup 增删改）。
+ * 注意：前台「发起约搭」是任意登录用户（POST /api/meetup），不走本函数；
+ * 发起人改自己的局走 /api/meetup/[id]，仅站长额外可改删他人的。
+ */
+export function canManageMeetups(role: string): boolean {
+  return role === "ADMIN";
+}
+
 export function canManageSiteSettings(role: string): boolean {
   return role === "ADMIN";
 }

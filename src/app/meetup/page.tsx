@@ -4,6 +4,7 @@ import { NavPageTemplateShell } from "@/components/nav-page-template-shell";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { isMeetupCategory, MEETUP_CATEGORIES } from "@/lib/meetup";
+import { typoRoleClass, typoRoleStyle } from "@/lib/site-typography";
 
 export const dynamic = "force-dynamic";
 
@@ -51,7 +52,7 @@ export default async function MeetupPlazaPage({
         <div>
           <h1 className="brand-mark text-3xl font-semibold sm:text-4xl">约搭</h1>
           <p className="mt-2 max-w-xl text-sm leading-7 text-[var(--muted)]">
-            找人一起出门玩：发局、报名、组队集合。免费 MVP，先把结伴跑通。
+            找人一起出门玩：发局、报名、组队集合。支持免费或收费报名、图文视频详情与分享分销。
           </p>
         </div>
         {session ? (
@@ -68,14 +69,16 @@ export default async function MeetupPlazaPage({
         )}
       </div>
 
+      {/* 分类筛选胶囊：字号/字体走装扮「筛选标签」，窄屏可点、可换行 */}
       <div className="mb-8 flex flex-wrap gap-2">
         <Link
           href="/meetup"
-          className={`inline-flex min-h-11 items-center rounded-full px-4 py-2 text-sm ${
+          className={`inline-flex min-h-11 items-center rounded-full px-4 py-2 touch-manipulation ${typoRoleClass("filterTag")} ${
             !category
               ? "bg-[var(--brand)] text-white"
               : "border border-[var(--line)] bg-white/70"
           }`}
+          style={typoRoleStyle("filterTag")}
         >
           全部
         </Link>
@@ -83,11 +86,12 @@ export default async function MeetupPlazaPage({
           <Link
             key={c.key}
             href={`/meetup?category=${c.key}`}
-            className={`inline-flex min-h-11 items-center rounded-full px-4 py-2 text-sm ${
+            className={`inline-flex min-h-11 items-center rounded-full px-4 py-2 touch-manipulation ${typoRoleClass("filterTag")} ${
               category === c.key
                 ? "bg-[var(--brand)] text-white"
                 : "border border-[var(--line)] bg-white/70"
             }`}
+            style={typoRoleStyle("filterTag")}
           >
             {c.label}
           </Link>
@@ -109,6 +113,7 @@ export default async function MeetupPlazaPage({
               status: m.status,
               joinCount: m._count.joins,
               host: { name: m.host.name },
+              priceCents: m.priceCents,
             }}
           />
         ))}

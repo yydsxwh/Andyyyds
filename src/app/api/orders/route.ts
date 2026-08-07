@@ -35,6 +35,8 @@ const schema = z.object({
   specSelected: z.record(z.string(), z.string()).optional(),
   /** 或直接传已拼好的规格文案（购物车结算） */
   specLabel: z.string().max(200).optional(),
+  /** 分享链 ?ref= 带来的邀请码；优先于注册上级，便于约搭/课程分销归因 */
+  referralCode: z.string().max(32).optional(),
 });
 
 export async function POST(req: Request) {
@@ -192,6 +194,17 @@ export async function POST(req: Request) {
     const user = await prisma.user.findUnique({ where: { id: session.id } });
     const amount = Math.max(linePrice - discount, 0);
 
+    // 分销归因：下单带的 ref 优先，否则用注册邀请上级的码（与结算 resolveReferrer 一致）
+    const fromBody = (body.referralCode || "").trim().slice(0, 32);
+    let referralCode: string | undefined = fromBody || undefined;
+    if (!referralCode && user?.referredById) {
+      const inviter = await prisma.user.findUnique({
+        where: { id: user.referredById },
+        select: { referralCode: true },
+      });
+      referralCode = inviter?.referralCode || undefined;
+    }
+
     // 券额 ≥ 应付原价时 amount=0：直接 PAID 并开通，无需走微信/支付宝
     const order = await prisma.order.create({
       data: {
@@ -204,13 +217,7 @@ export async function POST(req: Request) {
         discount,
         couponId,
         formAnswersJson,
-        referralCode: user?.referredById
-          ? (
-              await prisma.user.findUnique({
-                where: { id: user.referredById },
-              })
-            )?.referralCode
-          : undefined,
+        referralCode,
         status: amount === 0 ? "PAID" : "PENDING",
         paidAt: amount === 0 ? new Date() : undefined,
         // 0 元券单与免费单区分渠道，便于订单列表识别

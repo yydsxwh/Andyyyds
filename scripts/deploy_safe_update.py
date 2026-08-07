@@ -86,6 +86,10 @@ def connect(retries: int = 8) -> paramiko.SSHClient:
                 banner_timeout=90,
                 auth_timeout=60,
             )
+            # 长传包时防空闲断连
+            transport = client.get_transport()
+            if transport is not None:
+                transport.set_keepalive(30)
             print("SSH_OK", flush=True)
             return client
         except Exception as exc:  # noqa: BLE001
@@ -112,49 +116,87 @@ def run(client: paramiko.SSHClient, cmd: str, timeout: int = 1200) -> str:
 
 
 def upload_tarball(client: paramiko.SSHClient, tarball: Path) -> paramiko.SSHClient:
-    """优先用系统 scp（更稳），失败再回退 paramiko SFTP；校验远端体积。"""
+    """优先 paramiko SFTP（带 keepalive）；失败再试系统 scp。校验远端体积。"""
     local_size = tarball.stat().st_size
     key_path = os.path.expanduser(r"~\.ssh\yyds_aliyun")
     remote_spec = f"{USER}@{HOST}:{REMOTE_TAR}"
 
     for attempt in range(1, 8):
         print(f"Uploading (attempt {attempt}/7, {local_size} bytes)...", flush=True)
-        try:
-            # Windows OpenSSH scp；BatchMode 避免交互
-            import subprocess
+        uploaded = False
 
-            result = subprocess.run(
-                [
-                    "scp",
-                    "-i",
-                    key_path,
-                    "-o",
-                    "BatchMode=yes",
-                    "-o",
-                    "StrictHostKeyChecking=accept-new",
-                    "-o",
-                    "ConnectTimeout=60",
-                    str(tarball),
-                    remote_spec,
-                ],
-                capture_output=True,
-                text=True,
-                timeout=600,
-            )
-            if result.returncode != 0:
-                raise RuntimeError(
-                    f"scp exit {result.returncode}: {result.stderr[-500:]}"
-                )
-        except Exception as scp_exc:  # noqa: BLE001
-            print(f"scp failed: {scp_exc}; fallback SFTP", flush=True)
-            try:
-                sftp = client.open_sftp()
+        # 1) SFTP：scp 超时后原 SSH 常已死，先确保会话可用再传
+        try:
+            transport = client.get_transport()
+            if transport is None or not transport.is_active():
                 try:
-                    sftp.put(str(tarball), REMOTE_TAR)
-                finally:
-                    sftp.close()
-            except Exception as sftp_exc:  # noqa: BLE001
-                print(f"SFTP failed: {sftp_exc}", flush=True)
+                    client.close()
+                except Exception:  # noqa: BLE001
+                    pass
+                client = connect()
+            sftp = client.open_sftp()
+            try:
+                # 大文件分块，进度可见，便于判断是否卡死
+                with open(tarball, "rb") as local_f:
+                    with sftp.file(REMOTE_TAR, "wb") as remote_f:
+                        remote_f.set_pipelined(True)
+                        sent = 0
+                        chunk = 256 * 1024
+                        while True:
+                            buf = local_f.read(chunk)
+                            if not buf:
+                                break
+                            remote_f.write(buf)
+                            sent += len(buf)
+                            if sent == local_size or sent % (2 * 1024 * 1024) < chunk:
+                                pct = int(sent * 100 / local_size)
+                                print(f"  SFTP {sent}/{local_size} ({pct}%)", flush=True)
+            finally:
+                sftp.close()
+            uploaded = True
+            print("SFTP put done", flush=True)
+        except Exception as sftp_exc:  # noqa: BLE001
+            print(f"SFTP failed: {sftp_exc}; try scp", flush=True)
+
+        if not uploaded:
+            try:
+                import subprocess
+
+                result = subprocess.run(
+                    [
+                        "scp",
+                        "-i",
+                        key_path,
+                        "-o",
+                        "BatchMode=yes",
+                        "-o",
+                        "StrictHostKeyChecking=accept-new",
+                        "-o",
+                        "ConnectTimeout=60",
+                        "-o",
+                        "ServerAliveInterval=20",
+                        "-o",
+                        "ServerAliveCountMax=30",
+                        str(tarball),
+                        remote_spec,
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=1200,
+                )
+                if result.returncode != 0:
+                    raise RuntimeError(
+                        f"scp exit {result.returncode}: {result.stderr[-500:]}"
+                    )
+                uploaded = True
+                # scp 可能拖死旧会话，校验前重连
+                try:
+                    client.close()
+                except Exception:  # noqa: BLE001
+                    pass
+                client = connect()
+            except Exception as scp_exc:  # noqa: BLE001
+                print(f"scp failed: {scp_exc}", flush=True)
                 time.sleep(min(40, 5 * attempt))
                 try:
                     client.close()

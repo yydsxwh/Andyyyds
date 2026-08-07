@@ -45,6 +45,7 @@ export const STUDIO_ADMIN_HUB_NAV_KEYS = [
   "merchants",
   "products",
   "shop",
+  "meetup",
   "decorate",
   "templates",
   "cms",
@@ -75,6 +76,8 @@ export const DEFAULT_STUDIO_NAV: StudioNavConfig = {
     { key: "products", label: "产品管理", href: "/studio/products" },
     // 商城商品（productType=PRODUCT）：与课程/资料组课入口隔离
     { key: "shop", label: "商城商品", href: "/studio/shop" },
+    // 约搭活动（Meetup）：全站增删改，与课程/商城并列
+    { key: "meetup", label: "约搭管理", href: "/studio/meetup" },
     // 顶栏只保留「装修」；网站装扮 / 页面模板在 DecorateSubnav 切换
     { key: "decorate", label: "装修", href: "/studio/decorate" },
     { key: "cms", label: "内容管理", href: "/studio/cms" },

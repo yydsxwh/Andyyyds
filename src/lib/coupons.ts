@@ -7,8 +7,8 @@
  *           中文「九折」= 减 10% → percentOff=10（不存 0.9，避免浮点）
  *
  * 商品适用范围：
- * - ALL      全站商品可用
- * - SELECTED 仅 CouponProduct 关联的商品可用（1 个=单品；多个=多选）
+ * - ALL      全站商品可用（含课程/资料/商城/约搭壳 Course）
+ * - SELECTED 仅 CouponProduct 关联的商品可用（1 个=单品；多个=多选，可勾选约搭）
  */
 
 export const COUPON_TYPES = ["FIXED", "PERCENT"] as const;
@@ -24,8 +24,8 @@ export const COUPON_PRODUCT_SCOPES = ["ALL", "SELECTED"] as const;
 export type CouponProductScope = (typeof COUPON_PRODUCT_SCOPES)[number];
 
 export const COUPON_PRODUCT_SCOPE_LABEL: Record<CouponProductScope, string> = {
-  ALL: "全站商品",
-  SELECTED: "指定商品",
+  ALL: "全站商品（含约搭）",
+  SELECTED: "指定商品（可含约搭）",
 };
 
 export function isCouponType(value: string): value is CouponType {

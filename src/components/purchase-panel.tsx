@@ -11,6 +11,7 @@ import {
   type OrderFormAnswers,
   type OrderFormConfig,
 } from "@/lib/order-form";
+import { REFERRAL_STORAGE_KEY } from "@/lib/invite";
 import { formatPrice } from "@/lib/utils";
 
 type AvailableCoupon = {
@@ -37,6 +38,14 @@ type Props = {
   canStaffPreview?: boolean;
   /** 购买/已拥有后的跳转；专栏套餐可指回详情页选子课 */
   learnHref?: string;
+  /** 已拥有态文案（约搭用「你已报名」） */
+  ownedHint?: string;
+  /** 已拥有态主按钮文案 */
+  ownedCtaLabel?: string;
+  /** 购买按钮文案（约搭用「报名并支付」） */
+  buyCtaLabel?: string;
+  /** 支付说明旁白 */
+  payHint?: string;
 };
 
 export function PurchasePanel({
@@ -49,6 +58,10 @@ export function PurchasePanel({
   productLabel = "课程",
   canStaffPreview = false,
   learnHref,
+  ownedHint,
+  ownedCtaLabel,
+  buyCtaLabel,
+  payHint,
 }: Props) {
   const goLearn = learnHref || `/learn/${slug}`;
   const router = useRouter();
@@ -59,6 +72,7 @@ export function PurchasePanel({
   const [loading, setLoading] = useState(false);
   const [formAnswers, setFormAnswers] = useState<OrderFormAnswers>({});
   const fields = activeOrderFormFields(orderForm);
+  const isMeetup = productLabel === "约搭";
 
   // 分享链 ?coupon= 或本地记住的券码：预填输入框；点选列表仍以可用券为准
   useEffect(() => {
@@ -145,6 +159,13 @@ export function PurchasePanel({
 
     setLoading(true);
     setMessage("");
+    let referralCode: string | undefined;
+    try {
+      referralCode =
+        window.localStorage.getItem(REFERRAL_STORAGE_KEY) || undefined;
+    } catch {
+      /* ignore */
+    }
     const res = await fetch("/api/orders", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -154,6 +175,7 @@ export function PurchasePanel({
         couponId: selectedCouponId || undefined,
         couponCode: !selectedCouponId && couponCode ? couponCode : undefined,
         formAnswers: fields.length > 0 ? formAnswers : undefined,
+        referralCode,
       }),
     });
     const data = await res.json();
@@ -177,17 +199,22 @@ export function PurchasePanel({
   if (enrolled) {
     return (
       <div className="surface rounded-[28px] p-6">
-        <p className="text-sm text-[var(--muted)]">你已拥有本{productLabel}</p>
+        <p className="text-sm text-[var(--muted)]">
+          {ownedHint || `你已拥有本${productLabel}`}
+        </p>
         <button
           className="btn btn-primary mt-4 w-full"
           onClick={() => router.push(goLearn)}
           type="button"
         >
-          {productLabel === "资料"
-            ? "进入查看"
-            : productLabel === "专栏"
-              ? "查看套餐课程"
-              : "进入学习"}
+          {ownedCtaLabel ||
+            (productLabel === "资料"
+              ? "进入查看"
+              : productLabel === "专栏"
+                ? "查看套餐课程"
+                : isMeetup
+                  ? "查看活动"
+                  : "进入学习")}
         </button>
       </div>
     );
@@ -239,8 +266,10 @@ export function PurchasePanel({
         </p>
       ) : (
         <p className="mt-2 text-sm text-[var(--muted)]">
-          支持微信支付购买；支付成功后立即开通学习。优惠券额度 ≥
-          售价时可 0 元开通。
+          {payHint ||
+            (isMeetup
+              ? "支持微信 JSAPI / 扫码支付；支付成功后自动报名。可用优惠券抵扣，额度 ≥ 报名费时可 0 元报名。"
+              : "支持微信支付购买；支付成功后立即开通学习。优惠券额度 ≥ 售价时可 0 元开通。")}
         </p>
       )}
       {fields.length > 0 ? (
@@ -310,9 +339,17 @@ export function PurchasePanel({
       >
         {loading
           ? "处理中..."
-          : isFree || price <= 0 || willZeroPay
-            ? "0 元开通"
-            : "立即购买"}
+          : buyCtaLabel
+            ? willZeroPay
+              ? isMeetup
+                ? "0 元报名"
+                : "0 元开通"
+              : buyCtaLabel
+            : isFree || price <= 0 || willZeroPay
+              ? isMeetup
+                ? "0 元报名"
+                : "0 元开通"
+              : "立即购买"}
       </button>
       {message ? <p className="mt-3 text-sm text-red-700">{message}</p> : null}
     </div>

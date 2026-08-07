@@ -4,10 +4,17 @@
  * - COLUMN 专栏：套餐 SKU，打包多门单课（CourseBundleItem）；购后开通所含单课
  * - MATERIAL 资料包 → 资料广场（/materials）
  * - PRODUCT 商城商品 → 商城（/shop）；可含规格/多图/购物车
- * 单课+专栏在课程广场；资料在资料广场；商城商品在商城。
+ * - MEETUP 约搭活动壳商品 → 约搭详情（/meetup/:id）；报名费走订单/分销/优惠券
+ * 单课+专栏在课程广场；资料在资料广场；商城商品在商城；约搭在约搭广场。
  */
 
-export const PRODUCT_TYPES = ["COURSE", "COLUMN", "MATERIAL", "PRODUCT"] as const;
+export const PRODUCT_TYPES = [
+  "COURSE",
+  "COLUMN",
+  "MATERIAL",
+  "PRODUCT",
+  "MEETUP",
+] as const;
 export type ProductType = (typeof PRODUCT_TYPES)[number];
 
 export const PRODUCT_TYPE_LABEL: Record<ProductType, string> = {
@@ -15,6 +22,7 @@ export const PRODUCT_TYPE_LABEL: Record<ProductType, string> = {
   COLUMN: "专栏",
   MATERIAL: "资料",
   PRODUCT: "商城商品",
+  MEETUP: "约搭",
 };
 
 export function isProductType(value: string): value is ProductType {
@@ -40,13 +48,20 @@ export function isShopPlazaType(value: string): boolean {
   return value === "PRODUCT";
 }
 
+/** 约搭可售壳（不进课程/资料/商城广场） */
+export function isMeetupProductType(value: string): boolean {
+  return value === "MEETUP";
+}
+
 /**
- * 详情页路径：资料走 /materials，商城走 /shop，其余走 /courses。
+ * 详情页路径：资料走 /materials，商城走 /shop，约搭走 /meetup，其余走 /courses。
+ * 约搭壳商品的 slug = meetup.id，便于支付成功后回跳详情。
  * 路径段保持原始字符，交给 Next Link / router 编码一次；
  * 此处再 encodeURIComponent 会导致双重编码 → 前台 404。
  */
 export function productDetailPath(slug: string, productType: string): string {
   if (productType === "MATERIAL") return `/materials/${slug}`;
   if (productType === "PRODUCT") return `/shop/${slug}`;
+  if (productType === "MEETUP") return `/meetup/${slug}`;
   return `/courses/${slug}`;
 }

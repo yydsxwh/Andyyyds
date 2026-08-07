@@ -4,6 +4,7 @@
 
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { prisma } from "./db";
+import { joinMeetupAfterPurchase } from "./meetup-product";
 
 type DbClient = PrismaClient | Prisma.TransactionClient;
 
@@ -82,7 +83,8 @@ export async function replaceColumnBundleItems(
 }
 
 /**
- * 为用户开通某个商品的学习权限；若是专栏再开通所含单课。
+ * 为用户开通某个商品的学习权限；若是专栏再开通所含单课；
+ * 若是约搭壳则同步写入 MeetupJoin（付费报名履约入口）。
  * 已有 enrollment 则跳过，不重复增加 studentCount。
  */
 export async function grantProductAccess(
@@ -102,7 +104,17 @@ export async function grantProductAccess(
       },
     },
   });
-  if (!product || product.productType !== "COLUMN") return;
+  if (!product) return;
+
+  if (product.productType === "MEETUP") {
+    await joinMeetupAfterPurchase(db, {
+      userId: input.userId,
+      productCourseId: product.id,
+    });
+    return;
+  }
+
+  if (product.productType !== "COLUMN") return;
 
   for (const item of product.bundleItems) {
     await ensureEnrollment(db, input.userId, item.courseId);

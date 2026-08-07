@@ -60,25 +60,49 @@ model User {
   @@index([wechatUnionId])
 }
 
-/// 约搭活动：线下结伴 / 兴趣搭子匹配（免费 MVP，不含支付）
+/// 约搭活动：线下结伴 / 兴趣搭子；可免费或付费报名（付费复用 Course+Order 支付与分销）
+/// 详情页对齐「一起玩」类结构：封面、分档名额、安心卡片、怎么玩、图集、底栏上车
 model Meetup {
   id          String       @id @default(cuid())
   title       String
+  /// 短简介（广场卡片/兼容旧数据）；富媒体正文见 contentHtml
   description String       @default("")
+  /// 富媒体详情 HTML（图文视频）；空则详情页回退展示 description
+  contentHtml String       @default("")
+  /// 报名费（分）；0=免费，走直接报名；>0 须下单支付（可叠加优惠券）；各分档同价
+  priceCents  Int          @default(0)
   /// SPORT | FOOD | GAME | STUDY | TRAVEL | OTHER（见 src/lib/meetup.ts）
   category    String       @default("OTHER")
   /// 活动开始时间
   startsAt    DateTime
+  /// 活动结束时间（可选；有则详情展示时段）
+  endsAt      DateTime?
   /// 城市或地点（自由文本，便于手机端快速填写）
   place       String
-  /// 人数上限（含发起人）
+  /// 人数上限（含发起人）；多档时为各档上限之和，便于 FULL 判定
   maxPeople   Int          @default(4)
   /// 可选封面图 URL
   coverUrl    String       @default("")
+  /// 玩法标签 JSON 字符串数组，如 ["新手友好","开心社交"]
+  tagsJson    String       @default("")
+  /// 「参与更安心 · 费用包含」文案
+  feeIncludes String       @default("")
+  /// 「参与更安心 · 退款政策」文案
+  refundPolicy String      @default("")
+  /// 是否展示「自动退」标签（规则仍以 refundPolicy 文案为准，降低对接支付原路退成本）
+  autoRefund  Boolean      @default(false)
+  /// 「大家这样玩」图集 JSON URL 数组
+  galleryJson String       @default("")
+  /// 联系方式外链（无 IM 时群聊/私聊跳转；空则底栏隐藏聊天入口）
+  contactUrl  String       @default("")
   /// OPEN | FULL | CLOSED | CANCELLED
   status      String       @default("OPEN")
   hostId      String
   host        User         @relation("MeetupHost", fields: [hostId], references: [id], onDelete: Cascade)
+  /// 关联可售 Course（productType=MEETUP），复用订单/微信JSAPI/分销/优惠券
+  productCourseId String?  @unique
+  productCourse   Course?  @relation("MeetupProduct", fields: [productCourseId], references: [id], onDelete: SetNull)
+  slots       MeetupSlot[]
   joins       MeetupJoin[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
@@ -88,17 +112,37 @@ model Meetup {
   @@index([hostId])
 }
 
-/// 约搭报名：一人一局唯一；发起人创建时自动写入
+/// 约搭分档名额（如「新手局」「对抗局」）；旧活动无档时详情页虚拟单档
+model MeetupSlot {
+  id        String       @id @default(cuid())
+  meetupId  String
+  /// 档位名称，如新手局
+  name      String
+  /// 本档人数上限（含发起人若分到本档）
+  maxPeople Int          @default(8)
+  sortOrder Int          @default(0)
+  meetup    Meetup       @relation(fields: [meetupId], references: [id], onDelete: Cascade)
+  joins     MeetupJoin[]
+  createdAt DateTime     @default(now())
+
+  @@index([meetupId, sortOrder])
+}
+
+/// 约搭报名：一人一局唯一；发起人创建时自动写入；可归属某一档
 model MeetupJoin {
-  id        String   @id @default(cuid())
+  id        String      @id @default(cuid())
   meetupId  String
   userId    String
-  meetup    Meetup   @relation(fields: [meetupId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
+  /// 所属分档；旧数据可为空（计入活动总人数）
+  slotId    String?
+  meetup    Meetup      @relation(fields: [meetupId], references: [id], onDelete: Cascade)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  slot      MeetupSlot? @relation(fields: [slotId], references: [id], onDelete: SetNull)
+  createdAt DateTime    @default(now())
 
   @@unique([meetupId, userId])
   @@index([userId])
+  @@index([slotId])
 }
 
 /// 短信验证码（手机号登录 / 绑定）；哈希存储，短时有效
@@ -343,6 +387,8 @@ model Course {
   bundledIn     CourseBundleItem[] @relation("BundledInColumns")
   /// 指定适用本商品的优惠券（productScope=SELECTED）
   couponProducts CouponProduct[]
+  /// 约搭活动挂的可售壳商品（至多一条）
+  meetupProduct Meetup? @relation("MeetupProduct")
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 

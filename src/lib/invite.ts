@@ -22,7 +22,7 @@ export function inviteRegisterUrl(code: string, base?: string) {
   return `${root}/register?ref=${encodeURIComponent(code)}`;
 }
 
-/** 课程/资料分享链接（带邀请码；资料走 /materials） */
+/** 课程/资料/约搭分享链接（带邀请码；资料走 /materials，约搭走 /meetup） */
 export function inviteProductUrl(
   slug: string,
   code: string,

@@ -15,6 +15,8 @@ const ADMIN_HUB_BLURBS: Record<string, string> = {
   users: "查看注册用户、审核角色申请，调整学员 / 老师 / 商家 / 代理。",
   merchants: "审核入驻/加盟商家，绑定加盟代理归属，维护联系资料。",
   products: "管理全站单课/专栏/资料：展示次序、置顶、精华与上下架。",
+  shop: "管理商城商品：规格、多图、上下架。",
+  meetup: "管理全站约搭活动：创建、编辑、取消与删除。",
   decorate: "网站装扮（主题/配色/门面）与页面模板 DIY，同属装修。",
   cms: "后台文案、门户导航与下单信息采集字段配置。",
   "wechat-mp": "同步公众号已发表图文与主页合集，展示在公司介绍页。",
@@ -42,6 +44,11 @@ const QUICK_LINKS: { href: string; label: string; hint: string }[] = [
     href: "/studio/products",
     label: "产品管理",
     hint: "次序 / 置顶 / 精华",
+  },
+  {
+    href: "/studio/meetup",
+    label: "约搭管理",
+    hint: "活动增删改",
   },
   {
     href: "/studio/courses/compose",

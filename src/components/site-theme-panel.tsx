@@ -154,6 +154,7 @@ export function SiteThemePanel({ initial }: Props) {
     initial.fontSizes?.sectionDesc,
     initial.fontSizes?.portalCardTitle,
     initial.fontSizes?.portalCardDesc,
+    initial.fontSizes?.filterTag,
     initial.typography,
   ]);
 

@@ -4,7 +4,14 @@
  * - 游客可浏览广场/详情；登录用户可发起与报名
  * - 人数含发起人；报满自动 FULL，有人退出且仍 OPEN 窗口则恢复 OPEN
  * - 发起人可取消活动或提前截止报名（CLOSED），不可替他人报名
+ * - 定价：priceCents=0 免费直接报名；>0 走 Course(MEETUP) 订单支付，可叠加优惠券与分销
  */
+
+/** 约搭可售壳在 Course.productType 上的取值（与 product-types 对齐） */
+export const MEETUP_PRODUCT_TYPE = "MEETUP";
+
+/** 报名费上限（分）：防误填天文数字；约 2 万元 */
+export const MEETUP_MAX_PRICE_CENTS = 2_000_000;
 
 export const MEETUP_CATEGORIES = [
   { key: "SPORT", label: "运动" },
@@ -87,4 +94,38 @@ export function formatMeetupWhen(date: Date): string {
   const hh = String(date.getHours()).padStart(2, "0");
   const mm = String(date.getMinutes()).padStart(2, "0");
   return `${y}-${m}-${d} ${hh}:${mm}`;
+}
+
+const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"] as const;
+
+/** 详情页时段：08.07 周五 19:00 - 22:00（贴近一起玩类展示） */
+export function formatMeetupTimeRange(startsAt: Date, endsAt?: Date | null): string {
+  const m = String(startsAt.getMonth() + 1).padStart(2, "0");
+  const d = String(startsAt.getDate()).padStart(2, "0");
+  const week = WEEKDAYS[startsAt.getDay()];
+  const hh = String(startsAt.getHours()).padStart(2, "0");
+  const mm = String(startsAt.getMinutes()).padStart(2, "0");
+  const start = `${m}.${d} 周${week} ${hh}:${mm}`;
+  if (!endsAt || Number.isNaN(endsAt.getTime())) return start;
+  const eh = String(endsAt.getHours()).padStart(2, "0");
+  const em = String(endsAt.getMinutes()).padStart(2, "0");
+  const sameDay =
+    endsAt.getFullYear() === startsAt.getFullYear() &&
+    endsAt.getMonth() === startsAt.getMonth() &&
+    endsAt.getDate() === startsAt.getDate();
+  if (sameDay) return `${start} - ${eh}:${em}`;
+  const emon = String(endsAt.getMonth() + 1).padStart(2, "0");
+  const eday = String(endsAt.getDate()).padStart(2, "0");
+  return `${start} - ${emon}.${eday} ${eh}:${em}`;
+}
+
+/** 元 → 分；非法或负数按 0（免费） */
+export function yuanToMeetupPriceCents(yuan: unknown): number {
+  const n = typeof yuan === "number" ? yuan : Number(yuan);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.min(MEETUP_MAX_PRICE_CENTS, Math.round(n * 100));
+}
+
+export function isMeetupPaid(priceCents: number): boolean {
+  return Math.max(0, Math.floor(priceCents || 0)) > 0;
 }

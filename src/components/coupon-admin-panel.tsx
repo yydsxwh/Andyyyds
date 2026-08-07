@@ -24,6 +24,7 @@ import {
   type CouponProductScope,
   type CouponType,
 } from "@/lib/coupons";
+import { productTypeLabel } from "@/lib/product-types";
 import { formatPrice } from "@/lib/utils";
 
 export type CouponProductOption = {
@@ -413,6 +414,9 @@ export function CouponAdminPanel({
                           className="h-4 w-4"
                         />
                         <span className="min-w-0 flex-1 truncate text-sm">
+                          <span className="mr-1.5 text-xs text-[var(--brand)]">
+                            {productTypeLabel(p.productType)}
+                          </span>
                           {p.title}
                         </span>
                         <span className="shrink-0 text-xs text-[var(--muted)]">

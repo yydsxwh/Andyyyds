@@ -63,7 +63,9 @@ export type FontSizeKey =
   | "sectionTitle"
   | "sectionDesc"
   | "portalCardTitle"
-  | "portalCardDesc";
+  | "portalCardDesc"
+  /** 列表页分类筛选胶囊（约搭/课程/资料/商城等） */
+  | "filterTag";
 
 export type FontSizesConfig = Record<FontSizeKey, number>;
 
@@ -94,6 +96,8 @@ export const DEFAULT_FONT_SIZES: FontSizesConfig = {
   portalCardTitle: 18,
   /** 对应原 text-sm */
   portalCardDesc: 14,
+  /** 对应原筛选胶囊 text-sm */
+  filterTag: 14,
 };
 
 export const FONT_SIZE_FIELDS: FontSizeFieldMeta[] = [
@@ -160,6 +164,15 @@ export const FONT_SIZE_FIELDS: FontSizeFieldMeta[] = [
     min: 12,
     max: 20,
     cssVar: "--fs-portal-card-desc",
+  },
+  {
+    key: "filterTag",
+    label: "筛选标签",
+    // 统一前台分类胶囊字号/字体，避免约搭/课程等各写死 text-sm 无法装扮
+    hint: "约搭/课程/资料/商城等「全部、运动…」分类筛选胶囊",
+    min: 12,
+    max: 22,
+    cssVar: "--fs-filter-tag",
   },
 ];
 

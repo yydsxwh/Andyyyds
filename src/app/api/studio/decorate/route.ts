@@ -52,6 +52,7 @@ const patchSchema = z.object({
       sectionDesc: z.number().optional(),
       portalCardTitle: z.number().optional(),
       portalCardDesc: z.number().optional(),
+      filterTag: z.number().optional(),
     })
     .optional(),
   typography: z
