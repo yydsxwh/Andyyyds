@@ -9,6 +9,7 @@ import {
   MEETUP_MAX_PEOPLE,
   MEETUP_MAX_PRICE_CENTS,
   MEETUP_MIN_PEOPLE,
+  parseOptionalCoord,
   yuanToMeetupPriceCents,
 } from "@/lib/meetup";
 import {
@@ -20,6 +21,12 @@ import {
   normalizeMeetupSlotInputs,
   stringifyJsonStringArray,
 } from "@/lib/meetup-meta";
+import {
+  DEFAULT_MEETUP_TIMEZONE,
+  isValidIanaTimeZone,
+  normalizeMeetupTimeZone,
+  wallClockToUtc,
+} from "@/lib/meetup-timezone";
 
 export const meetupSlotPayloadSchema = z.object({
   id: z.string().trim().min(1).optional(),
@@ -36,7 +43,12 @@ export const meetupWriteSchema = z.object({
   category: z.string().trim(),
   startsAt: z.string().min(1),
   endsAt: z.string().optional().nullable(),
+  /** IANA 时区；墙钟 startsAt/endsAt 相对此时区换算 UTC */
+  timezone: z.string().trim().max(64).optional(),
   place: z.string().trim().min(1).max(120),
+  // 可选坐标：空串/省略=清除或不写；仅填地点文案的旧活动仍可创建
+  latitude: z.union([z.number(), z.string(), z.null()]).optional(),
+  longitude: z.union([z.number(), z.string(), z.null()]).optional(),
   maxPeople: z
     .number()
     .int()
@@ -69,7 +81,10 @@ export type ParsedMeetupWrite = {
   category: string;
   startsAt: Date;
   endsAt: Date | null;
+  timezone: string;
   place: string;
+  latitude: number | null;
+  longitude: number | null;
   maxPeople: number;
   coverUrl: string;
   tagsJson: string;
@@ -90,8 +105,15 @@ export function parseMeetupWriteBody(
     return { ok: false, error: "分类无效" };
   }
 
-  const startsAt = new Date(body.startsAt);
-  if (Number.isNaN(startsAt.getTime())) {
+  const timezoneRaw = (body.timezone || DEFAULT_MEETUP_TIMEZONE).trim();
+  if (timezoneRaw && !isValidIanaTimeZone(timezoneRaw)) {
+    return { ok: false, error: "时区无效，请重新选择城市或时区" };
+  }
+  const timezone = normalizeMeetupTimeZone(timezoneRaw);
+
+  // 前端传活动时区墙钟（datetime-local）；若带 Z/偏移则按绝对时间
+  const startsAt = wallClockToUtc(body.startsAt, timezone);
+  if (!startsAt) {
     return { ok: false, error: "开始时间无效" };
   }
   if (
@@ -103,8 +125,8 @@ export function parseMeetupWriteBody(
 
   let endsAt: Date | null = null;
   if (body.endsAt) {
-    endsAt = new Date(body.endsAt);
-    if (Number.isNaN(endsAt.getTime()) || endsAt <= startsAt) {
+    endsAt = wallClockToUtc(body.endsAt, timezone);
+    if (!endsAt || endsAt <= startsAt) {
       return { ok: false, error: "结束时间须晚于开始时间" };
     }
   }
@@ -166,6 +188,23 @@ export function parseMeetupWriteBody(
     ),
   );
 
+  // 经纬度须成对才写入；只填一侧视为无效，避免半残坐标参与距离排序
+  const lat = parseOptionalCoord(body.latitude, "lat");
+  const lng = parseOptionalCoord(body.longitude, "lng");
+  const hasPair = lat != null && lng != null;
+  if (
+    (body.latitude !== undefined &&
+      body.latitude !== null &&
+      body.latitude !== "" &&
+      lat == null) ||
+    (body.longitude !== undefined &&
+      body.longitude !== null &&
+      body.longitude !== "" &&
+      lng == null)
+  ) {
+    return { ok: false, error: "经纬度格式无效（纬度 -90~90，经度 -180~180）" };
+  }
+
   return {
     ok: true,
     data: {
@@ -176,7 +215,10 @@ export function parseMeetupWriteBody(
       category: body.category,
       startsAt,
       endsAt,
+      timezone,
       place: body.place,
+      latitude: hasPair ? lat : null,
+      longitude: hasPair ? lng : null,
       maxPeople,
       coverUrl,
       tagsJson: stringifyJsonStringArray(body.tags || []),

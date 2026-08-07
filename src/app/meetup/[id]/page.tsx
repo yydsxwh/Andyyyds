@@ -88,6 +88,7 @@ export default async function MeetupDetailPage({
     category: meetup.category,
     startsAt: meetup.startsAt.toISOString(),
     endsAt: meetup.endsAt ? meetup.endsAt.toISOString() : null,
+    timezone: meetup.timezone || "Asia/Shanghai",
     place: meetup.place,
     maxPeople: meetup.maxPeople,
     coverUrl: meetup.coverUrl || "",

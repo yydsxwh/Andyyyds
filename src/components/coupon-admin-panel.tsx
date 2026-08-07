@@ -476,7 +476,7 @@ export function CouponAdminPanel({
           <label className="block text-sm">
             <span className="text-[var(--muted)]">开始时间（可选）</span>
             <input
-              className="field mt-2"
+              className="field mt-2 min-h-12 text-lg"
               type="datetime-local"
               value={form.startsAt}
               onChange={(e) => setField("startsAt", e.target.value)}
@@ -485,7 +485,7 @@ export function CouponAdminPanel({
           <label className="block text-sm">
             <span className="text-[var(--muted)]">结束时间（可选）</span>
             <input
-              className="field mt-2"
+              className="field mt-2 min-h-12 text-lg"
               type="datetime-local"
               value={form.expiresAt}
               onChange={(e) => setField("expiresAt", e.target.value)}

@@ -73,12 +73,18 @@ model Meetup {
   priceCents  Int          @default(0)
   /// SPORT | FOOD | GAME | STUDY | TRAVEL | OTHER（见 src/lib/meetup.ts）
   category    String       @default("OTHER")
-  /// 活动开始时间
+  /// 活动开始时间（UTC 存库；展示/编辑按 timezone 墙钟）
   startsAt    DateTime
-  /// 活动结束时间（可选；有则详情展示时段）
+  /// 活动结束时间（可选；UTC 存库）
   endsAt      DateTime?
+  /// IANA 时区（如 Asia/Shanghai）；开始/结束墙钟均相对此时区，默认北京时间
+  timezone    String       @default("Asia/Shanghai")
   /// 城市或地点（自由文本，便于手机端快速填写）
   place       String
+  /// 可选纬度（WGS84）；有则广场「距离最近」可按 Haversine 算；旧数据为空
+  latitude    Float?
+  /// 可选经度（WGS84）；须与 latitude 成对才参与距离排序
+  longitude   Float?
   /// 人数上限（含发起人）；多档时为各档上限之和，便于 FULL 判定
   maxPeople   Int          @default(4)
   /// 可选封面图 URL

@@ -11,6 +11,8 @@ export type MeetupCardData = {
   title: string;
   category: string;
   startsAt: string | Date;
+  /** IANA；缺省按北京时间展示 */
+  timezone?: string | null;
   place: string;
   maxPeople: number;
   coverUrl?: string;
@@ -61,7 +63,9 @@ export function MeetupCard({ meetup }: { meetup: MeetupCardData }) {
         <h3 className="text-lg font-semibold leading-snug group-hover:text-[var(--brand)]">
           {meetup.title}
         </h3>
-        <p className="text-sm text-[var(--muted)]">{formatMeetupWhen(startsAt)}</p>
+        <p className="text-sm text-[var(--muted)]">
+          {formatMeetupWhen(startsAt, meetup.timezone || undefined)}
+        </p>
         <p className="truncate text-sm text-[var(--ink)]">{meetup.place}</p>
         <div className="flex items-center justify-between gap-3 pt-2">
           <span className="text-sm font-semibold text-emerald-600">

@@ -1,14 +1,16 @@
 import Link from "next/link";
 import { MeetupCard } from "@/components/meetup-card";
+import { MeetupPlazaToolbar } from "@/components/meetup-plaza-toolbar";
 import { NavPageTemplateShell } from "@/components/nav-page-template-shell";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import {
   buildMeetupPlazaWhere,
-  MEETUP_CATEGORIES,
   MEETUP_PLAZA_TAKE,
+  parseMeetupSort,
+  parseOptionalCoord,
+  sortMeetupPlazaRows,
 } from "@/lib/meetup";
-import { typoRoleClass, typoRoleStyle } from "@/lib/site-typography";
 
 export const dynamic = "force-dynamic";
 
@@ -20,25 +22,44 @@ export const metadata = {
 export default async function MeetupPlazaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ category?: string }>;
+  searchParams: Promise<{
+    category?: string;
+    sort?: string;
+    lat?: string;
+    lng?: string;
+  }>;
 }) {
   const params = await searchParams;
   const category = params.category?.trim() || "";
+  const sort = parseMeetupSort(params.sort);
+  const userLat = parseOptionalCoord(params.lat, "lat");
+  const userLng = parseOptionalCoord(params.lng, "lng");
   const session = await getSession();
 
-  // 与 GET /api/meetup 同一套规则：未取消的约搭（含满员/已截止）在广场可见
+  // 与 GET /api/meetup 同一套规则：未取消（含历史）可见；排序见 sort
   const where = buildMeetupPlazaWhere({ category });
 
-  const meetups = await prisma.meetup.findMany({
+  // 取数用开场时间作候选池，再在内存按 sort 重排（综合/距离不便纯 SQL）
+  const rows = await prisma.meetup.findMany({
     where,
     include: {
       host: { select: { id: true, name: true, avatarUrl: true } },
       _count: { select: { joins: true } },
     },
-    // 近期开场优先，方便手机端先看到仍相关的局
-    orderBy: [{ startsAt: "desc" }, { createdAt: "desc" }],
+    orderBy:
+      sort === "latest"
+        ? [{ createdAt: "desc" }, { startsAt: "desc" }]
+        : [{ startsAt: "desc" }, { createdAt: "desc" }],
     take: MEETUP_PLAZA_TAKE,
   });
+
+  const meetups = sortMeetupPlazaRows(
+    rows.map((m) => ({
+      ...m,
+      joinCount: m._count.joins,
+    })),
+    { sort, userLat, userLng },
+  );
 
   return (
     <NavPageTemplateShell type="meetup">
@@ -64,34 +85,12 @@ export default async function MeetupPlazaPage({
         )}
       </div>
 
-      {/* 分类筛选胶囊：字号/字体走装扮「筛选标签」，窄屏可点、可换行 */}
-      <div className="mb-8 flex flex-wrap gap-2">
-        <Link
-          href="/meetup"
-          className={`inline-flex min-h-11 items-center rounded-full px-4 py-2 touch-manipulation ${typoRoleClass("filterTag")} ${
-            !category
-              ? "bg-[var(--brand)] text-white"
-              : "border border-[var(--line)] bg-white/70"
-          }`}
-          style={typoRoleStyle("filterTag")}
-        >
-          全部
-        </Link>
-        {MEETUP_CATEGORIES.map((c) => (
-          <Link
-            key={c.key}
-            href={`/meetup?category=${c.key}`}
-            className={`inline-flex min-h-11 items-center rounded-full px-4 py-2 touch-manipulation ${typoRoleClass("filterTag")} ${
-              category === c.key
-                ? "bg-[var(--brand)] text-white"
-                : "border border-[var(--line)] bg-white/70"
-            }`}
-            style={typoRoleStyle("filterTag")}
-          >
-            {c.label}
-          </Link>
-        ))}
-      </div>
+      <MeetupPlazaToolbar
+        category={category}
+        sort={sort}
+        userLat={userLat}
+        userLng={userLng}
+      />
 
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {meetups.map((m) => (
@@ -102,11 +101,12 @@ export default async function MeetupPlazaPage({
               title: m.title,
               category: m.category,
               startsAt: m.startsAt,
+              timezone: m.timezone,
               place: m.place,
               maxPeople: m.maxPeople,
               coverUrl: m.coverUrl || undefined,
               status: m.status,
-              joinCount: m._count.joins,
+              joinCount: m.joinCount,
               host: { name: m.host.name },
               priceCents: m.priceCents,
             }}
@@ -116,7 +116,6 @@ export default async function MeetupPlazaPage({
 
       {meetups.length === 0 ? (
         <div className="surface rounded-[28px] px-6 py-16 text-center">
-          {/* 文案与查询一致：这里是「近期未取消」为空，不是「进行中」过滤为空 */}
           <p className="text-[var(--muted)]">暂无约搭活动</p>
           <p className="mt-2 text-sm text-[var(--muted)]">
             当第一个发起人，喊上搭子一起出门

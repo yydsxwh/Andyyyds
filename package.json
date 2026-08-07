@@ -22,7 +22,9 @@
     "bcryptjs": "^3.0.3",
     "date-fns": "^4.4.0",
     "dotenv": "^17.4.2",
+    "geo-tz": "^8.1.8",
     "jose": "^6.2.8",
+    "leaflet": "^1.9.4",
     "next": "16.3.0",
     "qrcode": "^1.5.4",
     "react": "19.2.8",
@@ -32,6 +34,7 @@
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
+    "@types/leaflet": "^1.9.22",
     "@types/node": "^20",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19",

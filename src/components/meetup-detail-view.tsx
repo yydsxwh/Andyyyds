@@ -54,6 +54,8 @@ export type MeetupDetailData = {
   category: string;
   startsAt: string;
   endsAt: string | null;
+  /** IANA；展示用活动时区墙钟 */
+  timezone?: string | null;
   place: string;
   maxPeople: number;
   coverUrl: string;
@@ -217,7 +219,11 @@ export function MeetupDetailView({
 
   const startsAt = new Date(meetup.startsAt);
   const endsAt = meetup.endsAt ? new Date(meetup.endsAt) : null;
-  const timeLabel = formatMeetupTimeRange(startsAt, endsAt);
+  const timeLabel = formatMeetupTimeRange(
+    startsAt,
+    endsAt,
+    meetup.timezone || undefined,
+  );
   const mapLink = `https://uri.amap.com/search?keyword=${encodeURIComponent(meetup.place)}`;
 
   const tagLine = [

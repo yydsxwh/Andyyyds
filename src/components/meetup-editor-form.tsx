@@ -7,6 +7,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { MeetupContentEditor } from "@/components/meetup-content-editor";
+import { MeetupPlaceMapPicker } from "@/components/meetup-place-map-picker";
+import { MeetupTimezonePicker } from "@/components/meetup-timezone-picker";
 import type { MeetupContentBlock } from "@/lib/meetup-content";
 import {
   MEETUP_CATEGORIES,
@@ -14,25 +16,29 @@ import {
   MEETUP_MIN_PEOPLE,
   MEETUP_STATUSES,
 } from "@/lib/meetup";
+import {
+  DEFAULT_MEETUP_TIMEZONE,
+  defaultMeetupEndWall,
+  defaultMeetupStartWall,
+  meetupTimeZoneLabel,
+  normalizeMeetupTimeZone,
+  utcToWallClock,
+} from "@/lib/meetup-timezone";
 
-function toDatetimeLocalValue(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
-function defaultStartsAt(): string {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  d.setMinutes(0, 0, 0);
-  return toDatetimeLocalValue(d);
-}
-
-function defaultEndsAt(): string {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  d.setHours(d.getHours() + 3);
-  d.setMinutes(0, 0, 0);
-  return toDatetimeLocalValue(d);
+async function suggestTimezoneFromCoords(
+  lat: number,
+  lng: number,
+): Promise<string | null> {
+  try {
+    const res = await fetch(
+      `/api/geo/timezone?lat=${encodeURIComponent(String(lat))}&lng=${encodeURIComponent(String(lng))}`,
+    );
+    const data = (await res.json()) as { timeZone?: string };
+    if (!res.ok || !data.timeZone) return null;
+    return normalizeMeetupTimeZone(data.timeZone);
+  } catch {
+    return null;
+  }
 }
 
 export type MeetupEditorSlot = {
@@ -51,7 +57,11 @@ export type MeetupEditorInitial = {
   category?: string;
   startsAt?: string;
   endsAt?: string | null;
+  /** IANA；缺省北京时间 */
+  timezone?: string | null;
   place?: string;
+  latitude?: number | null;
+  longitude?: number | null;
   coverUrl?: string;
   tags?: string[];
   feeIncludes?: string;
@@ -92,17 +102,44 @@ export function MeetupEditorForm({
     return (cents / 100).toFixed(cents % 100 === 0 ? 0 : 2);
   });
   const [category, setCategory] = useState(initial?.category || "SPORT");
-  const [startsAt, setStartsAt] = useState(() =>
-    initial?.startsAt
-      ? toDatetimeLocalValue(new Date(initial.startsAt))
-      : defaultStartsAt(),
+  const [timezone, setTimezone] = useState(() =>
+    normalizeMeetupTimeZone(initial?.timezone || DEFAULT_MEETUP_TIMEZONE),
   );
-  const [endsAt, setEndsAt] = useState(() =>
-    initial?.endsAt
-      ? toDatetimeLocalValue(new Date(initial.endsAt))
-      : defaultEndsAt(),
-  );
+  // datetime-local 存的是「活动时区墙钟」，不是浏览器本地时区
+  const [startsAt, setStartsAt] = useState(() => {
+    if (initial?.startsAt) {
+      return utcToWallClock(
+        new Date(initial.startsAt),
+        normalizeMeetupTimeZone(initial.timezone),
+      );
+    }
+    return defaultMeetupStartWall(DEFAULT_MEETUP_TIMEZONE);
+  });
+  const [endsAt, setEndsAt] = useState(() => {
+    if (initial?.endsAt) {
+      return utcToWallClock(
+        new Date(initial.endsAt),
+        normalizeMeetupTimeZone(initial.timezone),
+      );
+    }
+    return defaultMeetupEndWall(
+      defaultMeetupStartWall(DEFAULT_MEETUP_TIMEZONE),
+    );
+  });
   const [place, setPlace] = useState(initial?.place || "");
+  // 可选坐标：旧活动为空；填了才参与广场「距离最近」
+  const [latitude, setLatitude] = useState(
+    initial?.latitude != null && Number.isFinite(initial.latitude)
+      ? String(initial.latitude)
+      : "",
+  );
+  const [longitude, setLongitude] = useState(
+    initial?.longitude != null && Number.isFinite(initial.longitude)
+      ? String(initial.longitude)
+      : "",
+  );
+  const [geoBusy, setGeoBusy] = useState(false);
+  const [mapOpen, setMapOpen] = useState(false);
   const [coverUrl, setCoverUrl] = useState(initial?.coverUrl || "");
   const [tagsText, setTagsText] = useState(
     (initial?.tags || ["新手友好", "开心社交"]).join(", "),
@@ -159,9 +196,13 @@ export function MeetupEditorForm({
         contentBlocks: contentBlocks.length > 0 ? contentBlocks : undefined,
         priceYuan: priceYuan.trim() === "" ? 0 : Number(priceYuan),
         category,
-        startsAt: new Date(startsAt).toISOString(),
-        endsAt: endsAt ? new Date(endsAt).toISOString() : null,
+        // 传墙钟 + timezone，由服务端换算 UTC，避免浏览器时区污染
+        startsAt,
+        endsAt: endsAt.trim() ? endsAt : null,
+        timezone,
         place,
+        latitude: latitude.trim() === "" ? null : Number(latitude),
+        longitude: longitude.trim() === "" ? null : Number(longitude),
         maxPeople: Math.max(
           MEETUP_MIN_PEOPLE,
           slots.reduce((n, s) => n + (Number(s.maxPeople) || 0), 0),
@@ -260,11 +301,21 @@ export function MeetupEditorForm({
         </div>
       </div>
 
+      <MeetupTimezonePicker
+        value={timezone}
+        onChange={(next) => {
+          // 换时区保留墙钟数字（仍填「当地 14:00」），绝对 UTC 由服务端按新时区重算
+          setTimezone(next);
+        }}
+      />
+
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <label className="mb-1.5 block text-sm font-medium">开始时间</label>
+          <label className="mb-1.5 block text-sm font-medium">
+            开始时间（{meetupTimeZoneLabel(timezone)}）
+          </label>
           <input
-            className="field min-h-11"
+            className="field min-h-12 text-lg"
             type="datetime-local"
             value={startsAt}
             onChange={(e) => setStartsAt(e.target.value)}
@@ -272,9 +323,11 @@ export function MeetupEditorForm({
           />
         </div>
         <div>
-          <label className="mb-1.5 block text-sm font-medium">结束时间</label>
+          <label className="mb-1.5 block text-sm font-medium">
+            结束时间（{meetupTimeZoneLabel(timezone)}）
+          </label>
           <input
-            className="field min-h-11"
+            className="field min-h-12 text-lg"
             type="datetime-local"
             value={endsAt}
             onChange={(e) => setEndsAt(e.target.value)}
@@ -292,7 +345,130 @@ export function MeetupEditorForm({
           required
           maxLength={120}
         />
+        <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+          <button
+            type="button"
+            className="btn btn-primary min-h-12 flex-1 touch-manipulation"
+            onClick={() => setMapOpen(true)}
+          >
+            地图选点
+          </button>
+          <button
+            type="button"
+            className="btn min-h-12 flex-1 touch-manipulation"
+            disabled={geoBusy}
+            onClick={() => {
+              // 「使用当前位置」= 活动举办地设为发布者 GPS（人在场馆时快捷），
+              // 不是发帖瞬间的元数据；广场 nearest 比的是活动坐标 vs 浏览者位置。
+              if (!navigator.geolocation) {
+                setMessage("当前环境不支持定位，请改用「地图选点」");
+                return;
+              }
+              setGeoBusy(true);
+              setMessage("");
+              navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                  const lat = Number(pos.coords.latitude.toFixed(6));
+                  const lng = Number(pos.coords.longitude.toFixed(6));
+                  setLatitude(String(lat));
+                  setLongitude(String(lng));
+                  setGeoBusy(false);
+                  // 反查地址 + 建议时区（人在国外场馆时一并把活动时区对齐）
+                  void fetch(
+                    `/api/geo/reverse?lat=${encodeURIComponent(String(lat))}&lng=${encodeURIComponent(String(lng))}`,
+                  )
+                    .then(async (res) => {
+                      const data = (await res.json()) as {
+                        displayName?: string | null;
+                      };
+                      if (res.ok && data.displayName?.trim()) {
+                        setPlace(data.displayName.trim());
+                      }
+                    })
+                    .catch(() => {
+                      /* 反查失败不阻断 */
+                    });
+                  void suggestTimezoneFromCoords(lat, lng).then((tz) => {
+                    if (tz) setTimezone(tz);
+                  });
+                },
+                () => {
+                  setMessage("定位失败，请检查授权或改用「地图选点」");
+                  setGeoBusy(false);
+                },
+                {
+                  enableHighAccuracy: true,
+                  timeout: 12_000,
+                  maximumAge: 30_000,
+                },
+              );
+            }}
+          >
+            {geoBusy ? "定位中…" : "使用当前位置"}
+          </button>
+        </div>
       </div>
+
+      <div>
+        <label className="mb-1.5 block text-sm font-medium">
+          活动坐标（可选）
+        </label>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <input
+            className="field min-h-11"
+            type="number"
+            step="any"
+            inputMode="decimal"
+            value={latitude}
+            onChange={(e) => setLatitude(e.target.value)}
+            placeholder="纬度 lat"
+          />
+          <input
+            className="field min-h-11"
+            type="number"
+            step="any"
+            inputMode="decimal"
+            value={longitude}
+            onChange={(e) => setLongitude(e.target.value)}
+            placeholder="经度 lng"
+          />
+        </div>
+        <p className="mt-1.5 text-xs text-[var(--muted)]">
+          建议用「地图选点」：有活动坐标时，广场「距离最近」按活动地与浏览者位置排序；仅填地点文案也可发布
+        </p>
+      </div>
+
+      <MeetupPlaceMapPicker
+        open={mapOpen}
+        initialLat={
+          latitude.trim() !== "" && Number.isFinite(Number(latitude))
+            ? Number(latitude)
+            : null
+        }
+        initialLng={
+          longitude.trim() !== "" && Number.isFinite(Number(longitude))
+            ? Number(longitude)
+            : null
+        }
+        onClose={() => setMapOpen(false)}
+        onConfirm={(result) => {
+          setLatitude(String(result.latitude));
+          setLongitude(String(result.longitude));
+          // 反查成功才覆盖地点文案，避免清空用户手填地址
+          if (result.placeLabel) {
+            setPlace(result.placeLabel);
+          }
+          setMapOpen(false);
+          setMessage("");
+          // 地图选全球地点时同步建议活动时区（可再手改）
+          void suggestTimezoneFromCoords(
+            result.latitude,
+            result.longitude,
+          ).then((tz) => {
+            if (tz) setTimezone(tz);
+          });
+        }}
+      />
 
       <div>
         <label className="mb-1.5 block text-sm font-medium">报名费（元）</label>

@@ -7,6 +7,14 @@
  * - 定价：priceCents=0 免费直接报名；>0 走 Course(MEETUP) 订单支付，可叠加优惠券与分销
  */
 
+import {
+  DEFAULT_MEETUP_TIMEZONE,
+  formatTimeZoneOffsetLabel,
+  getZonedParts,
+  meetupTimeZoneLabel,
+  normalizeMeetupTimeZone,
+} from "@/lib/meetup-timezone";
+
 /** 约搭可售壳在 Course.productType 上的取值（与 product-types 对齐） */
 export const MEETUP_PRODUCT_TYPE = "MEETUP";
 
@@ -33,12 +41,46 @@ export const MEETUP_STATUSES = [
 
 export type MeetupStatusKey = (typeof MEETUP_STATUSES)[number]["key"];
 
+/**
+ * 广场列表排序（与 /meetup、GET /api/meetup 的 sort 参数一致）
+ * - latest：按创建时间新→旧（同秒再按开场时间），方便先看到新发的局
+ * - nearest：浏览者 lat/lng vs 活动举办地 latitude/longitude（非发帖时定位）近→远；无活动坐标排后
+ * - score：综合（招募中优先 + 时间近 + 有名额），权重见下方常量，便于调
+ */
+export const MEETUP_SORTS = [
+  { key: "latest", label: "最新" },
+  { key: "nearest", label: "距离最近" },
+  { key: "score", label: "综合" },
+] as const;
+
+export type MeetupSortKey = (typeof MEETUP_SORTS)[number]["key"];
+
+/** 默认排序：综合，兼顾招募中与时间相关度 */
+export const MEETUP_SORT_DEFAULT: MeetupSortKey = "score";
+
+/** 综合排序权重（改业务偏好时只动这里） */
+export const MEETUP_SCORE_WEIGHTS = {
+  /** 招募中绝对优先，避免旧满员/截止局压过可报名局 */
+  statusOpen: 1_000_000,
+  statusFull: 200_000,
+  statusClosed: 0,
+  /** 剩余名额比例 0~1 乘此值；有空位更靠前 */
+  spotsLeftRatio: 80_000,
+  /**
+   * 时间衰减：距「现在」越近分越高。
+   * 用 |startsAt - now| 的天数；超过 horizonDays 后该项接近 0
+   */
+  timeProximity: 120_000,
+  timeHorizonDays: 60,
+} as const;
+
 /** 人数上下限：太小无意义，太大难管理线下集合 */
 export const MEETUP_MIN_PEOPLE = 2;
 export const MEETUP_MAX_PEOPLE = 50;
 
 const CATEGORY_KEYS = new Set<string>(MEETUP_CATEGORIES.map((c) => c.key));
 const STATUS_KEYS = new Set<string>(MEETUP_STATUSES.map((s) => s.key));
+const SORT_KEYS = new Set<string>(MEETUP_SORTS.map((s) => s.key));
 
 export function isMeetupCategory(value: string): value is MeetupCategoryKey {
   return CATEGORY_KEYS.has(value);
@@ -46,6 +88,15 @@ export function isMeetupCategory(value: string): value is MeetupCategoryKey {
 
 export function isMeetupStatus(value: string): value is MeetupStatusKey {
   return STATUS_KEYS.has(value);
+}
+
+export function isMeetupSort(value: string): value is MeetupSortKey {
+  return SORT_KEYS.has(value);
+}
+
+export function parseMeetupSort(value?: string | null): MeetupSortKey {
+  const key = (value || "").trim();
+  return isMeetupSort(key) ? key : MEETUP_SORT_DEFAULT;
 }
 
 export function meetupCategoryLabel(key: string): string {
@@ -62,9 +113,9 @@ export function canJoinMeetup(status: string): boolean {
 }
 
 /**
- * 广场列表时间窗口：默认只藏「太久以前」的局，避免噪音；
- * 绝不能用「开场后 2 小时」这种过短窗口——会把仍在招募/刚开场的局误藏
- *（生产曾出现「一起打瓦啊」OPEN 却因 startsAt 刚过而不显示）。
+ * 历史：曾用「近 30 天」裁剪广场，导致超窗历史局被藏。
+ * 现政策：未取消一律可进广场；时间相关性交给排序（综合/最新），不再按 startsAt 硬过滤。
+ * 常量保留仅作文档/兼容引用，buildMeetupPlazaWhere 不再使用。
  */
 export const MEETUP_PLAZA_PAST_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -72,22 +123,21 @@ export const MEETUP_PLAZA_PAST_MS = 30 * 24 * 60 * 60 * 1000;
 export const MEETUP_PLAZA_TAKE = 100;
 
 /**
- * 前台约搭广场 / API 列表共用 where：未取消 + 近 30 天起（含未来）。
- * 招募中 / 满员 / 已截止均展示；已取消隐藏。includePast=true 时不做时间裁剪。
+ * 前台约搭广场 / API 列表共用 where：未取消即可见（含历史、满员、已截止）。
+ * includePast 保留兼容（旧客户端 past=1）；时间窗已取消，参数无实际作用。
  */
 export function buildMeetupPlazaWhere(input?: {
   category?: string;
+  /** @deprecated 时间窗已去掉；保留以免旧调用报错 */
   includePast?: boolean;
   now?: Date;
 }): {
   category?: string;
   status: { not: string };
-  startsAt?: { gte: Date };
 } {
   const where: {
     category?: string;
     status: { not: string };
-    startsAt?: { gte: Date };
   } = {
     status: { not: "CANCELLED" },
   };
@@ -95,11 +145,159 @@ export function buildMeetupPlazaWhere(input?: {
   if (category && isMeetupCategory(category)) {
     where.category = category;
   }
-  if (!input?.includePast) {
-    const now = input?.now ?? new Date();
-    where.startsAt = { gte: new Date(now.getTime() - MEETUP_PLAZA_PAST_MS) };
-  }
   return where;
+}
+
+/** 地球半径（km），Haversine 用 */
+const EARTH_RADIUS_KM = 6371;
+
+/** 两坐标球面距离（km）；任一非法则返回 null */
+export function haversineKm(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number,
+): number | null {
+  if (
+    ![lat1, lng1, lat2, lng2].every(
+      (n) => typeof n === "number" && Number.isFinite(n),
+    )
+  ) {
+    return null;
+  }
+  if (lat1 < -90 || lat1 > 90 || lat2 < -90 || lat2 > 90) return null;
+  if (lng1 < -180 || lng1 > 180 || lng2 < -180 || lng2 > 180) return null;
+
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return EARTH_RADIUS_KM * c;
+}
+
+/** 解析可选经纬度；空/非法 → null（旧数据与仅填地点文案时兼容） */
+export function parseOptionalCoord(
+  value: unknown,
+  kind: "lat" | "lng",
+): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return null;
+  if (kind === "lat" && (n < -90 || n > 90)) return null;
+  if (kind === "lng" && (n < -180 || n > 180)) return null;
+  return n;
+}
+
+export type MeetupPlazaSortable = {
+  createdAt: Date;
+  startsAt: Date;
+  status: string;
+  maxPeople: number;
+  joinCount: number;
+  latitude?: number | null;
+  longitude?: number | null;
+};
+
+function statusScore(status: string): number {
+  if (status === "OPEN") return MEETUP_SCORE_WEIGHTS.statusOpen;
+  if (status === "FULL") return MEETUP_SCORE_WEIGHTS.statusFull;
+  return MEETUP_SCORE_WEIGHTS.statusClosed;
+}
+
+/** 综合分：越大越靠前；权重集中在 MEETUP_SCORE_WEIGHTS */
+export function meetupPlazaScore(
+  row: MeetupPlazaSortable,
+  now: Date = new Date(),
+): number {
+  const spotsLeft = Math.max(row.maxPeople - row.joinCount, 0);
+  const spotsRatio =
+    row.maxPeople > 0 ? spotsLeft / row.maxPeople : 0;
+  const dayMs = 24 * 60 * 60 * 1000;
+  const daysAway = Math.abs(row.startsAt.getTime() - now.getTime()) / dayMs;
+  const horizon = MEETUP_SCORE_WEIGHTS.timeHorizonDays;
+  const timeFactor = Math.max(0, 1 - daysAway / horizon);
+
+  return (
+    statusScore(row.status) +
+    spotsRatio * MEETUP_SCORE_WEIGHTS.spotsLeftRatio +
+    timeFactor * MEETUP_SCORE_WEIGHTS.timeProximity
+  );
+}
+
+/**
+ * 广场列表内存排序（与 API/页面共用）。
+ * nearest：无用户定位或活动无坐标时，该条排到有距离的后面，组内按 startsAt 新→旧，避免崩溃。
+ */
+export function sortMeetupPlazaRows<T extends MeetupPlazaSortable>(
+  rows: T[],
+  input: {
+    sort?: string | null;
+    userLat?: number | null;
+    userLng?: number | null;
+    now?: Date;
+  } = {},
+): T[] {
+  const sort = parseMeetupSort(input.sort);
+  const now = input?.now ?? new Date();
+  const userLat = input.userLat;
+  const userLng = input.userLng;
+  const hasUser =
+    typeof userLat === "number" &&
+    Number.isFinite(userLat) &&
+    typeof userLng === "number" &&
+    Number.isFinite(userLng);
+
+  const list = [...rows];
+
+  if (sort === "latest") {
+    // 最新 = 创建时间新→旧；同秒再按开场时间，避免「刚改开场」误当新发
+    list.sort((a, b) => {
+      const byCreated = b.createdAt.getTime() - a.createdAt.getTime();
+      if (byCreated !== 0) return byCreated;
+      return b.startsAt.getTime() - a.startsAt.getTime();
+    });
+    return list;
+  }
+
+  if (sort === "nearest") {
+    list.sort((a, b) => {
+      const distA =
+        hasUser &&
+        a.latitude != null &&
+        a.longitude != null
+          ? haversineKm(userLat!, userLng!, a.latitude, a.longitude)
+          : null;
+      const distB =
+        hasUser &&
+        b.latitude != null &&
+        b.longitude != null
+          ? haversineKm(userLat!, userLng!, b.latitude, b.longitude)
+          : null;
+
+      // 有距离的排前面；都有则近的优先
+      if (distA != null && distB != null) {
+        if (distA !== distB) return distA - distB;
+      } else if (distA != null) {
+        return -1;
+      } else if (distB != null) {
+        return 1;
+      }
+      // 无坐标/无定位：降级按开场时间新→旧
+      return b.startsAt.getTime() - a.startsAt.getTime();
+    });
+    return list;
+  }
+
+  // score（综合）
+  list.sort((a, b) => {
+    const scoreDiff = meetupPlazaScore(b, now) - meetupPlazaScore(a, now);
+    if (scoreDiff !== 0) return scoreDiff;
+    return b.startsAt.getTime() - a.startsAt.getTime();
+  });
+  return list;
 }
 
 /** 发起人可操作的状态流转目标 */
@@ -127,37 +325,59 @@ export function statusAfterJoinCountChange(input: {
   return "OPEN";
 }
 
-export function formatMeetupWhen(date: Date): string {
-  // 用本地时区展示，方便微信内手机端一眼看懂几点集合
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  const hh = String(date.getHours()).padStart(2, "0");
-  const mm = String(date.getMinutes()).padStart(2, "0");
-  return `${y}-${m}-${d} ${hh}:${mm}`;
-}
-
 const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"] as const;
 
-/** 详情页时段：08.07 周五 19:00 - 22:00（贴近一起玩类展示） */
-export function formatMeetupTimeRange(startsAt: Date, endsAt?: Date | null): string {
-  const m = String(startsAt.getMonth() + 1).padStart(2, "0");
-  const d = String(startsAt.getDate()).padStart(2, "0");
-  const week = WEEKDAYS[startsAt.getDay()];
-  const hh = String(startsAt.getHours()).padStart(2, "0");
-  const mm = String(startsAt.getMinutes()).padStart(2, "0");
-  const start = `${m}.${d} 周${week} ${hh}:${mm}`;
-  if (!endsAt || Number.isNaN(endsAt.getTime())) return start;
-  const eh = String(endsAt.getHours()).padStart(2, "0");
-  const em = String(endsAt.getMinutes()).padStart(2, "0");
+/**
+ * 广场卡片时间：按活动时区墙钟展示（非浏览者浏览器本地），避免国外局错 8 小时。
+ * 非北京时间时附短标签，如「纽约」。
+ */
+export function formatMeetupWhen(
+  date: Date,
+  timeZone: string = DEFAULT_MEETUP_TIMEZONE,
+): string {
+  const tz = normalizeMeetupTimeZone(timeZone);
+  const p = getZonedParts(date, tz);
+  const m = String(p.month).padStart(2, "0");
+  const d = String(p.day).padStart(2, "0");
+  const hh = String(p.hour).padStart(2, "0");
+  const mm = String(p.minute).padStart(2, "0");
+  const base = `${p.year}-${m}-${d} ${hh}:${mm}`;
+  if (tz === DEFAULT_MEETUP_TIMEZONE) return base;
+  return `${base}（${meetupTimeZoneLabel(tz)}）`;
+}
+
+/** 详情页时段：08.07 周五 19:00 - 22:00（活动时区墙钟） */
+export function formatMeetupTimeRange(
+  startsAt: Date,
+  endsAt?: Date | null,
+  timeZone: string = DEFAULT_MEETUP_TIMEZONE,
+): string {
+  const tz = normalizeMeetupTimeZone(timeZone);
+  const s = getZonedParts(startsAt, tz);
+  const m = String(s.month).padStart(2, "0");
+  const d = String(s.day).padStart(2, "0");
+  const week = WEEKDAYS[s.weekday];
+  const hh = String(s.hour).padStart(2, "0");
+  const mm = String(s.minute).padStart(2, "0");
+  let start = `${m}.${d} 周${week} ${hh}:${mm}`;
+  if (tz !== DEFAULT_MEETUP_TIMEZONE) {
+    start = `${start} ${meetupTimeZoneLabel(tz)}`;
+  }
+  if (!endsAt || Number.isNaN(endsAt.getTime())) {
+    return tz === DEFAULT_MEETUP_TIMEZONE
+      ? start
+      : `${start}（${formatTimeZoneOffsetLabel(startsAt, tz)}）`;
+  }
+  const e = getZonedParts(endsAt, tz);
+  const eh = String(e.hour).padStart(2, "0");
+  const em = String(e.minute).padStart(2, "0");
   const sameDay =
-    endsAt.getFullYear() === startsAt.getFullYear() &&
-    endsAt.getMonth() === startsAt.getMonth() &&
-    endsAt.getDate() === startsAt.getDate();
-  if (sameDay) return `${start} - ${eh}:${em}`;
-  const emon = String(endsAt.getMonth() + 1).padStart(2, "0");
-  const eday = String(endsAt.getDate()).padStart(2, "0");
-  return `${start} - ${emon}.${eday} ${eh}:${em}`;
+    e.year === s.year && e.month === s.month && e.day === s.day;
+  const range = sameDay
+    ? `${start} - ${eh}:${em}`
+    : `${start} - ${String(e.month).padStart(2, "0")}.${String(e.day).padStart(2, "0")} ${eh}:${em}`;
+  if (tz === DEFAULT_MEETUP_TIMEZONE) return range;
+  return `${range}（${formatTimeZoneOffsetLabel(startsAt, tz)}）`;
 }
 
 /** 元 → 分；非法或负数按 0（免费） */

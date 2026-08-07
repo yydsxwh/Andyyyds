@@ -23,6 +23,7 @@ export type MyMeetupRow = {
   priceCents: number;
   place: string;
   startsAt: string;
+  timezone?: string | null;
   maxPeople: number;
   joinCount: number;
   slotCount: number;
@@ -146,7 +147,8 @@ export function StudioMyMeetupPanel({ initialMeetups }: Props) {
                 </span>
               </div>
               <p className="text-sm text-[var(--muted)]">
-                {formatMeetupWhen(new Date(m.startsAt))} · {m.place}
+                {formatMeetupWhen(new Date(m.startsAt), m.timezone || undefined)}{" "}
+                · {m.place}
               </p>
               <p className="text-xs text-[var(--muted)]">
                 {m.priceCents > 0 ? formatPrice(m.priceCents) : "免费"} · 报名{" "}

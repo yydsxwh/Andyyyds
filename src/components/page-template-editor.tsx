@@ -1081,7 +1081,7 @@ function PropsEditor({
           <span className="text-[var(--muted)]">截止时间</span>
           <input
             type="datetime-local"
-            className={`${inputClass} mt-1`}
+            className={`${inputClass} mt-1 min-h-12 px-3 py-3 text-lg`}
             value={localValue}
             onChange={(e) => {
               const d = new Date(e.target.value);

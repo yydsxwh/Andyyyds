@@ -262,6 +262,97 @@ select {
     0 0 0 1px color-mix(in srgb, var(--fire) 14%, transparent);
 }
 
+/*
+ * 日期/时间控件全局放大：原生 picker 图标默认偏小，手机微信里难点。
+ * 统一抬高点击区与日历图标；弹层面板字号尽量随控件放大（OS 原生层仍有上限）。
+ */
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"],
+input[type="month"],
+input[type="week"] {
+  min-height: 3rem; /* 48px，满足触控推荐高度 */
+  padding: 0.75rem 0.95rem;
+  font-size: 1.125rem;
+  line-height: 1.45;
+}
+
+/* WebKit/Blink：放大字段段与日历/时钟图标的可点区域 */
+input[type="date"]::-webkit-datetime-edit,
+input[type="time"]::-webkit-datetime-edit,
+input[type="datetime-local"]::-webkit-datetime-edit,
+input[type="month"]::-webkit-datetime-edit,
+input[type="week"]::-webkit-datetime-edit {
+  font-size: 1.125rem;
+  padding: 0.2rem 0;
+}
+
+input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+input[type="time"]::-webkit-datetime-edit-fields-wrapper,
+input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper,
+input[type="month"]::-webkit-datetime-edit-fields-wrapper,
+input[type="week"]::-webkit-datetime-edit-fields-wrapper {
+  padding: 0.15rem 0;
+}
+
+input[type="date"]::-webkit-datetime-edit-text,
+input[type="time"]::-webkit-datetime-edit-text,
+input[type="datetime-local"]::-webkit-datetime-edit-text,
+input[type="month"]::-webkit-datetime-edit-text,
+input[type="week"]::-webkit-datetime-edit-text {
+  padding: 0 0.2rem;
+}
+
+input[type="date"]::-webkit-datetime-edit-year-field,
+input[type="date"]::-webkit-datetime-edit-month-field,
+input[type="date"]::-webkit-datetime-edit-day-field,
+input[type="time"]::-webkit-datetime-edit-hour-field,
+input[type="time"]::-webkit-datetime-edit-minute-field,
+input[type="time"]::-webkit-datetime-edit-second-field,
+input[type="time"]::-webkit-datetime-edit-ampm-field,
+input[type="datetime-local"]::-webkit-datetime-edit-year-field,
+input[type="datetime-local"]::-webkit-datetime-edit-month-field,
+input[type="datetime-local"]::-webkit-datetime-edit-day-field,
+input[type="datetime-local"]::-webkit-datetime-edit-hour-field,
+input[type="datetime-local"]::-webkit-datetime-edit-minute-field,
+input[type="datetime-local"]::-webkit-datetime-edit-second-field,
+input[type="datetime-local"]::-webkit-datetime-edit-ampm-field,
+input[type="month"]::-webkit-datetime-edit-year-field,
+input[type="month"]::-webkit-datetime-edit-month-field,
+input[type="week"]::-webkit-datetime-edit-year-field,
+input[type="week"]::-webkit-datetime-edit-week-field {
+  padding: 0.25rem 0.2rem;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+input[type="month"]::-webkit-calendar-picker-indicator,
+input[type="week"]::-webkit-calendar-picker-indicator {
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0.45rem;
+  margin-left: 0.35rem;
+  cursor: pointer;
+  opacity: 1;
+  /* scale 放大图标本身；padding 扩大触控热区，避免仅桌面 hover 才好点 */
+  transform: scale(1.35);
+  transform-origin: right center;
+  background-size: contain;
+}
+
+/* Firefox：用较大字号抬高控件观感（原生面板尺寸由系统决定） */
+@supports (-moz-appearance: none) {
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"],
+  input[type="month"],
+  input[type="week"] {
+    font-size: 1.2rem;
+    min-height: 3.1rem;
+  }
+}
+
 .fade-up {
   animation: fadeUp 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
@@ -490,4 +581,26 @@ body.learn-landscape-fs {
   color: #fff;
   font-size: 0.85rem;
   font-weight: 600;
+}
+
+/* 约搭地图选点：自定义 pin，避免 Leaflet 默认图标打包路径断裂 */
+.meetup-map-pin-wrap {
+  background: transparent;
+  border: none;
+}
+.meetup-map-pin {
+  display: block;
+  width: 22px;
+  height: 22px;
+  margin: 0 auto;
+  border-radius: 50% 50% 50% 0;
+  background: var(--brand, #0ea5e9);
+  border: 2px solid #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  transform: rotate(-45deg);
+}
+.leaflet-container {
+  font: inherit;
+  touch-action: pan-x pan-y;
+  z-index: 0;
 }

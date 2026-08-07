@@ -56,6 +56,7 @@ export default async function StudioMeetupPage() {
     priceCents: m.priceCents,
     place: m.place,
     startsAt: m.startsAt.toISOString(),
+    timezone: m.timezone || "Asia/Shanghai",
     maxPeople: m.maxPeople,
     joinCount: m._count.joins,
     slotCount: m._count.slots,
