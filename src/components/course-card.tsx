@@ -30,7 +30,7 @@ export function CourseCard({ course }: CourseCardProps) {
   return (
     <Link
       href={productDetailPath(course.slug, type)}
-      className="surface group overflow-hidden rounded-[28px] transition duration-300 hover:-translate-y-1"
+      className="surface-soft tilt-card group overflow-hidden rounded-[28px] transition duration-300 hover:-translate-y-1"
     >
       <div className="relative aspect-[16/10] overflow-hidden bg-[var(--bg-deep)]">
         {/* eslint-disable-next-line @next/next/no-img-element */}

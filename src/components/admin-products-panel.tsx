@@ -160,10 +160,8 @@ export function AdminProductsPanel({ initialProducts }: Props) {
               key={f.key}
               type="button"
               onClick={() => setFilter(f.key)}
-              className={`min-h-10 rounded-full px-3 py-2 text-sm ${
-                filter === f.key
-                  ? "bg-[var(--brand)] text-white"
-                  : "border border-[var(--line)] bg-white/70 text-[var(--muted)]"
+              className={`chip text-sm ${
+                filter === f.key ? "chip-active" : "chip-idle"
               }`}
             >
               {f.label}

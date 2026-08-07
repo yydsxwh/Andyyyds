@@ -2,7 +2,7 @@
 
 /**
  * 创作者「我的约搭」：只管理自己发起的活动。
- * 为何不用站长 /api/studio/meetups：那是全站硬删入口；发起人改状态/取消走公开 /api/meetup/[id]。
+ * 改状态/删除均走公开 /api/meetup/[id]（发起人权限）；站长全站硬删仍在 /studio/meetup。
  */
 
 import Link from "next/link";
@@ -13,6 +13,7 @@ import {
   meetupCategoryLabel,
   meetupStatusLabel,
 } from "@/lib/meetup";
+import { confirmAndDeleteMeetup } from "@/lib/meetup-delete-client";
 import { formatPrice } from "@/lib/utils";
 
 export type MyMeetupRow = {
@@ -82,6 +83,35 @@ export function StudioMyMeetupPanel({ initialMeetups }: Props) {
     }
   }
 
+  async function remove(id: string, title: string) {
+    setBusyId(id);
+    setMessage("");
+    try {
+      const result = await confirmAndDeleteMeetup({
+        meetupId: id,
+        title,
+        via: "public",
+      });
+      if (result.ok) {
+        setRows((prev) => prev.filter((m) => m.id !== id));
+        setMessage(
+          result.deletedOrders
+            ? `已删除（同时清除 ${result.deletedOrders} 笔关联订单）`
+            : "已删除",
+        );
+        router.refresh();
+        return;
+      }
+      if (result.cancelled) {
+        if (result.message) setMessage(result.message);
+        return;
+      }
+      setMessage(result.error || "删除失败");
+    } finally {
+      setBusyId("");
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -120,7 +150,7 @@ export function StudioMyMeetupPanel({ initialMeetups }: Props) {
         {visible.map((m) => (
           <li
             key={m.id}
-            className="flex flex-col gap-3 rounded-2xl bg-white/60 p-4 sm:flex-row sm:items-center"
+            className="surface-soft flex flex-col gap-3 rounded-2xl p-4 sm:flex-row sm:items-center"
           >
             {m.coverUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -158,22 +188,19 @@ export function StudioMyMeetupPanel({ initialMeetups }: Props) {
             </div>
             {/* 活动语义操作：前台 / 编辑活动 / 管理报名状态；不用课程章节入口 */}
             <div className="flex flex-wrap gap-2 sm:justify-end">
-              <Link
-                href={`/meetup/${m.id}`}
-                className="btn btn-secondary min-h-11 px-3 text-sm"
-              >
+              <Link href={`/meetup/${m.id}`} className="btn btn-secondary btn-compact">
                 查看前台
               </Link>
               <Link
                 href={`/meetup/${m.id}/edit`}
-                className="btn btn-secondary min-h-11 px-3 text-sm"
+                className="btn btn-secondary btn-compact"
               >
                 编辑活动
               </Link>
               {m.status !== "CANCELLED" && m.status !== "CLOSED" ? (
                 <button
                   type="button"
-                  className="btn btn-secondary min-h-11 px-3 text-sm"
+                  className="btn btn-secondary btn-compact"
                   disabled={busyId === m.id}
                   onClick={() => void setStatus(m.id, "CLOSED")}
                 >
@@ -183,7 +210,7 @@ export function StudioMyMeetupPanel({ initialMeetups }: Props) {
               {m.status !== "CANCELLED" ? (
                 <button
                   type="button"
-                  className="btn btn-secondary min-h-11 px-3 text-sm"
+                  className="btn btn-secondary btn-compact"
                   disabled={busyId === m.id}
                   onClick={() => void setStatus(m.id, "CANCELLED")}
                 >
@@ -192,13 +219,21 @@ export function StudioMyMeetupPanel({ initialMeetups }: Props) {
               ) : (
                 <button
                   type="button"
-                  className="btn btn-secondary min-h-11 px-3 text-sm"
+                  className="btn btn-secondary btn-compact"
                   disabled={busyId === m.id}
                   onClick={() => void setStatus(m.id, "OPEN")}
                 >
                   重新开放
                 </button>
               )}
+              <button
+                type="button"
+                className="btn btn-danger btn-compact"
+                disabled={busyId === m.id}
+                onClick={() => void remove(m.id, m.title)}
+              >
+                删除
+              </button>
             </div>
           </li>
         ))}

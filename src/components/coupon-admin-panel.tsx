@@ -318,10 +318,8 @@ export function CouponAdminPanel({
             <button
               key={t}
               type="button"
-              className={`min-h-10 rounded-full px-4 py-2.5 text-sm ${
-                form.type === t
-                  ? "bg-[var(--brand)] text-white"
-                  : "border border-[var(--line)] bg-white/70 text-[var(--muted)]"
+              className={`chip text-sm ${
+                form.type === t ? "chip-active" : "chip-idle"
               }`}
               onClick={() => setField("type", t)}
             >
@@ -367,10 +365,8 @@ export function CouponAdminPanel({
               <button
                 key={scope}
                 type="button"
-                className={`min-h-10 rounded-full px-4 py-2.5 text-sm ${
-                  form.productScope === scope
-                    ? "bg-[var(--brand)] text-white"
-                    : "border border-[var(--line)] bg-white/70 text-[var(--muted)]"
+                className={`chip text-sm ${
+                  form.productScope === scope ? "chip-active" : "chip-idle"
                 }`}
                 onClick={() => {
                   setField("productScope", scope);

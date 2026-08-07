@@ -21,6 +21,7 @@ import {
   meetupWriteSchema,
   parseMeetupWriteBody,
 } from "@/lib/meetup-payload";
+import { hardDeleteMeetup } from "@/lib/meetup-delete";
 import { ensureMeetupProductCourse } from "@/lib/meetup-product";
 import {
   parseMeetupServicePhones,
@@ -302,44 +303,22 @@ export async function DELETE(req: Request, ctx: Ctx) {
   }
 
   try {
-    const productCourseId = existing.productCourseId;
-    let paidOrderCount = 0;
-    if (productCourseId) {
-      paidOrderCount = await prisma.order.count({
-        where: { courseId: productCourseId, status: "PAID" },
-      });
-    }
-
-    // 有成交时优先引导「取消」软隐藏；确需清空才 force
-    if (paidOrderCount > 0 && !force) {
+    const result = await hardDeleteMeetup(prisma, {
+      meetupId: id,
+      productCourseId: existing.productCourseId,
+      force,
+    });
+    if (result.blocked) {
       return NextResponse.json(
         {
-          error: `该活动有 ${paidOrderCount} 笔已付订单。请先「取消」活动；若仍要硬删除（会清除订单），请再次确认强制删除。`,
-          paidOrderCount,
+          error: result.error,
+          paidOrderCount: result.paidOrderCount,
           needForce: true,
         },
         { status: 409 },
       );
     }
-
-    const result = await prisma.$transaction(async (tx) => {
-      // 先删活动（报名/分档级联）；壳商品外键 SetNull
-      await tx.meetup.delete({ where: { id } });
-      let deletedOrders = 0;
-      if (productCourseId) {
-        // Order 无 Cascade，须先清订单再删壳，避免站长删活动被外键卡住
-        const orders = await tx.order.deleteMany({
-          where: { courseId: productCourseId },
-        });
-        deletedOrders = orders.count;
-        await tx.course.delete({ where: { id: productCourseId } }).catch(() => {
-          /* 壳可能已被其它路径删掉 */
-        });
-      }
-      return { deletedOrders };
-    });
-
-    return NextResponse.json({ ok: true, ...result });
+    return NextResponse.json({ ok: true, deletedOrders: result.deletedOrders });
   } catch (error) {
     console.error("[studio:meetup:delete]", error);
     return NextResponse.json(

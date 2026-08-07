@@ -124,7 +124,7 @@ export default async function MeetupPlazaPage({
       </div>
 
       {meetups.length === 0 ? (
-        <div className="surface rounded-[28px] px-6 py-16 text-center">
+        <div className="surface surface-pad px-6 py-16 text-center">
           <p className="text-[var(--muted)]">暂无约搭活动</p>
           <p className="mt-2 text-sm text-[var(--muted)]">
             当第一个发起人，喊上搭子一起出门

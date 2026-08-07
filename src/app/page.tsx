@@ -55,8 +55,17 @@ function HeroSection({ decorate }: { decorate: DecorateConfig }) {
 
   return (
     <section className="relative overflow-hidden">
+      {/* 氛围底反向位移：与前景错位，强化裸眼分层（仅 tilt-on 时） */}
+      <div
+        className="tilt-layer-bg pointer-events-none absolute -inset-8 opacity-70"
+        aria-hidden
+        style={{
+          background:
+            "radial-gradient(ellipse 50% 40% at 20% 30%, rgba(14,165,233,0.18), transparent 70%), radial-gradient(ellipse 40% 35% at 80% 60%, rgba(244,63,94,0.1), transparent 65%)",
+        }}
+      />
       <div className="container grid min-h-[78vh] items-center gap-10 py-16 lg:grid-cols-[1.05fr_0.95fr]">
-        <div className="fade-up space-y-6">
+        <div className="tilt-layer-fg fade-up space-y-6">
           <div className="space-y-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -95,12 +104,12 @@ function HeroSection({ decorate }: { decorate: DecorateConfig }) {
           </div>
         </div>
         <div className="fade-up-delay hero-glow relative">
-          <div className="float-soft surface surface-fire overflow-hidden rounded-[36px]">
+          <div className="tilt-hero-frame float-soft surface surface-fire overflow-hidden rounded-[36px]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={heroImage}
               alt={heroAlt}
-              className="aspect-[4/5] w-full object-cover sm:aspect-[5/4] lg:aspect-[4/5]"
+              className="tilt-layer-mid aspect-[4/5] w-full object-cover sm:aspect-[5/4] lg:aspect-[4/5]"
             />
           </div>
         </div>
@@ -157,7 +166,7 @@ function PortalEntranceSection({ modules }: { modules: PortalNavLink[] }) {
             <Link
               key={item.key}
               href={item.href}
-              className="surface group rounded-[28px] p-5 transition hover:-translate-y-0.5"
+              className="surface-soft group rounded-[28px] p-5 transition hover:-translate-y-0.5 active:-translate-y-0.5"
             >
               <div
                 className={`font-semibold group-hover:text-[var(--brand)] ${typoRoleClass("portalCardTitle")}`}

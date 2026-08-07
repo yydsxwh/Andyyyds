@@ -74,7 +74,7 @@ export function ContactUsPanel({ contact, variant = "hero" }: Props) {
     return (
       <aside
         aria-label={title}
-        className="border-b border-[var(--line)] bg-white/75 px-2.5 py-2 sm:px-3"
+        className="glass-bar border-b px-2.5 py-2 sm:px-3"
       >
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm">
           <span className="shrink-0 font-semibold text-[var(--ink)]">
@@ -105,7 +105,7 @@ export function ContactUsPanel({ contact, variant = "hero" }: Props) {
   return (
     <aside
       aria-label={title}
-      className="surface w-full max-w-md space-y-3 rounded-[24px] border border-[var(--line)] bg-white/90 p-4 shadow-sm sm:p-5"
+      className="surface w-full max-w-md space-y-3 rounded-[24px] p-4 sm:p-5"
     >
       <h2 className="text-base font-semibold text-[var(--ink)] sm:text-lg">
         {title}

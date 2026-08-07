@@ -55,10 +55,8 @@ export function MeetupPlazaToolbar({
   const [geoLoading, setGeoLoading] = useState(false);
 
   function chipClass(active: boolean) {
-    return `inline-flex min-h-11 items-center rounded-full px-4 py-2 touch-manipulation ${typoRoleClass("filterTag")} ${
-      active
-        ? "bg-[var(--brand)] text-white"
-        : "border border-[var(--line)] bg-white/70"
+    return `chip touch-manipulation ${typoRoleClass("filterTag")} ${
+      active ? "chip-active" : "chip-idle"
     }`;
   }
 

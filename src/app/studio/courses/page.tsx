@@ -142,10 +142,8 @@ export default async function StudioCoursesPage({
                 <Link
                   key={filter.key}
                   href={href}
-                  className={`min-h-10 rounded-full px-3 py-2 text-sm ${
-                    active
-                      ? "bg-[var(--brand)] text-white"
-                      : "border border-[var(--line)] bg-white/70 text-[var(--muted)]"
+                  className={`chip text-sm ${
+                    active ? "chip-active" : "chip-idle"
                   }`}
                 >
                   {filter.label}

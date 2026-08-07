@@ -64,7 +64,7 @@ export default async function StudioMyMeetupPage() {
       <div>
         <h1 className="text-3xl font-semibold">我的约搭</h1>
         <p className="mt-2 text-sm text-[var(--muted)]">
-          管理你发起的约搭活动：查看前台、编辑活动、截止报名或取消。约搭不是课程，不会出现在「我的课程」里。
+          管理你发起的约搭活动：查看前台、编辑、截止报名、取消或删除。约搭不是课程，不会出现在「我的课程」里。
         </p>
       </div>
 

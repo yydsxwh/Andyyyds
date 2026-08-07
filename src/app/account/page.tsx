@@ -5,6 +5,7 @@ import { AccountProfilePanel } from "@/components/account-profile-panel";
 import { InviteSharePanel } from "@/components/invite-share-panel";
 import { NavPageTemplateShell } from "@/components/nav-page-template-shell";
 import { RoleApplyPanel } from "@/components/role-apply-panel";
+import { TiltParallaxToggle } from "@/components/tilt-parallax-provider";
 import { getSession } from "@/lib/auth";
 import { isPlaceholderEmail } from "@/lib/auth-email";
 import { prisma } from "@/lib/db";
@@ -210,6 +211,9 @@ export default async function AccountPage() {
         hasWechat={Boolean(user?.wechatOpenId)}
         passwordSet={user?.passwordSet !== false}
       />
+
+      {/* 本机显示偏好：倾斜视差不进装扮 JSON，避免影响全站访客 */}
+      <TiltParallaxToggle />
 
       {/* —— STUDENT / 通用：学习与订单 —— */}
       <section className="surface rounded-[28px] p-5 sm:p-6">

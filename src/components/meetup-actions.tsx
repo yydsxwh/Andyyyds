@@ -3,9 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { HOST_STATUS_ACTIONS, canJoinMeetup } from "@/lib/meetup";
+import { confirmAndDeleteMeetup } from "@/lib/meetup-delete-client";
 
 type Props = {
   meetupId: string;
+  title?: string;
   status: string;
   hostId: string;
   currentUserId: string | null;
@@ -18,6 +20,7 @@ type Props = {
 
 export function MeetupActions({
   meetupId,
+  title = "该活动",
   status,
   hostId,
   currentUserId,
@@ -97,6 +100,30 @@ export function MeetupActions({
     }
   }
 
+  async function removeMeetup() {
+    setLoading(true);
+    setMessage("");
+    try {
+      const result = await confirmAndDeleteMeetup({
+        meetupId,
+        title,
+        via: "public",
+      });
+      if (result.ok) {
+        router.push("/meetup");
+        router.refresh();
+        return;
+      }
+      if (result.cancelled) {
+        if (result.message) setMessage(result.message);
+        return;
+      }
+      setMessage(result.error || "删除失败");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   if (!loggedIn) {
     return (
       <div className="space-y-3">
@@ -154,8 +181,8 @@ export function MeetupActions({
               <button
                 key={action.key}
                 type="button"
-                className={`btn min-h-11 ${
-                  action.key === "CANCELLED" ? "btn-fire" : "btn-secondary"
+                className={`btn ${
+                  action.key === "CANCELLED" ? "btn-danger" : "btn-secondary"
                 }`}
                 disabled={loading}
                 onClick={() => void setHostStatus(action.key)}
@@ -163,6 +190,14 @@ export function MeetupActions({
                 {action.label}
               </button>
             ))}
+            <button
+              type="button"
+              className="btn btn-danger"
+              disabled={loading}
+              onClick={() => void removeMeetup()}
+            >
+              删除活动
+            </button>
           </div>
           {canManageAsAdmin && !isHost ? (
             <a

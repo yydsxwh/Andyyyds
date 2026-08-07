@@ -1,6 +1,7 @@
 /**
- * GET   /api/meetup/[id] —— 详情
- * PATCH /api/meetup/[id] —— 发起人改自己的局（状态或字段）；站长可改任意局
+ * GET    /api/meetup/[id] —— 详情
+ * PATCH  /api/meetup/[id] —— 发起人改自己的局（状态或字段）；站长可改任意局
+ * DELETE /api/meetup/[id] —— 发起人删自己的局；站长可删任意局（履约安全同站长后台）
  *
  * 注意：创建走 POST /api/meetup，任意登录用户均可，勿与站长后台 canManageMeetups 混淆。
  */
@@ -21,6 +22,7 @@ import {
   meetupWriteSchema,
   parseMeetupWriteBody,
 } from "@/lib/meetup-payload";
+import { hardDeleteMeetup } from "@/lib/meetup-delete";
 import { ensureMeetupProductCourse } from "@/lib/meetup-product";
 import {
   parseMeetupServicePhones,
@@ -318,5 +320,60 @@ export async function PATCH(
     }
     console.error("[meetup:patch]", error);
     return NextResponse.json({ error: "更新失败" }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  req: Request,
+  ctx: { params: Promise<{ id: string }> },
+) {
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: "请先登录" }, { status: 401 });
+  }
+
+  const { id } = await ctx.params;
+  const { searchParams } = new URL(req.url);
+  // 有已付订单时默认拒绝硬删；发起人/站长二次确认后带 force=1
+  const force = searchParams.get("force") === "1";
+
+  const existing = await prisma.meetup.findUnique({
+    where: { id },
+    select: { id: true, hostId: true, productCourseId: true },
+  });
+  if (!existing) {
+    return NextResponse.json({ error: "活动不存在" }, { status: 404 });
+  }
+  // 发起人删自己的；站长可删全站（与 PATCH 权限对齐）
+  if (existing.hostId !== session.id && !canManageMeetups(session.role)) {
+    return NextResponse.json(
+      { error: "仅发起人或站长可删除活动" },
+      { status: 403 },
+    );
+  }
+
+  try {
+    const result = await hardDeleteMeetup(prisma, {
+      meetupId: id,
+      productCourseId: existing.productCourseId,
+      force,
+    });
+    if (result.blocked) {
+      return NextResponse.json(
+        {
+          error: result.error,
+          paidOrderCount: result.paidOrderCount,
+          needForce: true,
+        },
+        { status: 409 },
+      );
+    }
+    return NextResponse.json({ ok: true, deletedOrders: result.deletedOrders });
+  } catch (error) {
+    console.error("[meetup:delete]", error);
+    return NextResponse.json(
+      { error: "删除失败，请稍后重试或先取消活动" },
+      { status: 500 },
+    );
   }
 }

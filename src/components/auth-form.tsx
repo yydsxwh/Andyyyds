@@ -291,7 +291,7 @@ export function AuthForm({ mode, defaultReferralCode = "" }: Props) {
             aria-selected={channel === tab.id}
             className={`min-h-11 rounded-xl px-2 text-sm font-medium transition ${
               channel === tab.id
-                ? "bg-white text-[var(--ink)] shadow-sm"
+                ? "bg-white/55 text-[var(--ink)] shadow-[var(--glass-inset)] backdrop-blur-md"
                 : "text-[var(--muted)]"
             }`}
             onClick={() => {

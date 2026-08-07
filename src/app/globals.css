@@ -1,31 +1,69 @@
 @import "tailwindcss";
 
-/* 清新明亮 · 国际化 · 现代科技感（冷色白底 + 天蓝主色 + 喜火点缀） */
+/*
+ * 全站视觉：接近 Apple Liquid Glass（液态玻璃）
+ * 为何半透明 + blur/saturate：让顶栏/卡片/弹层折射背景氛围，而非厚重实色块。
+ * 为何 blur 控制在 14–28px：过大在 Android/微信 WebView 易掉帧；列表卡略轻于顶栏。
+ */
 :root {
-  --bg: #f5f9fc;
-  --bg-deep: #e8f1f8;
+  --bg: #eaf2f8;
+  --bg-deep: #d7e6f2;
   --ink: #0f172a;
-  --muted: #5b6b7c;
+  --muted: #4a5d70;
   --line: rgba(15, 23, 42, 0.1);
   --brand: #0ea5e9;
   --brand-strong: #0284c7;
-  --brand-soft: rgba(14, 165, 233, 0.1);
+  --brand-soft: rgba(14, 165, 233, 0.12);
   /* 喜火：精致玫红/珊瑚，作点缀而非主色 */
   --fire: #f43f5e;
   --fire-strong: #e11d48;
   --fire-soft: rgba(244, 63, 94, 0.1);
   --accent: var(--fire);
   --accent-soft: var(--fire-soft);
-  --card: rgba(255, 255, 255, 0.92);
-  --shadow: 0 16px 40px rgba(15, 23, 42, 0.06);
-  /* 网站装扮：背景层与轻量版式密度（可由 layout 注入覆盖） */
+  /* 玻璃层：有 backdrop 时偏透；无滤镜时用 *-fallback 抬不透明度保证可读 */
+  --card: rgba(255, 255, 255, 0.42);
+  --card-soft: rgba(255, 255, 255, 0.32);
+  --card-bar: rgba(255, 255, 255, 0.48);
+  --card-panel: rgba(255, 255, 255, 0.58);
+  --card-fallback: rgba(255, 255, 255, 0.94);
+  --card-soft-fallback: rgba(255, 255, 255, 0.9);
+  --card-bar-fallback: rgba(255, 255, 255, 0.96);
+  --card-panel-fallback: rgba(255, 255, 255, 0.97);
+  --glass-blur: 22px;
+  --glass-blur-soft: 14px;
+  --glass-blur-bar: 26px;
+  --glass-saturate: 1.7;
+  /* 细白边高光：上沿更亮，模拟液面折射 */
+  --glass-edge: rgba(255, 255, 255, 0.72);
+  --glass-edge-dim: rgba(255, 255, 255, 0.28);
+  --glass-sheen: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.62) 0%,
+    rgba(255, 255, 255, 0.18) 38%,
+    rgba(255, 255, 255, 0.08) 62%,
+    rgba(255, 255, 255, 0.28) 100%
+  );
+  --glass-inset: inset 0 1px 0 rgba(255, 255, 255, 0.78),
+    inset 0 -0.5px 0 rgba(255, 255, 255, 0.18);
+  /* 阴影极轻：液态玻璃靠边光分层，避免「浮块」重阴影 */
+  --shadow: 0 1px 1px rgba(15, 23, 42, 0.03), 0 10px 32px rgba(15, 23, 42, 0.05);
+  /* 氛围底：极淡冷色渐变，给玻璃「有东西可透」；刻意避开紫白/奶油陶土 */
   --site-bg-layers:
-    radial-gradient(ellipse 80% 50% at 10% -10%, rgba(14, 165, 233, 0.14), transparent 55%),
-    radial-gradient(ellipse 55% 38% at 88% 4%, rgba(244, 63, 94, 0.07), transparent 52%),
-    radial-gradient(ellipse 45% 30% at 70% 100%, rgba(244, 63, 94, 0.04), transparent 55%),
-    linear-gradient(180deg, #ffffff 0%, var(--bg) 45%, #eef5fb 100%);
-  --surface-radius: 28px;
-  --surface-pad: 1.5rem;
+    radial-gradient(ellipse 90% 55% at 8% -8%, rgba(14, 165, 233, 0.22), transparent 58%),
+    radial-gradient(ellipse 60% 42% at 92% 0%, rgba(56, 189, 248, 0.12), transparent 50%),
+    radial-gradient(ellipse 50% 36% at 78% 100%, rgba(244, 63, 94, 0.07), transparent 55%),
+    radial-gradient(ellipse 40% 28% at 20% 85%, rgba(14, 165, 233, 0.08), transparent 50%),
+    linear-gradient(180deg, #f7fbfe 0%, var(--bg) 42%, #e4eef6 100%);
+  --surface-radius: 26px;
+  --surface-pad: 1.25rem;
+  /* 触控控件统一高度（≈44px）与连续圆角节奏 */
+  --control-h: 2.75rem;
+  --control-h-sm: 2.25rem;
+  --control-radius: 14px;
+  --control-radius-pill: 999px;
+  --control-pad-x: 1.15rem;
+  --control-pad-x-sm: 0.85rem;
+  --font-weight-ui: 600;
   /* 站长可在「网站装扮 → 字号」覆盖；默认导航略大于原先 16px */
   --fs-nav: 18px;
   --fs-brand: 18px;
@@ -40,6 +78,13 @@
     sans-serif;
   --font-display: "Space Grotesk", "Segoe UI", "PingFang SC", "Microsoft YaHei",
     sans-serif;
+  /* 倾斜视差：由 TiltParallaxProvider 写入 -1..1；关闭时保持 0 */
+  --tilt-x: 0;
+  --tilt-y: 0;
+  --tilt-max-fg: 10px;
+  --tilt-max-mid: 6px;
+  --tilt-max-bg: 3px;
+  --tilt-max-card: 5px;
 }
 
 @theme inline {
@@ -66,13 +111,6 @@ body {
   font-family: var(--font-body), "PingFang SC", "Microsoft YaHei", sans-serif;
   /* 微信内偶发横向微溢出导致整页可左右拖；抽屉用 fixed 不受影响 */
   overflow-x: hidden;
-}
-
-/* 窄屏触控：避免 hover 位移造成按钮“跳一下” */
-@media (hover: none) {
-  .btn:hover {
-    transform: none;
-  }
 }
 
 a {
@@ -128,12 +166,63 @@ select {
   pointer-events: none;
 }
 
+/*
+ * 主玻璃面：卡片 / 登录框 / studio 面板共用。
+ * 双层边（外细白 + 内高光）+ 轻微 sheen，避免实色白块。
+ */
 .surface {
-  background: var(--card);
-  border: 1px solid var(--line);
+  background: var(--glass-sheen), var(--card);
+  border: 1px solid var(--glass-edge);
   border-radius: var(--surface-radius);
-  backdrop-filter: blur(12px);
-  box-shadow: var(--shadow);
+  backdrop-filter: blur(var(--glass-blur-soft)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur-soft))
+    saturate(var(--glass-saturate));
+  box-shadow: var(--glass-inset), 0 0 0 1px var(--glass-edge-dim), var(--shadow);
+  color: var(--ink);
+}
+
+/* 列表卡略轻：blur 更小，减少滚动卡顿 */
+.surface-soft {
+  background: var(--glass-sheen), var(--card-soft);
+  border: 1px solid var(--glass-edge);
+  border-radius: var(--surface-radius);
+  backdrop-filter: blur(12px) saturate(1.45);
+  -webkit-backdrop-filter: blur(12px) saturate(1.45);
+  box-shadow: var(--glass-inset), 0 0 0 1px var(--glass-edge-dim),
+    0 1px 1px rgba(15, 23, 42, 0.025), 0 6px 20px rgba(15, 23, 42, 0.04);
+  color: var(--ink);
+}
+
+/* 顶栏 / 底栏：更强 blur，贴边可仍保持液面感 */
+.glass-bar {
+  background: var(--glass-sheen), var(--card-bar);
+  border-color: var(--glass-edge);
+  backdrop-filter: blur(var(--glass-blur-bar)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur-bar))
+    saturate(var(--glass-saturate));
+  box-shadow: var(--glass-inset), 0 0 0 1px var(--glass-edge-dim);
+}
+
+/* 弹层 / 抽屉面板：略不透明，保证长文可读 */
+.glass-panel {
+  background: var(--glass-sheen), var(--card-panel);
+  border: 1px solid var(--glass-edge);
+  border-radius: calc(var(--surface-radius) + 6px);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  box-shadow: var(--glass-inset), 0 0 0 1px var(--glass-edge-dim),
+    0 16px 48px rgba(15, 23, 42, 0.12);
+  color: var(--ink);
+}
+
+/* 汉堡抽屉：定位仍用 inline（兼容部分微信 X5），外观走玻璃类 */
+.glass-drawer {
+  background: var(--glass-sheen), var(--card-panel) !important;
+  border-left: 1px solid var(--glass-edge) !important;
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.55),
+    -10px 0 36px rgba(15, 23, 42, 0.1) !important;
 }
 
 /* 装扮「紧凑/留白」时可选：给未写死 padding 的表面一点呼吸感 */
@@ -142,71 +231,249 @@ select {
 }
 
 .surface-fire {
-  box-shadow: var(--shadow), 0 0 0 1px rgba(244, 63, 94, 0.08);
+  box-shadow: var(--glass-inset), 0 0 0 1px rgba(244, 63, 94, 0.14), var(--shadow);
+}
+
+/*
+ * 微信 / 旧 Android：无 backdrop-filter 时提高不透明度，避免「透到底图看不清字」。
+ * 用 @supports not 回退，有滤镜的机型仍走半透明液态玻璃。
+ */
+@supports not (
+  (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
+) {
+  .surface {
+    background: var(--card-fallback);
+  }
+  .surface-soft {
+    background: var(--card-soft-fallback);
+  }
+  .glass-bar {
+    background: var(--card-bar-fallback);
+  }
+  .glass-panel,
+  .glass-drawer {
+    background: var(--card-panel-fallback) !important;
+  }
+  .btn-secondary,
+  .chip-idle,
+  .field {
+    background: rgba(255, 255, 255, 0.96);
+  }
+}
+
+/*
+ * 倾斜视差分层（裸眼感，非真立体屏）。
+ * 仅 html.tilt-on 时生效；列表卡用整卡轻位移，避免每张卡多层 transform 过重。
+ */
+html.tilt-on .tilt-layer-fg {
+  transform: translate3d(
+    calc(var(--tilt-x) * var(--tilt-max-fg)),
+    calc(var(--tilt-y) * var(--tilt-max-fg)),
+    0
+  );
+  will-change: transform;
+}
+
+html.tilt-on .tilt-layer-mid {
+  transform: translate3d(
+    calc(var(--tilt-x) * var(--tilt-max-mid)),
+    calc(var(--tilt-y) * var(--tilt-max-mid)),
+    0
+  );
+  will-change: transform;
+}
+
+html.tilt-on .tilt-layer-bg {
+  transform: translate3d(
+    calc(var(--tilt-x) * var(--tilt-max-bg) * -1),
+    calc(var(--tilt-y) * var(--tilt-max-bg) * -1),
+    0
+  );
+  will-change: transform;
+}
+
+/* 玻璃顶栏：极轻错位 + 阴影偏移，强化液面感 */
+html.tilt-on .tilt-glass-bar {
+  transform: translate3d(
+    calc(var(--tilt-x) * 3px),
+    calc(var(--tilt-y) * 2px),
+    0
+  );
+  box-shadow: var(--glass-inset), 0 0 0 1px var(--glass-edge-dim),
+    calc(var(--tilt-x) * -4px) calc(var(--tilt-y) * 4px + 6px) 22px
+      rgba(15, 23, 42, 0.08);
+  will-change: transform, box-shadow;
+}
+
+/* 约搭/课程列表卡：整卡轻量，不做子层（滚动性能优先） */
+html.tilt-on .tilt-card {
+  transform: translate3d(
+    calc(var(--tilt-x) * var(--tilt-max-card)),
+    calc(var(--tilt-y) * var(--tilt-max-card)),
+    0
+  );
+  box-shadow: var(--glass-inset), 0 0 0 1px var(--glass-edge-dim),
+    calc(var(--tilt-x) * -5px) calc(var(--tilt-y) * 6px + 8px) 24px
+      rgba(15, 23, 42, 0.07);
+  will-change: transform, box-shadow;
+}
+
+html.tilt-on .tilt-hero-frame {
+  transform: perspective(900px) rotateY(calc(var(--tilt-x) * -3deg))
+    rotateX(calc(var(--tilt-y) * 3deg))
+    translate3d(
+      calc(var(--tilt-x) * 4px),
+      calc(var(--tilt-y) * 4px),
+      0
+    );
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+/* 视差开启时停掉 float 动画，避免与 tilt transform 抢同一属性 */
+html.tilt-on .float-soft {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.tilt-on .tilt-layer-fg,
+  html.tilt-on .tilt-layer-mid,
+  html.tilt-on .tilt-layer-bg,
+  html.tilt-on .tilt-glass-bar,
+  html.tilt-on .tilt-card,
+  html.tilt-on .tilt-hero-frame {
+    transform: none !important;
+    will-change: auto !important;
+  }
 }
 
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.4rem;
-  border-radius: 999px;
-  /* 触控友好：约 44px 高，微信内也易点 */
-  min-height: 2.75rem;
-  padding: 0.75rem 1.25rem;
+  gap: 0.35rem;
+  box-sizing: border-box;
+  border-radius: var(--control-radius-pill);
+  /* 触控友好：约 44px 高，微信内也易点；同组按钮勿再各写一套 padding 破坏对称 */
+  min-height: var(--control-h);
+  padding: 0.65rem var(--control-pad-x);
   border: 1px solid transparent;
-  font-weight: 600;
-  transition: transform 160ms ease, background 160ms ease, color 160ms ease,
-    box-shadow 160ms ease;
+  font-size: 0.9375rem;
+  font-weight: var(--font-weight-ui);
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  box-shadow: none;
+  transition: background 160ms ease, color 160ms ease, border-color 160ms ease,
+    opacity 160ms ease;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
-.btn:hover {
-  transform: translateY(-1px);
+.btn:disabled {
+  opacity: 0.45;
+}
+
+/* 卡片内并排操作：同高同字号同内边距，仅颜色语义区分 */
+.btn-compact {
+  min-height: var(--control-h-sm);
+  padding: 0.45rem var(--control-pad-x-sm);
+  font-size: 0.8125rem;
+  font-weight: 600;
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--brand) 0%, var(--brand-strong) 100%);
+  background: var(--brand);
   color: #ffffff;
-  box-shadow: 0 8px 20px color-mix(in srgb, var(--brand) 28%, transparent);
 }
 
 .btn-primary:hover {
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--brand) 70%, white) 0%,
-    var(--brand) 100%
-  );
+  background: var(--brand-strong);
 }
 
 .btn-secondary {
-  background: #ffffff;
-  border-color: var(--line);
+  background: var(--glass-sheen), rgba(255, 255, 255, 0.38);
+  border-color: var(--glass-edge);
   color: var(--ink);
+  backdrop-filter: blur(12px) saturate(1.4);
+  -webkit-backdrop-filter: blur(12px) saturate(1.4);
+  box-shadow: var(--glass-inset);
 }
 
-.btn-secondary:hover {
-  border-color: color-mix(in srgb, var(--brand) 40%, transparent);
-  color: var(--brand-strong);
+.btn-secondary:hover,
+.btn-secondary:active {
+  background: var(--glass-sheen), rgba(255, 255, 255, 0.55);
+  border-color: rgba(255, 255, 255, 0.85);
 }
 
+/*
+ * 危险操作（删除等）：浅红底 + 红字，与次要按钮同重量。
+ * 绝不用品牌蓝当删除主色，避免「编辑/删除」视觉失衡。
+ */
+.btn-danger {
+  background: var(--fire-soft);
+  border-color: color-mix(in srgb, var(--fire) 18%, transparent);
+  color: var(--fire-strong);
+}
+
+.btn-danger:hover {
+  background: color-mix(in srgb, var(--fire) 16%, white);
+  border-color: color-mix(in srgb, var(--fire) 28%, transparent);
+}
+
+/* 实心强调（如注册）：喜火点缀 CTA，非删除语义 */
 .btn-fire {
-  background: linear-gradient(135deg, var(--fire) 0%, var(--fire-strong) 100%);
+  background: var(--fire);
   color: #ffffff;
-  box-shadow: 0 8px 20px rgba(244, 63, 94, 0.22);
 }
 
 .btn-fire:hover {
-  background: linear-gradient(135deg, #fb7185 0%, var(--fire) 100%);
+  background: var(--fire-strong);
 }
 
 .btn-accent {
-  background: linear-gradient(135deg, var(--fire) 0%, var(--fire-strong) 100%);
+  background: var(--fire);
   color: #ffffff;
-  box-shadow: 0 8px 18px rgba(244, 63, 94, 0.2);
 }
 
 .btn-accent:hover {
-  background: linear-gradient(135deg, #fb7185 0%, var(--fire) 100%);
+  background: var(--fire-strong);
+}
+
+/* 筛选/工作室胶囊：与按钮同高度节奏，激活实心品牌色 */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-height: var(--control-h);
+  padding: 0.5rem var(--control-pad-x);
+  border-radius: var(--control-radius-pill);
+  border: 1px solid transparent;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.chip-idle {
+  background: var(--glass-sheen), rgba(255, 255, 255, 0.34);
+  border-color: var(--glass-edge);
+  color: var(--muted);
+  backdrop-filter: blur(12px) saturate(1.4);
+  -webkit-backdrop-filter: blur(12px) saturate(1.4);
+  box-shadow: var(--glass-inset);
+}
+
+.chip-idle:active {
+  background: var(--glass-sheen), rgba(255, 255, 255, 0.52);
+}
+
+.chip-active {
+  background: var(--brand);
+  border-color: transparent;
+  color: #ffffff;
+  font-weight: 600;
 }
 
 .badge-fire {
@@ -247,13 +514,18 @@ select {
 
 .field {
   width: 100%;
-  border: 1px solid var(--line);
-  background: #ffffff;
-  border-radius: 14px;
+  border: 1px solid var(--glass-edge);
+  background: var(--glass-sheen), rgba(255, 255, 255, 0.55);
+  border-radius: var(--control-radius);
   padding: 0.85rem 1rem;
   /* ≥16px，避免 iOS/微信 WebView 聚焦时整页缩放 */
   font-size: 1rem;
   outline: none;
+  min-height: var(--control-h);
+  backdrop-filter: blur(10px) saturate(1.3);
+  -webkit-backdrop-filter: blur(10px) saturate(1.3);
+  box-shadow: var(--glass-inset);
+  color: var(--ink);
 }
 
 .field:focus {

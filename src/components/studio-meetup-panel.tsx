@@ -12,6 +12,7 @@ import {
   meetupCategoryLabel,
   meetupStatusLabel,
 } from "@/lib/meetup";
+import { confirmAndDeleteMeetup } from "@/lib/meetup-delete-client";
 import { formatPrice } from "@/lib/utils";
 
 export type StudioMeetupRow = {
@@ -86,47 +87,30 @@ export function StudioMeetupPanel({ initialMeetups }: Props) {
   }
 
   async function remove(id: string, title: string, paidOrderCount: number) {
-    const tip =
-      paidOrderCount > 0
-        ? `「${title}」有 ${paidOrderCount} 笔已付订单。建议先点「取消」。仍要硬删除将清除订单与报名，且不可恢复。确定继续？`
-        : `确定删除「${title}」？报名记录与关联订单壳将一并清除，且不可恢复。`;
-    if (!confirm(tip)) return;
-
     setBusyId(id);
     setMessage("");
     try {
-      let res = await fetch(`/api/studio/meetups/${id}`, { method: "DELETE" });
-      let data = await res.json();
-
-      // 服务端发现已付订单时要求 force；再确认一次后强制
-      if (res.status === 409 && data.needForce) {
-        if (
-          !confirm(
-            `${data.error || "存在已付订单。"}\n\n确认强制硬删除？`,
-          )
-        ) {
-          setMessage("已取消删除；可先「取消」活动保留履约数据。");
-          return;
-        }
-        res = await fetch(`/api/studio/meetups/${id}?force=1`, {
-          method: "DELETE",
-        });
-        data = await res.json();
-      }
-
-      if (!res.ok) {
-        setMessage(data.error || "删除失败");
+      const result = await confirmAndDeleteMeetup({
+        meetupId: id,
+        title,
+        via: "studio",
+        paidOrderCount,
+      });
+      if (result.ok) {
+        setRows((prev) => prev.filter((m) => m.id !== id));
+        setMessage(
+          result.deletedOrders
+            ? `已删除（同时清除 ${result.deletedOrders} 笔关联订单）`
+            : "已删除",
+        );
+        router.refresh();
         return;
       }
-      setRows((prev) => prev.filter((m) => m.id !== id));
-      setMessage(
-        data.deletedOrders
-          ? `已删除（同时清除 ${data.deletedOrders} 笔关联订单）`
-          : "已删除",
-      );
-      router.refresh();
-    } catch {
-      setMessage("网络异常");
+      if (result.cancelled) {
+        if (result.message) setMessage(result.message);
+        return;
+      }
+      setMessage(result.error || "删除失败");
     } finally {
       setBusyId("");
     }
@@ -213,20 +197,17 @@ export function StudioMeetupPanel({ initialMeetups }: Props) {
             <div className="flex flex-wrap gap-2 sm:justify-end">
               <Link
                 href={`/studio/meetup/${m.id}/edit`}
-                className="btn btn-secondary min-h-11 px-3 text-sm"
+                className="btn btn-secondary btn-compact"
               >
                 编辑
               </Link>
-              <Link
-                href={`/meetup/${m.id}`}
-                className="btn btn-secondary min-h-11 px-3 text-sm"
-              >
+              <Link href={`/meetup/${m.id}`} className="btn btn-secondary btn-compact">
                 前台
               </Link>
               {m.status !== "CANCELLED" ? (
                 <button
                   type="button"
-                  className="btn btn-secondary min-h-11 px-3 text-sm"
+                  className="btn btn-secondary btn-compact"
                   disabled={busyId === m.id}
                   onClick={() => void setStatus(m.id, "CANCELLED")}
                 >
@@ -235,7 +216,7 @@ export function StudioMeetupPanel({ initialMeetups }: Props) {
               ) : (
                 <button
                   type="button"
-                  className="btn btn-secondary min-h-11 px-3 text-sm"
+                  className="btn btn-secondary btn-compact"
                   disabled={busyId === m.id}
                   onClick={() => void setStatus(m.id, "OPEN")}
                 >
@@ -244,7 +225,7 @@ export function StudioMeetupPanel({ initialMeetups }: Props) {
               )}
               <button
                 type="button"
-                className="btn btn-fire min-h-11 px-3 text-sm"
+                className="btn btn-danger btn-compact"
                 disabled={busyId === m.id}
                 onClick={() =>
                   void remove(m.id, m.title, m.paidOrderCount)

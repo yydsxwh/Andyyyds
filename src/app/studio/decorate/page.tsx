@@ -4,6 +4,7 @@ import { DecoratePanel } from "@/components/decorate-panel";
 import { DecorateSubnav } from "@/components/decorate-subnav";
 import { SiteThemePanel } from "@/components/site-theme-panel";
 import { StudioNav } from "@/components/studio-nav";
+import { TiltParallaxToggle } from "@/components/tilt-parallax-provider";
 import { getSession } from "@/lib/auth";
 import { isAdmin } from "@/lib/roles";
 import { getDecorateConfig } from "@/lib/site-settings";
@@ -56,6 +57,9 @@ export default async function StudioDecoratePage() {
       </div>
 
       <SiteThemePanel initial={decorate} />
+
+      {/* 本机体验开关：不写 decorateJson，避免全站访客被微信权限打扰 */}
+      <TiltParallaxToggle />
 
       <details className="surface rounded-[28px] p-5 sm:p-6">
         <summary className="cursor-pointer list-none text-lg font-semibold">

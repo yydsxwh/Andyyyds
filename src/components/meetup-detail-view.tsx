@@ -22,6 +22,7 @@ import {
   meetupStatusLabel,
   MEETUP_PRODUCT_TYPE,
 } from "@/lib/meetup";
+import { confirmAndDeleteMeetup } from "@/lib/meetup-delete-client";
 import { meetupSlotSpecLabel } from "@/lib/meetup-meta";
 import {
   buildMeetupConsultPhones,
@@ -402,6 +403,31 @@ export function MeetupDetailView({
     }
   }
 
+  async function removeMeetup() {
+    setLoading(true);
+    setMessage("");
+    try {
+      const result = await confirmAndDeleteMeetup({
+        meetupId: meetup.id,
+        title: meetup.title,
+        via: "public",
+      });
+      if (result.ok) {
+        // 删后详情已不存在，回广场避免 404
+        router.push("/meetup");
+        router.refresh();
+        return;
+      }
+      if (result.cancelled) {
+        if (result.message) setMessage(result.message);
+        return;
+      }
+      setMessage(result.error || "删除失败");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function freeJoin() {
     setLoading(true);
     setMessage("");
@@ -543,7 +569,7 @@ export function MeetupDetailView({
   return (
     <div className="meetup-detail bg-[var(--bg)] pb-28">
       {/* 顶栏：返回 + 发起人 */}
-      <div className="sticky top-0 z-30 flex items-center gap-3 border-b border-[var(--line)] bg-white/95 px-3 py-2.5 backdrop-blur">
+      <div className="glass-bar sticky top-0 z-30 flex items-center gap-3 border-b px-3 py-2.5">
         <Link
           href="/meetup"
           className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-full text-lg touch-manipulation"
@@ -580,7 +606,7 @@ export function MeetupDetailView({
         />
       ) : (
         <div className="flex aspect-[4/3] items-end bg-gradient-to-br from-emerald-200 via-sky-100 to-white px-5 pb-6 sm:aspect-[16/9]">
-          <span className="rounded-full bg-white/90 px-3 py-1 text-xs font-medium text-emerald-700">
+          <span className="chip chip-idle !min-h-0 px-3 py-1 text-xs font-medium !text-emerald-700">
             {meetupCategoryLabel(meetup.category)}
           </span>
         </div>
@@ -588,7 +614,7 @@ export function MeetupDetailView({
 
       <div className="space-y-3 px-3 pt-3 sm:px-5">
         {/* 价格 / 余位 / 标题 */}
-        <section className="rounded-2xl bg-white px-4 py-4 shadow-sm">
+        <section className="surface px-4 py-4">
           <div className="flex items-end justify-between gap-3">
             <div className="text-2xl font-semibold text-[var(--brand-strong)]">
               {paid ? (
@@ -628,7 +654,7 @@ export function MeetupDetailView({
         </section>
 
         {/* 批次 / 分档 */}
-        <section className="rounded-2xl bg-white px-4 py-4 shadow-sm">
+        <section className="surface px-4 py-4">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-semibold">
               批次（{displaySlots.length}）
@@ -650,7 +676,7 @@ export function MeetupDetailView({
                   className={`relative min-h-16 min-w-[7.5rem] shrink-0 rounded-xl border px-3 py-2 text-left touch-manipulation ${
                     selected
                       ? "border-[var(--brand)] bg-[var(--brand)]/5"
-                      : "border-[var(--line)] bg-white"
+                      : "border-[var(--glass-edge)] bg-white/35"
                   } ${full ? "opacity-60" : ""}`}
                 >
                   <div className="text-sm font-semibold">{slot.name}</div>
@@ -673,7 +699,7 @@ export function MeetupDetailView({
         </section>
 
         {/* 集合地 / 目的地 / 管理员 / 亮点 */}
-        <section className="space-y-3 rounded-2xl bg-white px-4 py-4 text-sm shadow-sm">
+        <section className="surface space-y-3 px-4 py-4 text-sm">
           <div className="flex gap-3">
             <span className="w-16 shrink-0 text-[var(--muted)]">集合地</span>
             <div className="min-w-0 flex-1">
@@ -758,7 +784,7 @@ export function MeetupDetailView({
         </section>
 
         {/* 最近报名 */}
-        <section className="rounded-2xl bg-white px-4 py-4 shadow-sm">
+        <section className="surface px-4 py-4">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-semibold">最近报名</h2>
             <button
@@ -803,7 +829,7 @@ export function MeetupDetailView({
         </section>
 
         {/* 内容 Tab */}
-        <section className="overflow-hidden rounded-2xl bg-white shadow-sm">
+        <section className="surface overflow-hidden">
           <div className="flex gap-1 overflow-x-auto border-b border-[var(--line)] px-2">
             {CONTENT_TABS.map((tab) => {
               const active = contentTab === tab.key;
@@ -840,7 +866,7 @@ export function MeetupDetailView({
 
         {/* 图集 */}
         {meetup.gallery.length > 0 ? (
-          <section className="rounded-2xl bg-white px-4 py-4 shadow-sm">
+          <section className="surface px-4 py-4">
             <h2 className="text-sm font-semibold">大家这样玩</h2>
             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
               {meetup.gallery.map((url) => (
@@ -857,7 +883,7 @@ export function MeetupDetailView({
         ) : null}
 
         {canManageStatus ? (
-          <section className="rounded-2xl border border-[var(--line)] bg-white p-4">
+          <section className="surface p-4">
             <p className="text-sm text-[var(--muted)]">
               {isHost ? "发起人管理" : "站长管理"}
             </p>
@@ -867,8 +893,8 @@ export function MeetupDetailView({
                   <button
                     key={action.key}
                     type="button"
-                    className={`btn min-h-11 ${
-                      action.key === "CANCELLED" ? "btn-fire" : "btn-secondary"
+                    className={`btn touch-manipulation ${
+                      action.key === "CANCELLED" ? "btn-danger" : "btn-secondary"
                     }`}
                     disabled={loading}
                     onClick={() => void setHostStatus(action.key)}
@@ -877,6 +903,14 @@ export function MeetupDetailView({
                   </button>
                 ),
               )}
+              <button
+                type="button"
+                className="btn btn-danger touch-manipulation"
+                disabled={loading}
+                onClick={() => void removeMeetup()}
+              >
+                删除活动
+              </button>
             </div>
             <Link
               href={
@@ -910,11 +944,11 @@ export function MeetupDetailView({
       </div>
 
       {/* 底栏：咨询 + 立即报名 */}
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--line)] bg-white/95 px-3 py-2.5 pb-[max(0.65rem,env(safe-area-inset-bottom))] backdrop-blur">
+      <div className="glass-bar fixed inset-x-0 bottom-0 z-40 border-t px-3 py-2.5 pb-[max(0.65rem,env(safe-area-inset-bottom))]">
         <div className="mx-auto flex max-w-lg items-center gap-2">
           <button
             type="button"
-            className="flex min-h-12 w-14 flex-col items-center justify-center rounded-xl border border-[var(--line)] text-[10px] text-[var(--muted)] touch-manipulation"
+            className="flex min-h-12 w-14 flex-col items-center justify-center rounded-xl border border-[var(--glass-edge)] bg-white/35 text-[10px] text-[var(--muted)] backdrop-blur-md touch-manipulation"
             onClick={() => setConsultOpen(true)}
           >
             <span className="text-base leading-none" aria-hidden>
@@ -947,7 +981,7 @@ export function MeetupDetailView({
             aria-label="关闭"
             onClick={() => setConsultOpen(false)}
           />
-          <div className="relative z-10 max-h-[85vh] w-full overflow-y-auto rounded-t-3xl bg-white p-5 sm:max-w-md sm:rounded-3xl">
+          <div className="glass-panel relative z-10 max-h-[85vh] w-full overflow-y-auto rounded-t-3xl p-5 sm:max-w-md sm:rounded-3xl">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-lg font-semibold">电话咨询</h3>
               <button
@@ -1026,7 +1060,7 @@ export function MeetupDetailView({
             aria-label="关闭"
             onClick={() => setRecentOpen(false)}
           />
-          <div className="relative z-10 max-h-[85vh] w-full overflow-y-auto rounded-t-3xl bg-white p-5 sm:max-w-md sm:rounded-3xl">
+          <div className="glass-panel relative z-10 max-h-[85vh] w-full overflow-y-auto rounded-t-3xl p-5 sm:max-w-md sm:rounded-3xl">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-lg font-semibold">全部报名</h3>
               <button
@@ -1071,7 +1105,7 @@ export function MeetupDetailView({
             aria-label="关闭"
             onClick={() => setShareOpen(false)}
           />
-          <div className="relative z-10 max-h-[85vh] w-full overflow-y-auto rounded-t-3xl bg-white p-5 sm:max-w-md sm:rounded-3xl">
+          <div className="glass-panel relative z-10 max-h-[85vh] w-full overflow-y-auto rounded-t-3xl p-5 sm:max-w-md sm:rounded-3xl">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-lg font-semibold">分享赚提成</h3>
               <button
@@ -1107,7 +1141,7 @@ export function MeetupDetailView({
             aria-label="关闭"
             onClick={() => setPayOpen(false)}
           />
-          <div className="relative z-10 max-h-[85vh] w-full overflow-y-auto rounded-t-3xl bg-white p-5 sm:max-w-md sm:rounded-3xl">
+          <div className="glass-panel relative z-10 max-h-[85vh] w-full overflow-y-auto rounded-t-3xl p-5 sm:max-w-md sm:rounded-3xl">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-lg font-semibold">确认订单</h3>
               <button

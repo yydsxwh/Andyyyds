@@ -5,6 +5,7 @@ import { ReferralCapture } from "@/components/referral-capture";
 import { SiteFontLinks } from "@/components/site-font-loader";
 import { SiteHeader } from "@/components/site-header";
 import { SiteTypographyStyles } from "@/components/site-typography-styles";
+import { TiltParallaxProvider } from "@/components/tilt-parallax-provider";
 import { DEFAULT_DECORATE, DEFAULT_LOGO_URL } from "@/lib/decorate";
 import { getDecorateConfig } from "@/lib/site-settings";
 import { buildThemeStyleVars, paletteById } from "@/lib/site-theme";
@@ -78,33 +79,35 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="zh-CN" className="h-full" style={themeStyle}>
       <body className="min-h-full flex flex-col antialiased">
-        <SiteFontLinks urls={fontUrls} />
-        <SiteTypographyStyles css={typographyCss} />
-        <ReferralCapture />
-        <CouponCapture />
-        <SiteHeader />
-        <main className="flex-1">{children}</main>
-        <footer className="border-t border-[var(--line)] py-8 text-sm text-[var(--muted)]">
-          <div className="container flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-2.5">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={logoUrl}
-                alt={siteName}
-                className="h-8 w-auto max-w-[160px] object-contain"
-              />
-              {decorate.showBrandText ? (
-                <span
-                  className={`brand-mark text-[var(--ink)] ${typoRoleClass("brand")}`}
-                  style={typoRoleStyle("brand")}
-                >
-                  {decorate.brandName}
-                </span>
-              ) : null}
+        <TiltParallaxProvider>
+          <SiteFontLinks urls={fontUrls} />
+          <SiteTypographyStyles css={typographyCss} />
+          <ReferralCapture />
+          <CouponCapture />
+          <SiteHeader />
+          <main className="flex-1">{children}</main>
+          <footer className="glass-bar border-t py-8 text-sm text-[var(--muted)]">
+            <div className="container flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2.5">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={logoUrl}
+                  alt={siteName}
+                  className="h-8 w-auto max-w-[160px] object-contain"
+                />
+                {decorate.showBrandText ? (
+                  <span
+                    className={`brand-mark text-[var(--ink)] ${typoRoleClass("brand")}`}
+                    style={typoRoleStyle("brand")}
+                  >
+                    {decorate.brandName}
+                  </span>
+                ) : null}
+              </div>
+              <span>{siteName}</span>
             </div>
-            <span>{siteName}</span>
-          </div>
-        </footer>
+          </footer>
+        </TiltParallaxProvider>
       </body>
     </html>
   );

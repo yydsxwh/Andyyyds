@@ -106,12 +106,12 @@ function DesktopDropdown({
       )}
       {open ? (
         <div className="absolute left-0 top-full z-50 min-w-[9.5rem] pt-2">
-          <div className="rounded-2xl border border-[var(--line)] bg-white/98 py-1.5 shadow-lg backdrop-blur-md">
+          <div className="glass-panel rounded-[var(--control-radius)] py-1.5">
             {children.map((child) => (
               <Link
                 key={child.href + child.label}
                 href={child.href}
-                className="block whitespace-nowrap px-3.5 py-2.5 text-[var(--ink)] hover:bg-[var(--bg-deep)]/50"
+                className="block min-h-11 whitespace-nowrap px-3.5 py-2.5 text-[var(--ink)] active:bg-[var(--bg-deep)]/60"
                 onClick={() => setOpen(false)}
               >
                 {child.label}
@@ -228,6 +228,7 @@ function MobileNav({ links }: { links: HeaderNavLink[] }) {
               role="dialog"
               aria-modal="true"
               aria-label="站点导航"
+              className="glass-drawer"
               style={{
                 position: "absolute",
                 top: 0,
@@ -237,9 +238,7 @@ function MobileNav({ links }: { links: HeaderNavLink[] }) {
                 maxWidth: "20rem",
                 display: "flex",
                 flexDirection: "column",
-                background: "#fff",
-                boxShadow: "-8px 0 28px rgba(15,23,42,0.18)",
-                borderLeft: "1px solid rgba(15,23,42,0.1)",
+                /* 定位/安全区保持 inline：部分微信 X5 对复杂 CSS inset 组合不稳 */
                 paddingTop: "max(0.75rem, env(safe-area-inset-top, 0px))",
                 paddingBottom: "max(0.75rem, env(safe-area-inset-bottom, 0px))",
                 paddingRight: "max(0.5rem, env(safe-area-inset-right, 0px))",
@@ -271,17 +270,9 @@ function MobileNav({ links }: { links: HeaderNavLink[] }) {
                   type="button"
                   aria-label="关闭菜单"
                   onClick={() => setOpen(false)}
+                  className="btn btn-secondary btn-compact !h-11 !w-11 !rounded-full !px-0"
                   style={{
-                    display: "inline-flex",
-                    width: "2.75rem",
-                    height: "2.75rem",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    borderRadius: "999px",
-                    border: "1px solid rgba(15,23,42,0.1)",
-                    background: "#fff",
                     fontSize: "1.25rem",
-                    color: "#0f172a",
                   }}
                 >
                   ×
@@ -432,7 +423,7 @@ function MobileNav({ links }: { links: HeaderNavLink[] }) {
     <div className="lg:hidden">
       <button
         type="button"
-        className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[var(--line)] bg-white/70 text-[var(--ink)]"
+        className="btn btn-secondary btn-compact inline-flex h-11 w-11 shrink-0 items-center justify-center !rounded-full !px-0 text-[var(--ink)]"
         aria-expanded={open}
         aria-controls={panelId}
         aria-label={open ? "关闭菜单" : "打开菜单"}
