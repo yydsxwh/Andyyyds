@@ -3,8 +3,10 @@
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PRODUCT_TITLE_MAX } from "@/lib/media";
+import { isValidYuanInput } from "@/lib/money";
 import { productDetailPath } from "@/lib/product-types";
 import type { ComposeUiCopy } from "@/lib/ui-copy";
+import { formatPrice } from "@/lib/utils";
 
 /** 超过该像素才算拖拽框选，避免误当成点击 */
 const MARQUEE_THRESHOLD_PX = 6;
@@ -15,10 +17,22 @@ type Asset = {
   category: { name: string } | null;
 };
 
+/** 可打进专栏套餐的单课 */
+type BundleCourseOption = {
+  id: string;
+  title: string;
+  slug: string;
+  price: number;
+  status: string;
+  coverUrl: string;
+};
+
 type ProductTypeChoice = "COURSE" | "COLUMN" | "MATERIAL";
 
 type Props = {
   assets: Asset[];
+  /** 名下单课，供创建专栏套餐时勾选 */
+  bundleCourses?: BundleCourseOption[];
   initialSelectedIds: string[];
   /** 深链预选类型：如从「创建资料」入口带 ?type=MATERIAL */
   initialProductType?: ProductTypeChoice;
@@ -40,6 +54,7 @@ function normalizeProductType(
 
 export function ComposeProductForm({
   assets,
+  bundleCourses = [],
   initialSelectedIds,
   initialProductType,
   copy,
@@ -50,6 +65,8 @@ export function ComposeProductForm({
   const [selected, setSelected] = useState<string[]>(
     initialSelectedIds.filter((id) => assets.some((a) => a.id === id)),
   );
+  /** 专栏套餐所选单课（有序） */
+  const [selectedCourseIds, setSelectedCourseIds] = useState<string[]>([]);
   const [productType, setProductType] = useState<ProductTypeChoice>(() =>
     normalizeProductType(initialProductType),
   );
@@ -59,6 +76,7 @@ export function ComposeProductForm({
   const [price, setPrice] = useState("99");
   const [groupByCategory, setGroupByCategory] = useState(true);
   const [publish, setPublish] = useState(true);
+  const isColumn = productType === "COLUMN";
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [dragOverSelected, setDragOverSelected] = useState(false);
@@ -97,6 +115,49 @@ export function ComposeProductForm({
     () => assets.filter((a) => !selected.includes(a.id)),
     [assets, selected],
   );
+
+  const selectedBundleCourses = useMemo(
+    () =>
+      selectedCourseIds
+        .map((id) => bundleCourses.find((c) => c.id === id))
+        .filter(Boolean) as BundleCourseOption[],
+    [selectedCourseIds, bundleCourses],
+  );
+
+  const catalogBundleCourses = useMemo(
+    () => bundleCourses.filter((c) => !selectedCourseIds.includes(c.id)),
+    [bundleCourses, selectedCourseIds],
+  );
+
+  function setProductTypeAndReset(next: ProductTypeChoice) {
+    setProductType(next);
+    setError("");
+    setStep(1);
+    if (next === "COLUMN") {
+      setSelected([]);
+      setChecked([]);
+    } else {
+      setSelectedCourseIds([]);
+    }
+  }
+
+  function toggleCourseInBundle(id: string) {
+    setSelectedCourseIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  }
+
+  function moveCourseInBundle(id: string, dir: -1 | 1) {
+    setSelectedCourseIds((prev) => {
+      const i = prev.indexOf(id);
+      if (i < 0) return prev;
+      const j = i + dir;
+      if (j < 0 || j >= prev.length) return prev;
+      const next = [...prev];
+      [next[i], next[j]] = [next[j], next[i]];
+      return next;
+    });
+  }
 
   function toggleChecked(id: string) {
     setChecked((prev) =>
@@ -351,7 +412,13 @@ export function ComposeProductForm({
     e.preventDefault();
     setError("");
 
-    if (selected.length === 0) {
+    if (isColumn) {
+      if (selectedCourseIds.length === 0) {
+        setError("请至少选择一门单课加入专栏套餐");
+        setStep(1);
+        return;
+      }
+    } else if (selected.length === 0) {
       setError("请至少选择 1 个素材");
       setStep(1);
       return;
@@ -362,12 +429,8 @@ export function ComposeProductForm({
       setError("标题至少需要 2 个字");
       return;
     }
-    if (trimmedDesc.length < 2) {
-      setError("产品介绍至少需要 2 个字");
-      return;
-    }
-    if (Number.isNaN(Number(price)) || Number(price) < 0) {
-      setError("请填写有效价格");
+    if (!isValidYuanInput(price)) {
+      setError("请填写有效价格（可到分，如 99.90）");
       return;
     }
 
@@ -381,26 +444,35 @@ export function ComposeProductForm({
           title: trimmedTitle,
           subtitle,
           description: trimmedDesc,
-          price: Number(price),
+          price,
           publish,
-          groupByCategory,
-          assetIds: selected,
+          groupByCategory: isColumn ? false : groupByCategory,
+          ...(isColumn
+            ? { courseIds: selectedCourseIds }
+            : { assetIds: selected }),
         }),
       });
       const data = (await res.json().catch(() => ({}))) as {
         error?: string;
         slug?: string;
+        id?: string;
       };
       if (!res.ok) {
         setError(data.error || "创建失败");
         return;
       }
-      if (!data.slug) {
-        setError("创建成功但未返回链接，请到课程列表查看");
+      // 创建成功后进前台详情；中文 slug 已在详情页 decode，避免误 404
+      if (data.slug) {
+        router.push(productDetailPath(data.slug, productType));
+        router.refresh();
         return;
       }
-      router.push(productDetailPath(data.slug, productType));
-      router.refresh();
+      if (data.id) {
+        router.push(`/studio/courses/${data.id}/edit`);
+        router.refresh();
+        return;
+      }
+      setError("创建成功但未返回链接，请到课程列表查看");
     } catch {
       setError("网络异常，请稍后重试");
     } finally {
@@ -410,13 +482,154 @@ export function ComposeProductForm({
 
   return (
     <div className="space-y-6">
+      <div className="surface space-y-3 rounded-[28px] p-4 sm:p-5">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-medium text-[var(--muted)]">
+            产品类型
+          </span>
+          <button
+            type="button"
+            className={`btn min-h-10 px-3 text-sm ${productType === "COURSE" ? "btn-primary" : "btn-secondary"}`}
+            onClick={() => setProductTypeAndReset("COURSE")}
+          >
+            {copy.courseTypeLabel}
+          </button>
+          <button
+            type="button"
+            className={`btn min-h-10 px-3 text-sm ${productType === "COLUMN" ? "btn-primary" : "btn-secondary"}`}
+            onClick={() => setProductTypeAndReset("COLUMN")}
+          >
+            {copy.columnTypeLabel}
+          </button>
+          <button
+            type="button"
+            className={`btn min-h-10 px-3 text-sm ${productType === "MATERIAL" ? "btn-primary" : "btn-secondary"}`}
+            onClick={() => setProductTypeAndReset("MATERIAL")}
+          >
+            资料
+          </button>
+        </div>
+        <p className="text-xs leading-relaxed text-[var(--muted)]">
+          {isColumn
+            ? "专栏是套餐：选择多门已创建的单课打包售卖；买专栏后开通所含每门单课。"
+            : productType === "MATERIAL"
+              ? "资料：用素材打包，出现在资料广场。"
+              : "单课：用素材组成一门独立可售课程。"}
+        </p>
+      </div>
+
       <div className="flex flex-wrap items-center gap-3 text-sm">
-        <StepPill active={step === 1} done={step > 1} n={1} label="选择素材" />
+        <StepPill
+          active={step === 1}
+          done={step > 1}
+          n={1}
+          label={isColumn ? "选择单课" : "选择素材"}
+        />
         <span className="text-[var(--muted)]">→</span>
         <StepPill active={step === 2} done={false} n={2} label="填写产品信息" />
       </div>
 
-      {step === 1 ? (
+      {step === 1 && isColumn ? (
+        <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+          <div className="surface space-y-4 rounded-[28px] p-6">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-lg font-semibold">选择要打包的单课</h2>
+              <span className="text-xs text-[var(--muted)]">
+                已选 {selectedCourseIds.length} 门
+              </span>
+            </div>
+            <p className="text-sm text-[var(--muted)]">
+              仅列出你名下的「单课」。请先创建单课，再组成专栏套餐。
+            </p>
+            {catalogBundleCourses.length === 0 &&
+            selectedCourseIds.length === 0 ? (
+              <p className="rounded-2xl border border-dashed border-[var(--line)] px-4 py-8 text-center text-sm text-[var(--muted)]">
+                暂无可用单课。请先创建并上架单课，再回来组专栏。
+              </p>
+            ) : (
+              <ul className="max-h-[480px] space-y-2 overflow-y-auto pr-1">
+                {catalogBundleCourses.map((c) => (
+                  <li key={c.id}>
+                    <button
+                      type="button"
+                      className="flex w-full min-h-12 items-center justify-between gap-3 rounded-2xl border border-[var(--line)] px-4 py-3 text-left text-sm hover:border-[var(--brand)]/40"
+                      onClick={() => toggleCourseInBundle(c.id)}
+                    >
+                      <span className="min-w-0 truncate font-medium">
+                        {c.title}
+                      </span>
+                      <span className="shrink-0 text-[var(--muted)]">
+                        {formatPrice(c.price)}
+                        {c.status !== "PUBLISHED" ? " · 草稿" : ""}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div className="surface space-y-4 rounded-[28px] p-6">
+            <h2 className="text-lg font-semibold">套餐内单课（顺序）</h2>
+            {selectedBundleCourses.length === 0 ? (
+              <p className="text-sm text-[var(--muted)]">
+                从左侧点选加入；右侧可调整顺序。
+              </p>
+            ) : (
+              <ol className="space-y-2">
+                {selectedBundleCourses.map((c, index) => (
+                  <li
+                    key={c.id}
+                    className="flex flex-wrap items-center gap-2 rounded-2xl border border-[var(--line)] px-3 py-2 text-sm"
+                  >
+                    <span className="text-xs text-[var(--muted)]">
+                      {index + 1}.
+                    </span>
+                    <span className="min-w-0 flex-1 truncate font-medium">
+                      {c.title}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-secondary min-h-9 px-2 text-xs"
+                      onClick={() => moveCourseInBundle(c.id, -1)}
+                      disabled={index === 0}
+                    >
+                      上移
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary min-h-9 px-2 text-xs"
+                      onClick={() => moveCourseInBundle(c.id, 1)}
+                      disabled={index === selectedBundleCourses.length - 1}
+                    >
+                      下移
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary min-h-9 px-2 text-xs"
+                      onClick={() => toggleCourseInBundle(c.id)}
+                    >
+                      移除
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            )}
+            <button
+              type="button"
+              className="btn btn-primary w-full min-h-11"
+              disabled={selectedCourseIds.length === 0}
+              onClick={() => {
+                setError("");
+                setStep(2);
+              }}
+            >
+              下一步（已选 {selectedCourseIds.length} 门单课）
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {step === 1 && !isColumn ? (
         <div className="space-y-4">
           <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
             <div className="surface space-y-4 rounded-[28px] p-6">
@@ -680,59 +893,19 @@ export function ComposeProductForm({
 
           <div className="surface space-y-4 rounded-[28px] p-6">
             <h2 className="text-lg font-semibold">{copy.step2Title}</h2>
-            <div className="flex items-center gap-2">
-              <div className="flex min-w-0 flex-1 flex-wrap gap-2">
-                <button
-                  type="button"
-                  className={`btn min-h-11 flex-1 ${productType === "COURSE" ? "btn-primary" : "btn-secondary"}`}
-                  onClick={() => setProductType("COURSE")}
-                >
-                  {copy.courseTypeLabel}
-                </button>
-                <button
-                  type="button"
-                  className={`btn min-h-11 flex-1 ${productType === "COLUMN" ? "btn-primary" : "btn-secondary"}`}
-                  onClick={() => setProductType("COLUMN")}
-                >
-                  {copy.columnTypeLabel}
-                </button>
-                <button
-                  type="button"
-                  className={`btn min-h-11 flex-1 ${productType === "MATERIAL" ? "btn-primary" : "btn-secondary"}`}
-                  onClick={() => setProductType("MATERIAL")}
-                >
-                  资料
-                </button>
-              </div>
-              <span className="group relative shrink-0">
-                <button
-                  type="button"
-                  className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--line)] bg-white/80 text-xs font-medium text-[var(--muted)] transition hover:border-[var(--brand)] hover:text-[var(--brand)] focus-visible:border-[var(--brand)] focus-visible:text-[var(--brand)] focus-visible:outline-none"
-                  aria-label="单课、专栏与资料的区别"
-                  aria-describedby="product-type-help"
-                >
-                  ?
-                </button>
-                <span
-                  id="product-type-help"
-                  role="tooltip"
-                  className="pointer-events-none absolute right-0 top-full z-20 mt-2 w-64 rounded-2xl border border-[var(--line)] bg-white px-3 py-2.5 text-left text-xs leading-relaxed text-[var(--ink)] opacity-0 shadow-lg transition group-hover:opacity-100 group-focus-within:opacity-100"
-                >
-                  <span className="block">
-                    <span className="font-medium text-[var(--brand)]">单课</span>
-                    ：独立一门可售课程，素材组成章节/课时后直接上架。
-                  </span>
-                  <span className="mt-1.5 block">
-                    <span className="font-medium text-[var(--brand)]">专栏</span>
-                    ：做成系列/合集产品，前台展示为「专栏」，适合多内容打包或按分类分章售卖。
-                  </span>
-                  <span className="mt-1.5 block">
-                    <span className="font-medium text-[var(--brand)]">资料</span>
-                    ：文档/图片/音视频等打包售卖，出现在「资料广场」，支持优惠券与分销分享。
-                  </span>
-                </span>
+            <p className="text-sm text-[var(--muted)]">
+              当前类型：
+              <span className="font-medium text-[var(--ink)]">
+                {productType === "MATERIAL"
+                  ? "资料"
+                  : isColumn
+                    ? "专栏套餐"
+                    : copy.courseTypeLabel}
               </span>
-            </div>
+              {isColumn
+                ? ` · 含 ${selectedCourseIds.length} 门单课`
+                : ` · ${selected.length} 个素材`}
+            </p>
             <div>
               <label className="mb-1 block text-sm text-[var(--muted)]">
                 {copy.titleLabel}
@@ -770,18 +943,19 @@ export function ComposeProductForm({
             <div>
               <label className="mb-1 block text-sm text-[var(--muted)]">
                 {copy.descriptionLabel}
+                <span className="ml-1 font-normal text-[var(--muted)]">
+                  （选填）
+                </span>
               </label>
               <textarea
                 className="field min-h-32"
                 value={description}
-                minLength={2}
                 maxLength={5000}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder={copy.descriptionPlaceholder}
-                required
               />
               <div className="mt-1 text-right text-xs text-[var(--muted)]">
-                {description.trim().length}/5000（至少 2 个字）
+                {description.trim().length}/5000
               </div>
             </div>
             <div>
@@ -793,7 +967,8 @@ export function ComposeProductForm({
                   className="field pr-12"
                   type="number"
                   min="0"
-                  step="1"
+                  step="0.01"
+                  inputMode="decimal"
                   value={price}
                   onChange={(e) => setPrice(e.target.value)}
                   placeholder={copy.pricePlaceholder}
@@ -805,14 +980,16 @@ export function ComposeProductForm({
               </div>
               <p className="mt-1 text-xs text-[var(--muted)]">{copy.priceHint}</p>
             </div>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={groupByCategory}
-                onChange={(e) => setGroupByCategory(e.target.checked)}
-              />
-              {copy.groupByCategoryLabel}
-            </label>
+            {!isColumn ? (
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={groupByCategory}
+                  onChange={(e) => setGroupByCategory(e.target.checked)}
+                />
+                {copy.groupByCategoryLabel}
+              </label>
+            ) : null}
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -822,7 +999,8 @@ export function ComposeProductForm({
               {copy.publishLabel}
             </label>
             {error ? <p className="text-sm text-red-700">{error}</p> : null}
-            <div className="flex flex-col gap-2 sm:flex-row">
+            {/* z-10：避免顶栏叠层时误点导航导致看起来像「生成失败 404」 */}
+            <div className="relative z-10 flex flex-col gap-2 sm:flex-row">
               <button
                 type="button"
                 className="btn btn-secondary sm:w-auto"
@@ -835,18 +1013,21 @@ export function ComposeProductForm({
               </button>
               <button
                 className="btn btn-accent flex-1"
-                disabled={loading || selected.length === 0}
+                disabled={
+                  loading ||
+                  (isColumn
+                    ? selectedCourseIds.length === 0
+                    : selected.length === 0)
+                }
                 type="submit"
               >
                 {loading
                   ? "创建中..."
-                  : `${
-                      productType === "MATERIAL"
-                        ? "创建资料并上架"
-                        : productType === "COLUMN"
-                          ? copy.submitLabelColumn
-                          : copy.submitLabelCourse
-                    }（${selected.length} 个素材）`}
+                  : isColumn
+                    ? `${copy.submitLabelColumn}（${selectedCourseIds.length} 门单课）`
+                    : productType === "MATERIAL"
+                      ? `创建资料并上架（${selected.length} 个素材）`
+                      : `${copy.submitLabelCourse}（${selected.length} 个素材）`}
               </button>
             </div>
           </div>

@@ -3,11 +3,22 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  postSave,
+  SaveFeedback,
+  type SaveStatus,
+} from "@/components/save-feedback";
+import {
   MERCHANT_JOIN_LABEL,
   MERCHANT_STATUS_LABEL,
 } from "@/lib/merchants";
 import { formatPrice } from "@/lib/utils";
 import type { MerchantJoinType, MerchantStatus } from "@/lib/types";
+
+export type AgentOption = {
+  id: string;
+  name: string;
+  email: string;
+};
 
 export type MerchantRow = {
   id: string;
@@ -18,6 +29,8 @@ export type MerchantRow = {
   joinType: string;
   status: string;
   notes: string;
+  agentId: string | null;
+  agent: AgentOption | null;
   approvedAt: string | null;
   createdAt: string;
   user: { id: string; email: string; name: string; role: string };
@@ -30,6 +43,7 @@ type Counts = Record<MerchantStatus, number>;
 type Props = {
   initialMerchants: MerchantRow[];
   initialCounts: Counts;
+  agents: AgentOption[];
 };
 
 const emptyForm = {
@@ -43,6 +57,7 @@ const emptyForm = {
   joinType: "DIRECT" as MerchantJoinType,
   status: "APPROVED" as MerchantStatus,
   notes: "",
+  agentId: "",
 };
 
 function statusClass(status: string) {
@@ -60,7 +75,16 @@ function statusClass(status: string) {
   }
 }
 
-export function MerchantPanel({ initialMerchants, initialCounts }: Props) {
+function agentLabel(agent: AgentOption | null | undefined) {
+  if (!agent) return "未指定加盟代理";
+  return `${agent.name}（${agent.email}）`;
+}
+
+export function MerchantPanel({
+  initialMerchants,
+  initialCounts,
+  agents,
+}: Props) {
   const router = useRouter();
   const [merchants, setMerchants] = useState(initialMerchants);
   const [counts, setCounts] = useState(initialCounts);
@@ -70,7 +94,8 @@ export function MerchantPanel({ initialMerchants, initialCounts }: Props) {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [message, setMessage] = useState("");
+  const [feedback, setFeedback] = useState<SaveStatus>(null);
+  const [feedbackId, setFeedbackId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState({
     storeName: "",
@@ -80,6 +105,7 @@ export function MerchantPanel({ initialMerchants, initialCounts }: Props) {
     contactWechat: "",
     joinType: "DIRECT" as MerchantJoinType,
     notes: "",
+    agentId: "",
   });
 
   const filtered = useMemo(() => {
@@ -94,6 +120,8 @@ export function MerchantPanel({ initialMerchants, initialCounts }: Props) {
         m.user.email,
         m.user.name,
         m.notes,
+        m.agent?.name,
+        m.agent?.email,
       ]
         .join(" ")
         .toLowerCase()
@@ -104,27 +132,33 @@ export function MerchantPanel({ initialMerchants, initialCounts }: Props) {
   async function createMerchant(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
-    setMessage("");
-    const res = await fetch("/api/studio/merchants", {
+    setFeedbackId(null);
+    setFeedback(null);
+    const result = await postSave("/api/studio/merchants", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
+      body: JSON.stringify({
+        ...form,
+        agentId: form.agentId || null,
+      }),
     });
-    const data = await res.json();
     setSaving(false);
-    if (!res.ok) {
-      setMessage(data.error || "创建失败");
+    if (!result.ok) {
+      setFeedback({ kind: "error", text: result.error || "创建失败" });
       return;
     }
-    setMerchants((list) => [data.merchant, ...list]);
-    setCounts((c) => ({
-      ...c,
-      [data.merchant.status as MerchantStatus]:
-        (c[data.merchant.status as MerchantStatus] || 0) + 1,
-    }));
+    const merchant = result.data.merchant as MerchantRow | undefined;
+    if (merchant) {
+      setMerchants((list) => [merchant, ...list]);
+      setCounts((c) => ({
+        ...c,
+        [merchant.status as MerchantStatus]:
+          (c[merchant.status as MerchantStatus] || 0) + 1,
+      }));
+    }
     setForm(emptyForm);
     setShowForm(false);
-    setMessage("商家已添加");
+    setFeedback({ kind: "ok", text: "商家已添加成功" });
     router.refresh();
   }
 
@@ -134,28 +168,33 @@ export function MerchantPanel({ initialMerchants, initialCounts }: Props) {
     successText: string,
   ) {
     setBusyId(id);
-    setMessage("");
-    const res = await fetch(`/api/studio/merchants/${id}`, {
+    setFeedbackId(id);
+    setFeedback(null);
+    const result = await postSave(`/api/studio/merchants/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    const data = await res.json();
     setBusyId(null);
-    if (!res.ok) {
-      setMessage(data.error || "操作失败");
+    if (!result.ok) {
+      setFeedback({ kind: "error", text: result.error || "操作失败" });
       return;
     }
-    setMerchants((list) =>
-      list.map((m) => (m.id === id ? data.merchant : m)),
-    );
-    const refreshed = await fetch("/api/studio/merchants");
-    if (refreshed.ok) {
-      const body = await refreshed.json();
-      setCounts(body.counts);
-      setMerchants(body.merchants);
+    const merchant = result.data.merchant as MerchantRow | undefined;
+    if (merchant) {
+      setMerchants((list) =>
+        list.map((m) => (m.id === id ? merchant : m)),
+      );
     }
-    setMessage(successText);
+    const refreshed = await postSave("/api/studio/merchants");
+    if (refreshed.ok) {
+      const body = refreshed.data;
+      if (body.counts) setCounts(body.counts as typeof counts);
+      if (Array.isArray(body.merchants)) {
+        setMerchants(body.merchants as MerchantRow[]);
+      }
+    }
+    setFeedback({ kind: "ok", text: successText });
     setEditingId(null);
     router.refresh();
   }
@@ -170,12 +209,13 @@ export function MerchantPanel({ initialMerchants, initialCounts }: Props) {
       contactWechat: m.contactWechat,
       joinType: m.joinType as MerchantJoinType,
       notes: m.notes,
+      agentId: m.agentId || "",
     });
   }
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
         {(
           [
             ["ALL", "全部商家", merchants.length],
@@ -188,29 +228,30 @@ export function MerchantPanel({ initialMerchants, initialCounts }: Props) {
             key={key}
             type="button"
             onClick={() => setFilter(key)}
-            className={`surface rounded-[24px] p-5 text-left transition ${
+            className={`surface min-h-[5.5rem] rounded-[24px] p-4 text-left transition sm:p-5 ${
               filter === key ? "ring-2 ring-[var(--brand)]" : "hover:-translate-y-0.5"
             }`}
           >
             <div className="text-sm text-[var(--muted)]">{label}</div>
-            <div className="mt-2 text-3xl font-semibold">{value}</div>
+            <div className="mt-2 text-2xl font-semibold sm:text-3xl">{value}</div>
           </button>
         ))}
       </div>
 
-      <div className="surface flex flex-wrap items-center justify-between gap-3 rounded-[28px] p-5">
+      <div className="surface flex flex-col gap-3 rounded-[28px] p-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:p-5">
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="搜索店铺名、联系人、邮箱、手机号…"
-          className="min-w-[240px] flex-1 rounded-full border border-[var(--line)] bg-white/80 px-4 py-2.5 text-sm outline-none focus:border-[var(--brand)]"
+          placeholder="搜索店铺名、联系人、邮箱、加盟代理…"
+          className="w-full min-w-0 flex-1 rounded-full border border-[var(--line)] bg-white/80 px-4 py-3 text-base outline-none focus:border-[var(--brand)] sm:text-sm"
         />
         <button
           type="button"
-          className="btn btn-primary"
+          className="btn btn-primary w-full sm:w-auto"
           onClick={() => {
             setShowForm((v) => !v);
-            setMessage("");
+            setFeedback(null);
+            setFeedbackId(null);
           }}
         >
           {showForm ? "取消" : "添加商家"}
@@ -225,7 +266,7 @@ export function MerchantPanel({ initialMerchants, initialCounts }: Props) {
           <div>
             <h2 className="text-lg font-semibold">添加入驻 / 加盟商家</h2>
             <p className="mt-1 text-sm text-[var(--muted)]">
-              可新建账号，或填写已有学员邮箱开通商家权限。默认直接设为「已入驻」。
+              可新建账号，或填写已有学员邮箱开通商家权限。可指定发展该商家的加盟代理（分成归属）。
             </p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -236,7 +277,7 @@ export function MerchantPanel({ initialMerchants, initialCounts }: Props) {
                 type="email"
                 value={form.email}
                 onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                className="mt-1 w-full rounded-2xl border border-[var(--line)] bg-white/80 px-3 py-2.5"
+                className="mt-1 w-full rounded-2xl border border-[var(--line)] bg-white/80 px-3 py-3 text-base"
               />
             </label>
             <label className="block text-sm">
@@ -246,7 +287,7 @@ export function MerchantPanel({ initialMerchants, initialCounts }: Props) {
                 minLength={6}
                 value={form.password}
                 onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-                className="mt-1 w-full rounded-2xl border border-[var(--line)] bg-white/80 px-3 py-2.5"
+                className="mt-1 w-full rounded-2xl border border-[var(--line)] bg-white/80 px-3 py-3 text-base"
                 placeholder="至少 6 位"
               />
             </label>
@@ -256,7 +297,7 @@ export function MerchantPanel({ initialMerchants, initialCounts }: Props) {
                 required
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                className="mt-1 w-full rounded-2xl border border-[var(--line)] bg-white/80 px-3 py-2.5"
+                className="mt-1 w-full rounded-2xl border border-[var(--line)] bg-white/80 px-3 py-3 text-base"
               />
             </label>
             <label className="block text-sm">
@@ -265,7 +306,7 @@ export function MerchantPanel({ initialMerchants, initialCounts }: Props) {
                 required
                 value={form.storeName}
                 onChange={(e) => setForm((f) => ({ ...f, storeName: e.target.value }))}
-                className="mt-1 w-full rounded-2xl border border-[var(--line)] bg-white/80 px-3 py-2.5"
+                className="mt-1 w-full rounded-2xl border border-[var(--line)] bg-white/80 px-3 py-3 text-base"
               />
             </label>
             <label className="block text-sm">
@@ -275,7 +316,7 @@ export function MerchantPanel({ initialMerchants, initialCounts }: Props) {
                 onChange={(e) =>
                   setForm((f) => ({ ...f, contactName: e.target.value }))
                 }
-                className="mt-1 w-full rounded-2xl border border-[var(--line)] bg-white/80 px-3 py-2.5"
+                className="mt-1 w-full rounded-2xl border border-[var(--line)] bg-white/80 px-3 py-3 text-base"
               />
             </label>
             <label className="block text-sm">
@@ -285,7 +326,7 @@ export function MerchantPanel({ initialMerchants, initialCounts }: Props) {
                 onChange={(e) =>
                   setForm((f) => ({ ...f, contactPhone: e.target.value }))
                 }
-                className="mt-1 w-full rounded-2xl border border-[var(--line)] bg-white/80 px-3 py-2.5"
+                className="mt-1 w-full rounded-2xl border border-[var(--line)] bg-white/80 px-3 py-3 text-base"
               />
             </label>
             <label className="block text-sm">
@@ -295,7 +336,7 @@ export function MerchantPanel({ initialMerchants, initialCounts }: Props) {
                 onChange={(e) =>
                   setForm((f) => ({ ...f, contactWechat: e.target.value }))
                 }
-                className="mt-1 w-full rounded-2xl border border-[var(--line)] bg-white/80 px-3 py-2.5"
+                className="mt-1 w-full rounded-2xl border border-[var(--line)] bg-white/80 px-3 py-3 text-base"
               />
             </label>
             <label className="block text-sm">
@@ -308,7 +349,7 @@ export function MerchantPanel({ initialMerchants, initialCounts }: Props) {
                     joinType: e.target.value as MerchantJoinType,
                   }))
                 }
-                className="mt-1 w-full rounded-2xl border border-[var(--line)] bg-white/80 px-3 py-2.5"
+                className="mt-1 w-full rounded-2xl border border-[var(--line)] bg-white/80 px-3 py-3 text-base"
               >
                 <option value="DIRECT">商家入驻</option>
                 <option value="FRANCHISE">加盟合作</option>
@@ -324,10 +365,28 @@ export function MerchantPanel({ initialMerchants, initialCounts }: Props) {
                     status: e.target.value as MerchantStatus,
                   }))
                 }
-                className="mt-1 w-full rounded-2xl border border-[var(--line)] bg-white/80 px-3 py-2.5"
+                className="mt-1 w-full rounded-2xl border border-[var(--line)] bg-white/80 px-3 py-3 text-base"
               >
                 <option value="APPROVED">已入驻（可登录卖课）</option>
                 <option value="PENDING">待审核</option>
+              </select>
+            </label>
+            {/* 加盟代理选择：全宽 + 16px 字号，微信内可正常点选 */}
+            <label className="block text-sm sm:col-span-2">
+              <span className="text-[var(--muted)]">归属加盟代理</span>
+              <select
+                value={form.agentId}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, agentId: e.target.value }))
+                }
+                className="mt-1 w-full rounded-2xl border border-[var(--line)] bg-white/80 px-3 py-3 text-base"
+              >
+                <option value="">不指定（可稍后绑定）</option>
+                {agents.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}（{a.email}）
+                  </option>
+                ))}
               </select>
             </label>
             <label className="block text-sm sm:col-span-2">
@@ -336,19 +395,26 @@ export function MerchantPanel({ initialMerchants, initialCounts }: Props) {
                 rows={2}
                 value={form.notes}
                 onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-                className="mt-1 w-full rounded-2xl border border-[var(--line)] bg-white/80 px-3 py-2.5"
+                className="mt-1 w-full rounded-2xl border border-[var(--line)] bg-white/80 px-3 py-3 text-base"
               />
             </label>
           </div>
-          <button type="submit" className="btn btn-primary" disabled={saving}>
-            {saving ? "提交中…" : "确认添加"}
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="submit"
+              className="btn btn-primary w-full sm:w-auto"
+              disabled={saving}
+            >
+              {saving ? "提交中…" : "确认添加"}
+            </button>
+            {!feedbackId ? <SaveFeedback status={feedback} /> : null}
+          </div>
         </form>
       )}
 
-      {message && (
-        <p className="text-sm text-[var(--brand-strong)]">{message}</p>
-      )}
+      {!showForm && !feedbackId ? (
+        <SaveFeedback status={feedback} />
+      ) : null}
 
       <div className="space-y-4">
         {filtered.length === 0 && (
@@ -376,6 +442,9 @@ export function MerchantPanel({ initialMerchants, initialCounts }: Props) {
                   {m.user.name} · {m.user.email}
                   {m.contactPhone ? ` · ${m.contactPhone}` : ""}
                   {m.contactWechat ? ` · 微信 ${m.contactWechat}` : ""}
+                </p>
+                <p className="mt-1 text-sm text-[var(--muted)]">
+                  归属代理：{agentLabel(m.agent)}
                 </p>
               </div>
               <div className="text-right text-sm text-[var(--muted)]">
@@ -451,6 +520,20 @@ export function MerchantPanel({ initialMerchants, initialCounts }: Props) {
                   <option value="DIRECT">商家入驻</option>
                   <option value="FRANCHISE">加盟合作</option>
                 </select>
+                <select
+                  value={editDraft.agentId}
+                  onChange={(e) =>
+                    setEditDraft((d) => ({ ...d, agentId: e.target.value }))
+                  }
+                  className="w-full rounded-2xl border border-[var(--line)] bg-white/80 px-3 py-3 text-base sm:col-span-2"
+                >
+                  <option value="">不指定加盟代理</option>
+                  {agents.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}（{a.email}）
+                    </option>
+                  ))}
+                </select>
                 <textarea
                   rows={2}
                   value={editDraft.notes}
@@ -460,28 +543,38 @@ export function MerchantPanel({ initialMerchants, initialCounts }: Props) {
                   className="rounded-2xl border border-[var(--line)] bg-white/80 px-3 py-2 text-sm sm:col-span-2"
                   placeholder="备注"
                 />
-                <div className="flex flex-wrap gap-2 sm:col-span-2">
+                <div className="flex w-full flex-col gap-2 sm:col-span-2 sm:flex-row sm:flex-wrap sm:items-center">
                   <button
                     type="button"
-                    className="btn btn-primary"
+                    className="btn btn-primary w-full sm:w-auto"
                     disabled={busyId === m.id}
                     onClick={() =>
-                      patchMerchant(m.id, editDraft, "商家资料已更新")
+                      void patchMerchant(
+                        m.id,
+                        {
+                          ...editDraft,
+                          agentId: editDraft.agentId || null,
+                        },
+                        "商家资料已保存成功",
+                      )
                     }
                   >
                     保存
                   </button>
                   <button
                     type="button"
-                    className="btn btn-secondary"
+                    className="btn btn-secondary w-full sm:w-auto"
                     onClick={() => setEditingId(null)}
                   >
                     取消
                   </button>
+                  {feedbackId === m.id ? (
+                    <SaveFeedback status={feedback} />
+                  ) : null}
                 </div>
               </div>
             ) : (
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className="mt-4 flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   className="btn btn-secondary"
@@ -496,7 +589,11 @@ export function MerchantPanel({ initialMerchants, initialCounts }: Props) {
                       className="btn btn-primary"
                       disabled={busyId === m.id}
                       onClick={() =>
-                        patchMerchant(m.id, { status: "APPROVED" }, "已通过入驻")
+                        void patchMerchant(
+                          m.id,
+                          { status: "APPROVED" },
+                          "已通过入驻成功",
+                        )
                       }
                     >
                       通过
@@ -506,7 +603,11 @@ export function MerchantPanel({ initialMerchants, initialCounts }: Props) {
                       className="btn btn-secondary"
                       disabled={busyId === m.id}
                       onClick={() =>
-                        patchMerchant(m.id, { status: "REJECTED" }, "已拒绝")
+                        void patchMerchant(
+                          m.id,
+                          { status: "REJECTED" },
+                          "已拒绝成功",
+                        )
                       }
                     >
                       拒绝
@@ -519,7 +620,11 @@ export function MerchantPanel({ initialMerchants, initialCounts }: Props) {
                     className="btn btn-secondary"
                     disabled={busyId === m.id}
                     onClick={() =>
-                      patchMerchant(m.id, { status: "SUSPENDED" }, "已停用该商家")
+                      void patchMerchant(
+                        m.id,
+                        { status: "SUSPENDED" },
+                        "已停用该商家成功",
+                      )
                     }
                   >
                     停用
@@ -531,12 +636,19 @@ export function MerchantPanel({ initialMerchants, initialCounts }: Props) {
                     className="btn btn-primary"
                     disabled={busyId === m.id}
                     onClick={() =>
-                      patchMerchant(m.id, { status: "APPROVED" }, "已重新启用")
+                      void patchMerchant(
+                        m.id,
+                        { status: "APPROVED" },
+                        "已重新启用成功",
+                      )
                     }
                   >
                     重新启用
                   </button>
                 )}
+                {feedbackId === m.id ? (
+                  <SaveFeedback status={feedback} />
+                ) : null}
               </div>
             )}
           </div>

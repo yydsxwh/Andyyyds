@@ -35,12 +35,12 @@ export const DEFAULT_UI_COPY: UiCopy = {
     descriptionLabel: "产品介绍",
     descriptionPlaceholder: "产品介绍：适合谁、能解决什么、包含哪些内容",
     priceLabel: "售价（元）",
-    pricePlaceholder: "例如 99",
-    priceHint: "单位：人民币元。填 0 表示免费。",
-    groupByCategoryLabel: "按素材分类自动分章（适合专栏）",
+    pricePlaceholder: "例如 99.90",
+    priceHint: "单位：人民币元，可精确到分（两位小数）。填 0 表示免费。",
+    groupByCategoryLabel: "按素材分类自动分章",
     publishLabel: "创建后立即上架售卖",
     submitLabelCourse: "生成可售课程",
-    submitLabelColumn: "生成可售专栏",
+    submitLabelColumn: "生成套餐专栏",
   },
 };
 

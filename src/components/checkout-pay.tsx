@@ -116,10 +116,15 @@ export function CheckoutPay({ orderId, amount, channels, beforePay }: Props) {
     }
   }, []);
 
-  const goLearn = useCallback(
-    (slug: string) => {
+  const goAfterPay = useCallback(
+    (slug: string, productType?: string) => {
       stopPolling();
-      router.push(`/learn/${slug}`);
+      // 专栏套餐回详情页选所含单课学习
+      if (productType === "COLUMN") {
+        router.push(`/courses/${slug}`);
+      } else {
+        router.push(`/learn/${slug}`);
+      }
       router.refresh();
     },
     [router, stopPolling],
@@ -131,9 +136,9 @@ export function CheckoutPay({ orderId, amount, channels, beforePay }: Props) {
     if (!res.ok) return;
     if (data.status === "PAID" && data.slug) {
       setStatusText("支付成功，正在进入课程…");
-      goLearn(data.slug);
+      goAfterPay(data.slug, data.productType);
     }
-  }, [goLearn, orderId]);
+  }, [goAfterPay, orderId]);
 
   const startPolling = useCallback(() => {
     stopPolling();
@@ -225,7 +230,7 @@ export function CheckoutPay({ orderId, amount, channels, beforePay }: Props) {
     }
 
     if (data.mode === "paid" || data.status === "PAID" || data.mode === "mock") {
-      goLearn(data.slug);
+      goAfterPay(data.slug, data.productType);
       return;
     }
 
@@ -329,7 +334,7 @@ export function CheckoutPay({ orderId, amount, channels, beforePay }: Props) {
       setError(data.error || "支付失败");
       return;
     }
-    goLearn(data.slug);
+    goAfterPay(data.slug, data.productType);
   }
 
   useEffect(() => {

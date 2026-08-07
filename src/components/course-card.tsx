@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { productDetailPath, productTypeLabel } from "@/lib/product-types";
 import { formatPrice } from "@/lib/utils";
 
 type CourseCardProps = {
@@ -14,30 +15,50 @@ type CourseCardProps = {
     rating: number;
     isFree: boolean;
     productType?: string;
+    isPinned?: boolean;
+    isFeatured?: boolean;
     teacher: { name: string };
     category: { name: string } | null;
   };
 };
 
 export function CourseCard({ course }: CourseCardProps) {
+  const type = course.productType || "COURSE";
+  const kindLabel = productTypeLabel(type);
+  const countLabel = type === "MATERIAL" ? "人已购" : "人在学";
+
   return (
     <Link
-      href={`/courses/${course.slug}`}
+      href={productDetailPath(course.slug, type)}
       className="surface group overflow-hidden rounded-[28px] transition duration-300 hover:-translate-y-1"
     >
-      <div className="aspect-[16/10] overflow-hidden bg-[var(--bg-deep)]">
+      <div className="relative aspect-[16/10] overflow-hidden bg-[var(--bg-deep)]">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={course.coverUrl}
           alt={course.title}
           className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
         />
+        {/* 置顶/精华角标：站长在产品管理里开关，前台列表可见 */}
+        {course.isPinned || course.isFeatured ? (
+          <div className="absolute left-3 top-3 flex flex-wrap gap-1.5">
+            {course.isPinned ? (
+              <span className="rounded-md bg-amber-500/95 px-2 py-0.5 text-xs font-medium text-white shadow-sm">
+                置顶
+              </span>
+            ) : null}
+            {course.isFeatured ? (
+              <span className="rounded-md bg-rose-500/95 px-2 py-0.5 text-xs font-medium text-white shadow-sm">
+                精华
+              </span>
+            ) : null}
+          </div>
+        ) : null}
       </div>
       <div className="space-y-3 p-5">
         <div className="flex items-center justify-between gap-3 text-xs text-[var(--muted)]">
           <span>
-            {course.productType === "COLUMN" ? "专栏" : "课程"} ·{" "}
-            {course.category?.name ?? "综合"}
+            {kindLabel} · {course.category?.name ?? "综合"}
           </span>
           <span>★ {course.rating.toFixed(1)}</span>
         </div>
@@ -60,7 +81,9 @@ export function CourseCard({ course }: CourseCardProps) {
           </div>
           <div className="text-right text-xs text-[var(--muted)]">
             <div>{course.teacher.name}</div>
-            <div>{course.studentCount} 人在学</div>
+            <div>
+              {course.studentCount} {countLabel}
+            </div>
           </div>
         </div>
       </div>

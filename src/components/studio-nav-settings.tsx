@@ -9,6 +9,8 @@ import {
 type Props = {
   value: StudioNavConfig;
   onChange: (next: StudioNavConfig) => void;
+  /** 嵌入可折叠分区时去掉外层卡片与总标题，避免与分区头重复 */
+  embedded?: boolean;
 };
 
 const inputClass =
@@ -19,22 +21,22 @@ type SectionKey = keyof StudioNavConfig;
 const SECTIONS: { key: SectionKey; title: string; hint: string }[] = [
   {
     key: "topBase",
-    title: "顶部导航（通用）",
-    hint: "讲师与管理员都会看到。可改显示名称、链接，并用上下箭头调整顺序。",
+    title: "创作者中心导航",
+    hint: "出现在「创作者中心」顶部 Tab。其中「订单查看」仅站长可见；勿把用户/商家/装修/内容/系统设置放这里。",
   },
   {
     key: "topAdmin",
-    title: "顶部导航（仅管理员）",
-    hint: "仅管理员角色可见。可改显示名称、链接与顺序。",
+    title: "站长管理导航",
+    hint: "仅站长可见，出现在「站长管理」区域（与创作者中心分离）。可改显示名称、链接与顺序。",
   },
   {
     key: "courses",
-    title: "课程中心子菜单",
-    hint: "出现在课程中心内的二级导航，例如「我的课程 / 创建课程」。",
+    title: "课程与资料子菜单",
+    hint: "出现在课程中心内的二级导航，例如「课程与资料 / 我的资料 / 创建课程/资料」。",
   },
 ];
 
-export function StudioNavSettings({ value, onChange }: Props) {
+export function StudioNavSettings({ value, onChange, embedded }: Props) {
   const config: StudioNavConfig = {
     topBase: value.topBase?.length
       ? value.topBase
@@ -79,22 +81,37 @@ export function StudioNavSettings({ value, onChange }: Props) {
   }
 
   return (
-    <div className="surface space-y-6 rounded-[28px] p-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold">后台导航菜单</h2>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            自定义工作室后台顶部导航与课程中心子菜单的显示名称和跳转链接。留空保存时会回退到默认值。
+    <div className={embedded ? "space-y-6" : "surface space-y-6 rounded-[28px] p-6"}>
+      {embedded ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-[var(--muted)]">
+            自定义工作室后台顶部导航与课程中心子菜单。留空保存时会回退到默认值。
           </p>
+          <button
+            type="button"
+            className="rounded-full border border-[var(--line)] px-3 py-1.5 text-sm text-[var(--muted)] hover:text-[var(--ink)]"
+            onClick={resetDefaults}
+          >
+            恢复默认
+          </button>
         </div>
-        <button
-          type="button"
-          className="rounded-full border border-[var(--line)] px-3 py-1.5 text-sm text-[var(--muted)] hover:text-[var(--ink)]"
-          onClick={resetDefaults}
-        >
-          恢复默认
-        </button>
-      </div>
+      ) : (
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold">后台导航菜单</h2>
+            <p className="mt-1 text-sm text-[var(--muted)]">
+              自定义工作室后台顶部导航与课程中心子菜单的显示名称和跳转链接。留空保存时会回退到默认值。
+            </p>
+          </div>
+          <button
+            type="button"
+            className="rounded-full border border-[var(--line)] px-3 py-1.5 text-sm text-[var(--muted)] hover:text-[var(--ink)]"
+            onClick={resetDefaults}
+          >
+            恢复默认
+          </button>
+        </div>
+      )}
 
       {SECTIONS.map((section) => (
         <div key={section.key} className="space-y-3">

@@ -65,6 +65,19 @@ const patchSchema = z.object({
   vodAccessKeySecret: z.string().max(128).optional(),
   vodTemplateGroupId: z.string().max(128).optional(),
   vodPlayDomain: z.string().max(300).optional(),
+  merchantPlatformCutPercent: z.number().int().min(0).max(100).optional(),
+  agentShareOfPlatformCutPercent: z.number().int().min(0).max(100).optional(),
+  agentBuyerOrderPercent: z.number().int().min(0).max(100).optional(),
+  teacherDistributionPercent: z.number().int().min(0).max(100).optional(),
+  userDistributionPercent: z.number().int().min(0).max(100).optional(),
+  smsEnabled: z.boolean().optional(),
+  smsProvider: z.enum(["test", "aliyun"]).optional(),
+  smsAccessKeyId: z.string().max(128).optional(),
+  smsAccessKeySecret: z.string().max(128).optional(),
+  smsSignName: z.string().max(64).optional(),
+  smsTemplateCode: z.string().max(64).optional(),
+  smsTestMode: z.boolean().optional(),
+  smsTestFixedCode: z.string().max(8).optional(),
   uiCopy: z
     .object({
       compose: composeCopySchema.optional(),
@@ -82,6 +95,7 @@ const patchSchema = z.object({
             placeholder: z.string().max(80).optional(),
             type: z.enum(["text", "textarea", "select", "date"]),
             required: z.boolean(),
+            enabled: z.boolean().optional(),
             options: z.array(z.string().max(80)).max(50).optional(),
           }),
         )
@@ -131,6 +145,18 @@ export async function PATCH(req: Request) {
       "vodAccessKeyId",
       "vodTemplateGroupId",
       "vodPlayDomain",
+      "merchantPlatformCutPercent",
+      "agentShareOfPlatformCutPercent",
+      "agentBuyerOrderPercent",
+      "teacherDistributionPercent",
+      "userDistributionPercent",
+      "smsEnabled",
+      "smsProvider",
+      "smsAccessKeyId",
+      "smsSignName",
+      "smsTemplateCode",
+      "smsTestMode",
+      "smsTestFixedCode",
     ] as const;
 
     for (const key of plainKeys) {
@@ -148,6 +174,7 @@ export async function PATCH(req: Request) {
       ["alipayPublicKey", body.alipayPublicKey],
       ["ossAccessKeySecret", body.ossAccessKeySecret],
       ["vodAccessKeySecret", body.vodAccessKeySecret],
+      ["smsAccessKeySecret", body.smsAccessKeySecret],
     ] as const;
 
     for (const [key, incoming] of secretKeys) {
@@ -174,6 +201,8 @@ export async function PATCH(req: Request) {
         placeholder: (f.placeholder || "").trim(),
         type: f.type as OrderFormFieldType,
         required: f.required,
+        // 缺省启用：兼容旧设置页未传 enabled 的保存请求
+        enabled: f.enabled !== false,
         options: (f.options || []).map((o) => o.trim()).filter(Boolean),
       }));
       data.orderFormJson = stringifyOrderForm({

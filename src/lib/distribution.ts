@@ -63,10 +63,17 @@ export async function getUplineChain(db: Db, buyerId: string) {
 export async function createCommissionsForOrder(
   db: Db,
   order: { id: string; userId: string; amount: number },
+  /** 跳过一级分销的受益人（例如已拿加盟代理用户成交分成） */
+  skipLevel1BeneficiaryIds?: Set<string>,
 ) {
   if (order.amount <= 0) return [];
 
-  const existing = await db.commission.count({ where: { orderId: order.id } });
+  const existing = await db.commission.count({
+    where: {
+      orderId: order.id,
+      level: { in: [1, 2, 3] },
+    },
+  });
   if (existing > 0) return [];
 
   const settings = await getDistributionSettings(db);
@@ -81,6 +88,12 @@ export async function createCommissionsForOrder(
   const created = [];
 
   for (const person of upline) {
+    if (
+      person.level === 1 &&
+      skipLevel1BeneficiaryIds?.has(person.id)
+    ) {
+      continue;
+    }
     const rate = rates[person.level - 1] || 0;
     if (rate <= 0) continue;
     const amount = Math.floor((order.amount * rate) / 100);

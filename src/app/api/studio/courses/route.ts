@@ -1,14 +1,17 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
+import { DEFAULT_COURSE_COVER_URL } from "@/lib/cover-images";
 import { prisma } from "@/lib/db";
+import { yuanToCents } from "@/lib/money";
+import { canCreateSellableProducts } from "@/lib/roles";
 import { slugify } from "@/lib/utils";
 
 const schema = z.object({
   title: z.string().min(2),
   subtitle: z.string().optional(),
   description: z.string().min(10),
-  price: z.coerce.number().min(0),
+  price: z.union([z.string(), z.number()]),
   coverUrl: z.string().optional(),
   publish: z.union([z.literal("1"), z.literal("true"), z.boolean()]).optional(),
 });
@@ -18,13 +21,25 @@ export async function POST(req: Request) {
   if (!session) {
     return NextResponse.json({ error: "请先登录" }, { status: 401 });
   }
-  if (session.role !== "TEACHER" && session.role !== "ADMIN") {
-    return NextResponse.json({ error: "仅创作者可上架课程" }, { status: 403 });
+  // 业务规则：仅站长 / 入驻商家 / 加盟代理可新建可售课程；老师拒绝
+  if (!canCreateSellableProducts(session.role)) {
+    return NextResponse.json(
+      { error: "仅入驻商家、加盟代理与站长可新建课程、专栏或商品" },
+      { status: 403 },
+    );
   }
 
   try {
     const body = schema.parse(await req.json());
-    const priceCents = Math.round(Number(body.price) * 100);
+    let priceCents: number;
+    try {
+      priceCents = yuanToCents(body.price);
+    } catch (e) {
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : "价格无效" },
+        { status: 400 },
+      );
+    }
     const baseSlug = slugify(body.title);
     let slug = baseSlug;
     let i = 1;
@@ -44,9 +59,7 @@ export async function POST(req: Request) {
         price: priceCents,
         originalPrice: priceCents,
         isFree: priceCents <= 0,
-        coverUrl:
-          body.coverUrl ||
-          "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1200&q=80",
+        coverUrl: body.coverUrl || DEFAULT_COURSE_COVER_URL,
         status: publish ? "PUBLISHED" : "DRAFT",
         teacherId: session.id,
         chapters: {

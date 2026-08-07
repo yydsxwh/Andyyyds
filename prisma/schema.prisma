@@ -11,12 +11,27 @@ model User {
   id           String             @id @default(cuid())
   email        String             @unique
   passwordHash String
+  /// 是否已设置可用登录密码；手机/微信自动注册且未设密码时为 false
+  passwordSet  Boolean            @default(true)
   name         String
   bio          String             @default("")
   avatarUrl    String             @default("")
+  /// 手机号登录用；空表示未绑定。非空时应用层保证唯一
+  phone        String             @default("")
+  /// ADMIN 站长 | AGENT 加盟代理 | MERCHANT 入驻商家 | TEACHER 老师 | STUDENT 用户（见 src/lib/roles.ts）
   role         String             @default("STUDENT")
-  /// 微信公众号网页授权 openid（JSAPI 支付用，同一 AppID 下）
+  /// 注册申请角色：AGENT | MERCHANT | TEACHER；空表示未申请或已处理为普通用户路径
+  requestedRole String            @default("")
+  /// NONE | PENDING | ACTIVE | REJECTED（见 src/lib/roles.ts）
+  roleApplicationStatus String    @default("NONE")
+  /// 审核备注（如拒绝原因）
+  roleApplicationNote String      @default("")
+  roleReviewedAt   DateTime?
+  roleReviewedById String?
+  /// 微信公众号网页授权 openid（登录 / JSAPI 支付，同一 AppID 下）
   wechatOpenId String             @default("")
+  /// 开放平台 unionid（公众号已绑开放平台时 OAuth 可能返回；跨应用识别同一微信用户）
+  wechatUnionId String            @default("")
   referralCode String             @unique
   referredById String?
   referredBy   User?              @relation("Referrals", fields: [referredById], references: [id])
@@ -29,15 +44,83 @@ model User {
   mediaAssets          MediaAsset[]
   commissionsEarned    Commission[]       @relation("CommissionBeneficiary")
   commissionsAsBuyer   Commission[]       @relation("CommissionBuyer")
-  merchant             Merchant?
+  merchant             Merchant?          @relation("MerchantAccount")
+  /// 该代理发展的入驻商家
+  recruitedMerchants   Merchant[]         @relation("MerchantAgent")
+  meetupsHosted        Meetup[]           @relation("MeetupHost")
+  meetupJoins          MeetupJoin[]
+  /// 商城购物车行
+  cartItems            CartItem[]
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
+
+  @@index([roleApplicationStatus])
+  @@index([phone])
+  @@index([wechatOpenId])
+  @@index([wechatUnionId])
+}
+
+/// 约搭活动：线下结伴 / 兴趣搭子匹配（免费 MVP，不含支付）
+model Meetup {
+  id          String       @id @default(cuid())
+  title       String
+  description String       @default("")
+  /// SPORT | FOOD | GAME | STUDY | TRAVEL | OTHER（见 src/lib/meetup.ts）
+  category    String       @default("OTHER")
+  /// 活动开始时间
+  startsAt    DateTime
+  /// 城市或地点（自由文本，便于手机端快速填写）
+  place       String
+  /// 人数上限（含发起人）
+  maxPeople   Int          @default(4)
+  /// 可选封面图 URL
+  coverUrl    String       @default("")
+  /// OPEN | FULL | CLOSED | CANCELLED
+  status      String       @default("OPEN")
+  hostId      String
+  host        User         @relation("MeetupHost", fields: [hostId], references: [id], onDelete: Cascade)
+  joins       MeetupJoin[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([status, startsAt])
+  @@index([category])
+  @@index([hostId])
+}
+
+/// 约搭报名：一人一局唯一；发起人创建时自动写入
+model MeetupJoin {
+  id        String   @id @default(cuid())
+  meetupId  String
+  userId    String
+  meetup    Meetup   @relation(fields: [meetupId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([meetupId, userId])
+  @@index([userId])
+}
+
+/// 短信验证码（手机号登录 / 绑定）；哈希存储，短时有效
+model SmsCode {
+  id        String    @id @default(cuid())
+  phone     String
+  /// bcrypt 后的 6 位验证码
+  codeHash  String
+  /// login | bind
+  purpose   String    @default("login")
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([phone, purpose])
+  @@index([expiresAt])
 }
 
 model Merchant {
   id            String    @id @default(cuid())
   userId        String    @unique
-  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User      @relation("MerchantAccount", fields: [userId], references: [id], onDelete: Cascade)
   storeName     String
   contactName   String    @default("")
   contactPhone  String    @default("")
@@ -45,12 +128,16 @@ model Merchant {
   joinType      String    @default("DIRECT")
   status        String    @default("PENDING")
   notes         String    @default("")
+  /// 发展该商家的加盟代理（User.id，角色应为 AGENT）
+  agentId       String?
+  agent         User?     @relation("MerchantAgent", fields: [agentId], references: [id], onDelete: SetNull)
   approvedAt    DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
   @@index([status])
   @@index([joinType])
+  @@index([agentId])
 }
 
 model DistributionConfig {
@@ -116,11 +203,40 @@ model SiteSettings {
   /// 店铺 DIY 装修配置（JSON）：Logo、首页 Banner 等视觉门面
   decorateJson String @default("")
 
+  /// 页面模板 DIY（JSON）：模块编排布局；与 decorateJson（主题/配色皮肤）分离
+  pageTemplatesJson String @default("")
+
   /// 后台导航菜单配置（JSON）：顶部导航 + 课程中心子菜单的文案与链接
   studioNavJson String @default("")
 
   /// 前台门户配置（JSON）：门户导航 + 公司/个人介绍文案
   portalJson String @default("")
+
+  /// 入驻商家平台抽成比例（%），按订单实付 amount 计算；默认 10
+  merchantPlatformCutPercent Int @default(10)
+  /// 加盟代理从「商家平台抽成」中再分得的比例（%）；默认 30
+  agentShareOfPlatformCutPercent Int @default(30)
+  /// 加盟代理：其邀请用户成交订单的分成比例（% of 实付）；默认 10
+  agentBuyerOrderPercent Int @default(10)
+  /// 老师分销：其邀请用户成交订单的分成比例（% of 实付）；默认 8
+  teacherDistributionPercent Int @default(8)
+  /// 用户分销提成：其邀请用户成交订单的分成比例（% of 实付）；默认 5
+  userDistributionPercent Int @default(5)
+
+  /// 短信：是否启用手机号验证码登录
+  smsEnabled Boolean @default(false)
+  /// test = 仅测试（打日志 / 固定码）；aliyun = 阿里云短信
+  smsProvider String @default("test")
+  smsAccessKeyId String @default("")
+  smsAccessKeySecret String @default("")
+  /// 短信签名，如「某某教育」
+  smsSignName String @default("")
+  /// 模板 CODE，须含 ${code} 变量
+  smsTemplateCode String @default("")
+  /// 测试模式：不调运营商，验证码写服务端日志；可配固定码便于联调
+  smsTestMode Boolean @default(true)
+  /// 测试固定验证码（仅 testMode 时生效）；空则每次随机并打日志
+  smsTestFixedCode String @default("123456")
 
   updatedAt DateTime @updatedAt
 }
@@ -159,6 +275,7 @@ model MediaAsset {
   id          String         @id @default(cuid())
   name        String
   description String         @default("")
+  /// 媒体类型 mediaKind：VIDEO | IMAGE | AUDIO | DOCUMENT | OTHER（按 MIME/扩展名自动识别；与用户自由分类 category 分离）
   type        String         @default("VIDEO")
   fileUrl     String
   fileName    String         @default("")
@@ -171,6 +288,7 @@ model MediaAsset {
   vodVideoId  String         @default("")
   ownerId     String
   owner       User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  /// 用户自由分类（文件夹），不是媒体类型
   categoryId  String?
   category    MediaCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   lessons     Lesson[]
@@ -194,6 +312,10 @@ model Course {
   subtitle      String       @default("")
   description   String
   coverUrl      String       @default("")
+  /// 商城多图（JSON 字符串数组）；首图可与 coverUrl 一致
+  galleryJson   String       @default("")
+  /// 商城简化规格（JSON）：{ options: [{ name, values: string[] }] }
+  specsJson     String       @default("")
   price         Int          @default(0)
   originalPrice Int          @default(0)
   status        String       @default("DRAFT")
@@ -201,6 +323,12 @@ model Course {
   isFree        Boolean      @default(false)
   studentCount  Int          @default(0)
   rating        Float        @default(5)
+  /// 前台展示次序（越小越靠前）；置顶优先于此字段，见 productPlazaOrderBy
+  sortOrder     Int          @default(0)
+  /// 置顶：前台列表优先展示（优先于 sortOrder）
+  isPinned      Boolean      @default(false)
+  /// 精华：角标/分区标记，不参与排序，避免与置顶语义混淆
+  isFeatured    Boolean      @default(false)
   teacherId     String
   teacher       User         @relation("TeacherCourses", fields: [teacherId], references: [id])
   categoryId    String?
@@ -208,8 +336,50 @@ model Course {
   chapters      Chapter[]
   enrollments   Enrollment[]
   orders        Order[]
+  cartItems     CartItem[]
+  /// 本专栏包含的单课（仅 productType=COLUMN 使用）
+  bundleItems   CourseBundleItem[] @relation("ColumnBundles")
+  /// 本单课被哪些专栏套餐引用
+  bundledIn     CourseBundleItem[] @relation("BundledInColumns")
+  /// 指定适用本商品的优惠券（productScope=SELECTED）
+  couponProducts CouponProduct[]
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
+
+  @@index([status, productType, isPinned, sortOrder])
+}
+
+/// 商城购物车：按用户+商品+规格去重；登录后服务端持久化（本地也可暂存）
+model CartItem {
+  id        String   @id @default(cuid())
+  userId    String
+  courseId  String
+  quantity  Int      @default(1)
+  /// 规格文案快照，如「颜色:红 / 尺码:M」；无规格为空串
+  specLabel String   @default("")
+  /// 是否勾选参与结算（对标淘宝购物车勾选）
+  selected  Boolean  @default(true)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, courseId, specLabel])
+  @@index([userId])
+}
+
+/// 专栏套餐成员：一门专栏打包多门单课（买专栏开通各单课权限）
+model CourseBundleItem {
+  id        String   @id @default(cuid())
+  columnId  String
+  courseId  String
+  sortOrder Int      @default(0)
+  column    Course   @relation("ColumnBundles", fields: [columnId], references: [id], onDelete: Cascade)
+  course    Course   @relation("BundledInColumns", fields: [courseId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([columnId, courseId])
+  @@index([courseId])
 }
 
 model Chapter {
@@ -257,7 +427,10 @@ model LessonProgress {
   enrollmentId String
   lessonId     String
   completed    Boolean    @default(false)
+  /// 最近播放到的秒数（断点续看）
   positionSec  Int        @default(0)
+  /// 累计有效观看秒数（正放累加，用于后台「学习时长」）
+  watchedSec   Int        @default(0)
   enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
   lesson       Lesson     @relation(fields: [lessonId], references: [id], onDelete: Cascade)
   updatedAt    DateTime   @updatedAt
@@ -265,19 +438,49 @@ model LessonProgress {
   @@unique([enrollmentId, lessonId])
 }
 
+/// 优惠券：比例折扣（PERCENT）或定额减免（FIXED）。金额单位均为分。
 model Coupon {
-  id            String             @id @default(cuid())
-  code          String             @unique
-  title         String
-  discountCents Int
-  minAmount     Int                @default(0)
-  maxUses       Int                @default(100)
-  usedCount     Int                @default(0)
-  expiresAt     DateTime?
-  isActive      Boolean            @default(true)
-  redemptions   CouponRedemption[]
-  orders        Order[]
-  createdAt     DateTime           @default(now())
+  id    String @id @default(cuid())
+  /// 兑换码（存大写）
+  code  String @unique
+  title String
+  /// PERCENT = 按比例减免；FIXED = 固定金额减免
+  type  String @default("FIXED")
+  /// FIXED：减免金额（分）；PERCENT 时为 0
+  discountCents Int @default(0)
+  /// PERCENT：减免百分比 1–99（如 10 = 减 10% ≈ 九折）；FIXED 时为 0
+  percentOff Int @default(0)
+  /// 最低消费门槛（分），0 表示不限制
+  minAmount Int @default(0)
+  /// 全站总库存（可兑换次数上限）
+  maxUses   Int @default(100)
+  usedCount Int @default(0)
+  /// 每用户限用次数（MVP 与 CouponRedemption 唯一约束一致，默认 1）
+  maxPerUser Int @default(1)
+  /// 有效期起止（可选；空表示不限制对应端）
+  startsAt  DateTime?
+  expiresAt DateTime?
+  isActive  Boolean @default(true)
+  /// ALL = 全站商品；SELECTED = 仅适用于 products 关联的商品（1 个或多个）
+  productScope String @default("ALL")
+  /// 创建者（站长/商家/代理）；便于后续按归属筛选
+  createdById String @default("")
+  products    CouponProduct[]
+  redemptions CouponRedemption[]
+  orders      Order[]
+  createdAt   DateTime @default(now())
+}
+
+/// 优惠券适用商品（仅 productScope=SELECTED 时有意义；可挂 1 个或多个商品）
+model CouponProduct {
+  id       String @id @default(cuid())
+  couponId String
+  courseId String
+  coupon   Coupon @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([couponId, courseId])
+  @@index([courseId])
 }
 
 model CouponRedemption {
@@ -291,11 +494,74 @@ model CouponRedemption {
   @@unique([couponId, userId])
 }
 
+/// 公众号已发表图文（freepublish 同步到本站「公司宣传」）
+model WechatMpArticle {
+  id           String   @id @default(cuid())
+  /// 微信 article_id
+  articleId    String
+  /// 多图文中的序号（从 0 起）
+  itemIndex    Int      @default(0)
+  title        String   @default("")
+  author       String   @default("")
+  digest       String   @default("")
+  contentHtml  String   @default("")
+  thumbUrl     String   @default("")
+  /// 微信原文链接，用于合集匹配与「打开原文」
+  wechatUrl    String   @default("")
+  /// URL 规范化后的键，便于合集匹配
+  wechatUrlKey String   @default("")
+  publishedAt  DateTime?
+  syncedAt     DateTime @default(now())
+  isDeleted    Boolean  @default(false)
+  albumItems   WechatMpAlbumItem[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([articleId, itemIndex])
+  @@index([wechatUrlKey])
+  @@index([publishedAt])
+}
+
+/// 公众号主页合集/专辑（站长粘贴链接后同步公开列表）
+model WechatMpAlbum {
+  id        String   @id @default(cuid())
+  albumId   String   @unique
+  biz       String   @default("")
+  title     String   @default("")
+  coverUrl  String   @default("")
+  sourceUrl String   @default("")
+  syncedAt  DateTime @default(now())
+  items     WechatMpAlbumItem[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// 合集内文章条目；可关联本站已同步图文，否则仅存微信链接外跳
+model WechatMpAlbumItem {
+  id              String           @id @default(cuid())
+  albumId         String
+  sortOrder       Int              @default(0)
+  title           String           @default("")
+  thumbUrl        String           @default("")
+  wechatUrl       String           @default("")
+  wechatUrlKey    String           @default("")
+  articleLocalId  String?
+  album           WechatMpAlbum    @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  article         WechatMpArticle? @relation(fields: [articleLocalId], references: [id], onDelete: SetNull)
+
+  @@index([albumId, sortOrder])
+  @@index([wechatUrlKey])
+}
+
 model Order {
   id              String       @id @default(cuid())
   orderNo         String       @unique
   userId          String
   courseId        String
+  /// 购买数量（商城购物车结算；课程默认 1）
+  quantity        Int          @default(1)
+  /// 下单时规格快照
+  specLabel       String       @default("")
   amount          Int
   discount        Int          @default(0)
   status          String       @default("PENDING")
@@ -307,6 +573,24 @@ model Order {
   /// 用户填写的下单信息采集答案（JSON）
   formAnswersJson String       @default("")
   paidAt          DateTime?
+
+  /// —— 支付履约结算快照（单位：分；站长可审计）——
+  /// 入驻商家订单：平台抽成比例快照
+  platformCutPercent Int @default(0)
+  /// 平台抽成金额（分）
+  platformCutAmount  Int @default(0)
+  /// 商家实得 = amount - platformCutAmount（非商家课为 0）
+  merchantNetAmount  Int @default(0)
+  /// 发展商家的代理从「平台抽成」中再分得（分）
+  agentMerchantShareAmount Int @default(0)
+  agentMerchantId String @default("")
+
+  /// 单一推荐人（注册邀请 / 订单 referralCode 解析）；按推荐人角色取对应比例
+  referrerUserId       String @default("")
+  referrerRole         String @default("")
+  referrerSharePercent Int    @default(0)
+  referrerShareAmount  Int    @default(0)
+
   user            User         @relation(fields: [userId], references: [id])
   course          Course       @relation(fields: [courseId], references: [id])
   coupon          Coupon?      @relation(fields: [couponId], references: [id])

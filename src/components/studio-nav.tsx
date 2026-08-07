@@ -1,9 +1,22 @@
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { getStudioNavConfig } from "@/lib/site-settings";
+import {
+  STUDIO_CREATOR_ADMIN_ONLY_KEYS,
+} from "@/lib/studio-nav-config";
+import {
+  AGENT_STUDIO_NAV_KEYS,
+  canAccessStudio,
+  canManageMarketing,
+  isAdmin,
+} from "@/lib/roles";
+
+const CREATOR_ADMIN_ONLY = new Set<string>(STUDIO_CREATOR_ADMIN_ONLY_KEYS);
 
 export async function StudioNav({
   current,
+  /** creator=创作者中心；admin=站长管理（互不混排 Tab） */
+  area = "creator",
 }: {
   current:
     | "overview"
@@ -11,20 +24,55 @@ export async function StudioNav({
     | "courses"
     | "compose"
     | "distribution"
+    | "marketing"
     | "orders"
+    | "admin"
+    | "users"
     | "merchants"
+    | "products"
+    | "shop"
     | "decorate"
+    /** @deprecated 页面模板已归入装修子导航；传入时高亮「装修」 */
+    | "templates"
     | "cms"
+    | "wechat-mp"
     | "settings";
+  area?: "creator" | "admin";
 }) {
   const [session, nav] = await Promise.all([getSession(), getStudioNavConfig()]);
-  const links =
-    session?.role === "ADMIN"
-      ? [...nav.topBase, ...nav.topAdmin]
+  const role = session?.role || "STUDENT";
+
+  let links =
+    area === "admin"
+      ? isAdmin(role)
+        ? [...nav.topAdmin]
+        : []
       : [...nav.topBase];
 
-  // 兼容旧 compose 高亮为课程中心
-  const activeKey = current === "compose" ? "courses" : current;
+  if (area === "creator") {
+    if (role === "AGENT") {
+      const allowed = new Set<string>(AGENT_STUDIO_NAV_KEYS);
+      links = nav.topBase.filter((item) => allowed.has(item.key));
+    } else if (!canAccessStudio(role)) {
+      links = [];
+    } else if (!isAdmin(role)) {
+      // 非站长：创作者导航不含「订单查看」等站长侧入口
+      links = links.filter((item) => !CREATOR_ADMIN_ONLY.has(item.key));
+    }
+
+    // 老师不可售：隐藏营销入口（菜单在 topBase，需按角色再滤一次）
+    if (!canManageMarketing(role)) {
+      links = links.filter((item) => item.key !== "marketing");
+    }
+  }
+
+  // compose → 课程中心；templates → 装修（页面模板已不再单独占顶栏）
+  const activeKey =
+    current === "compose"
+      ? "courses"
+      : current === "templates"
+        ? "decorate"
+        : current;
 
   return (
     <div className="flex flex-wrap gap-2">
@@ -34,7 +82,7 @@ export async function StudioNav({
           <Link
             key={link.key}
             href={link.href}
-            className={`rounded-full px-4 py-2 text-sm ${
+            className={`min-h-10 whitespace-nowrap rounded-full px-4 py-2.5 text-base ${
               active
                 ? "bg-[var(--brand)] text-white"
                 : "border border-[var(--line)] bg-white/70 text-[var(--muted)] hover:text-[var(--ink)]"

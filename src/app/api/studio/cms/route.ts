@@ -12,7 +12,12 @@ import {
   stringifyOrderForm,
   type OrderFormFieldType,
 } from "@/lib/order-form";
-import { DEFAULT_PORTAL, stringifyPortal } from "@/lib/portal";
+import {
+  DEFAULT_PORTAL,
+  DEFAULT_PORTAL_CONTACT,
+  parsePortal,
+  stringifyPortal,
+} from "@/lib/portal";
 import {
   DEFAULT_STUDIO_NAV,
   stringifyStudioNav,
@@ -63,6 +68,8 @@ const patchSchema = z.object({
             placeholder: z.string().max(80).optional(),
             type: z.enum(["text", "textarea", "select", "date"]),
             required: z.boolean(),
+            /** 停用字段不下发前台，配置仍保留 */
+            enabled: z.boolean().optional(),
             options: z.array(z.string().max(80)).max(50).optional(),
           }),
         )
@@ -123,6 +130,24 @@ const patchSchema = z.object({
             .optional(),
         })
         .optional(),
+      contact: z
+        .object({
+          enabled: z.boolean().optional(),
+          linkLabel: z.string().max(20).optional(),
+          title: z.string().max(40).optional(),
+          phone: z.string().max(40).optional(),
+          wechat: z.string().max(60).optional(),
+          qq: z.string().max(40).optional(),
+          wechatMp: z.string().max(60).optional(),
+          xiaohongshu: z.string().max(60).optional(),
+          douyin: z.string().max(60).optional(),
+          bilibili: z.string().max(60).optional(),
+          email: z.string().max(120).optional(),
+          address: z.string().max(200).optional(),
+          hours: z.string().max(80).optional(),
+          note: z.string().max(2000).optional(),
+        })
+        .optional(),
     })
     .optional(),
 });
@@ -167,6 +192,8 @@ export async function PATCH(req: Request) {
         placeholder: (f.placeholder || "").trim(),
         type: f.type as OrderFormFieldType,
         required: f.required,
+        // 缺省启用：兼容旧 CMS 未传 enabled 的保存请求
+        enabled: f.enabled !== false,
         options: (f.options || []).map((o) => o.trim()).filter(Boolean),
       }));
       data.orderFormJson = stringifyOrderForm({
@@ -187,20 +214,39 @@ export async function PATCH(req: Request) {
     }
 
     if (body.portal) {
+      // 分区保存只带 nav / company / person / contact 之一时，其余沿用库里已有配置
+      const currentPortal = parsePortal(
+        (await getSiteSettings()).portalJson,
+      );
       data.portalJson = stringifyPortal({
-        nav: body.portal.nav || DEFAULT_PORTAL.nav,
-        company: {
-          ...DEFAULT_PORTAL.company,
-          ...(body.portal.company || {}),
-          highlights:
-            body.portal.company?.highlights || DEFAULT_PORTAL.company.highlights,
-        },
-        person: {
-          ...DEFAULT_PORTAL.person,
-          ...(body.portal.person || {}),
-          highlights:
-            body.portal.person?.highlights || DEFAULT_PORTAL.person.highlights,
-        },
+        nav: body.portal.nav ?? currentPortal.nav,
+        company: body.portal.company
+          ? {
+              ...DEFAULT_PORTAL.company,
+              ...currentPortal.company,
+              ...body.portal.company,
+              highlights:
+                body.portal.company.highlights ??
+                currentPortal.company.highlights,
+            }
+          : currentPortal.company,
+        person: body.portal.person
+          ? {
+              ...DEFAULT_PORTAL.person,
+              ...currentPortal.person,
+              ...body.portal.person,
+              highlights:
+                body.portal.person.highlights ??
+                currentPortal.person.highlights,
+            }
+          : currentPortal.person,
+        contact: body.portal.contact
+          ? {
+              ...DEFAULT_PORTAL_CONTACT,
+              ...currentPortal.contact,
+              ...body.portal.contact,
+            }
+          : currentPortal.contact,
       });
     }
 

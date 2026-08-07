@@ -76,6 +76,7 @@ export async function POST(
     return NextResponse.json({
       mode: "paid",
       slug: order.course.slug,
+      productType: order.course.productType,
       status: "PAID",
     });
   }
@@ -127,6 +128,7 @@ export async function POST(
       mode: "mock",
       status: "PAID",
       slug: paid.course.slug,
+      productType: paid.course.productType,
     });
   }
 
@@ -148,6 +150,7 @@ export async function POST(
               orderNo: order.orderNo,
               amount: order.amount,
               slug: order.course.slug,
+      productType: order.course.productType,
             });
           }
           // 无 AppSecret：微信内无法 JSAPI，改走 H5（若商户已开通）；再不行走明确错误
@@ -172,6 +175,7 @@ export async function POST(
               orderNo: order.orderNo,
               amount: order.amount,
               slug: order.course.slug,
+      productType: order.course.productType,
             });
           }
           const { payParams, prepayId } = await createJsapiPayment({
@@ -194,6 +198,7 @@ export async function POST(
             payParams,
             amount: order.amount,
             slug: order.course.slug,
+      productType: order.course.productType,
           });
         }
       }
@@ -216,6 +221,7 @@ export async function POST(
                 codeUrl: order.codeUrl,
                 amount: order.amount,
                 slug: order.course.slug,
+      productType: order.course.productType,
                 hint: "请长按识别二维码，或使用微信扫一扫完成支付",
               });
             }
@@ -252,6 +258,7 @@ export async function POST(
             mwebUrl: payUrl,
             amount: order.amount,
             slug: order.course.slug,
+      productType: order.course.productType,
           });
         }
         try {
@@ -278,6 +285,7 @@ export async function POST(
             mwebUrl: payUrl,
             amount: order.amount,
             slug: order.course.slug,
+      productType: order.course.productType,
           });
         } catch (h5Error) {
           const message =
@@ -312,6 +320,7 @@ export async function POST(
           codeUrl: order.codeUrl,
           amount: order.amount,
           slug: order.course.slug,
+      productType: order.course.productType,
         });
       }
       if (
@@ -345,6 +354,7 @@ export async function POST(
         codeUrl,
         amount: order.amount,
         slug: order.course.slug,
+      productType: order.course.productType,
       });
     }
 
@@ -391,6 +401,7 @@ export async function POST(
         payUrl,
         amount: order.amount,
         slug: order.course.slug,
+      productType: order.course.productType,
       });
     }
 

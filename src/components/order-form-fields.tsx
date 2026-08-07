@@ -31,7 +31,9 @@ export function OrderFormFields({ config, values, onChange, disabled }: Props) {
               {field.label}
               {field.required ? (
                 <span className="ml-0.5 text-red-600">*</span>
-              ) : null}
+              ) : (
+                <span className="ml-1 text-xs">选填</span>
+              )}
             </span>
             <div className="mt-1">
               {field.type === "textarea" ? (

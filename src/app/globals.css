@@ -33,6 +33,8 @@
   --fs-hero-sub: 17px;
   --fs-section-title: 24px;
   --fs-section-desc: 14px;
+  --fs-portal-card-title: 18px;
+  --fs-portal-card-desc: 14px;
   /* 构建不依赖 Google Fonts；有本机/系统字体时优先，否则中文系统黑体 */
   --font-body: "Manrope", "Segoe UI", "PingFang SC", "Microsoft YaHei",
     sans-serif;
@@ -62,6 +64,15 @@ body {
   background: var(--site-bg-layers);
   background-attachment: scroll;
   font-family: var(--font-body), "PingFang SC", "Microsoft YaHei", sans-serif;
+  /* 微信内偶发横向微溢出导致整页可左右拖；抽屉用 fixed 不受影响 */
+  overflow-x: hidden;
+}
+
+/* 窄屏触控：避免 hover 位移造成按钮“跳一下” */
+@media (hover: none) {
+  .btn:hover {
+    transform: none;
+  }
 }
 
 a {
@@ -78,8 +89,12 @@ select {
 
 /* 内容区加宽：减少宽屏左右留白，多排内容 */
 .container {
-  width: min(1600px, calc(100% - 1rem));
+  /* 窄屏左右各留足边距，避免贴边与微信安全区冲突 */
+  width: min(1600px, calc(100% - 1.25rem));
+  max-width: 100%;
   margin-inline: auto;
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
 }
 
 @media (min-width: 1280px) {
@@ -277,6 +292,124 @@ select {
   }
   50% {
     transform: translateY(-8px);
+  }
+}
+
+/* —— 装扮文字动画（轻量、CSS-only；微信/移动端友好）—— */
+.typo-role {
+  /* 扫光/渐变字需要 inline 才能正确 clip */
+}
+
+@keyframes typo-fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes typo-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@keyframes typo-bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-4px);
+  }
+  60% {
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes typo-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+@keyframes typo-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.03);
+  }
+}
+
+@keyframes typo-shine {
+  0% {
+    background-position: 120% 0;
+  }
+  100% {
+    background-position: -120% 0;
+  }
+}
+
+@keyframes typo-breath {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.88;
+    transform: scale(1.015);
+  }
+}
+
+/* 打字机感：clip 逐步显现，不改布局宽度（微信友好） */
+@keyframes typo-typewriter {
+  from {
+    clip-path: inset(0 100% 0 0);
+    opacity: 0.85;
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+    opacity: 1;
+  }
+}
+
+/* 跑马灯感：轻微左右漂移，避免 overflow 截断与挡点击 */
+@keyframes typo-marquee {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(-4%);
+  }
+}
+
+/* 减弱动效：尊重系统设置，避免眩晕与微信耗电 */
+@media (prefers-reduced-motion: reduce) {
+  .typo-role,
+  .typo-nav,
+  .typo-brand,
+  .typo-hero-title,
+  .typo-hero-sub,
+  .typo-section-title,
+  .typo-section-desc,
+  .typo-portal-card-title,
+  .typo-portal-card-desc {
+    animation: none !important;
   }
 }
 

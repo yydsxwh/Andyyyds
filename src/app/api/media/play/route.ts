@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { resolveMediaPlayUrl } from "@/lib/aliyun-vod";
 import { getSession } from "@/lib/auth";
+import { canPreviewAllLessons } from "@/lib/course-access";
 import { prisma } from "@/lib/db";
+import {
+  LOCAL_MEDIA_MISSING_MESSAGE,
+  pickLessonMediaSource,
+  resolveMediaAccessUrl,
+} from "@/lib/storage";
 
 export const runtime = "nodejs";
 
@@ -10,7 +15,7 @@ const schema = z.object({
   lessonId: z.string().min(1),
 });
 
-/** 学员播放：校验权限后返回点播/直链地址 */
+/** 学员 / 站长预览：校验权限后返回点播或 OSS 签名播放地址 */
 export async function GET(req: Request) {
   const session = await getSession();
   if (!session) {
@@ -27,6 +32,7 @@ export async function GET(req: Request) {
     where: { id: parsed.data.lessonId },
     include: {
       chapter: { include: { course: true } },
+      mediaAsset: true,
     },
   });
   if (!lesson) {
@@ -39,12 +45,23 @@ export async function GET(req: Request) {
       userId_courseId: { userId: session.id, courseId: course.id },
     },
   });
-  if (!enrolled && !lesson.isPreview) {
-    return NextResponse.json({ error: "请先购买课程" }, { status: 403 });
+  const staffPreview = canPreviewAllLessons({
+    role: session.role,
+    userId: session.id,
+    teacherId: course.teacherId,
+  });
+  if (!enrolled && !lesson.isPreview && !staffPreview) {
+    const tip =
+      course.productType === "MATERIAL" ? "请先购买资料" : "请先购买课程";
+    return NextResponse.json({ error: tip }, { status: 403 });
   }
 
   try {
-    const playUrl = await resolveMediaPlayUrl(lesson.videoUrl);
+    const sourceUrl = pickLessonMediaSource({
+      videoUrl: lesson.videoUrl,
+      mediaAsset: lesson.mediaAsset,
+    });
+    const playUrl = await resolveMediaAccessUrl(sourceUrl);
     if (!playUrl) {
       return NextResponse.json({ error: "暂无播放地址" }, { status: 404 });
     }
@@ -52,6 +69,10 @@ export async function GET(req: Request) {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "获取播放地址失败";
-    return NextResponse.json({ error: message }, { status: 400 });
+    const missing = message === LOCAL_MEDIA_MISSING_MESSAGE;
+    return NextResponse.json(
+      { error: message },
+      { status: missing ? 404 : 400 },
+    );
   }
 }

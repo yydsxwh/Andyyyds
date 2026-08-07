@@ -1,7 +1,8 @@
 /**
  * 登录会话（JWT Cookie）
  *
- * Cookie 名：yyds_session。角色在 role 字段（如 ADMIN / TEACHER / STUDENT）。
+ * Cookie 名：yyds_session。角色在 role 字段（ADMIN / AGENT / MERCHANT / TEACHER / STUDENT）。
+ * 校验 JWT 后会回查用户表，保证站长改角色后无需重新登录即可生效。
  * 需要登录的 API / 页面先 getSession()，没有则 401 或跳转 /login。
  */
 
@@ -9,7 +10,12 @@ import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { prisma } from "./db";
 import { hashPassword, makeReferralCode, verifyPassword } from "./password";
-import type { Role } from "./types";
+import {
+  canManageCourses,
+  isRole,
+  isRoleApplicationPending,
+  type Role,
+} from "./roles";
 
 export { hashPassword, makeReferralCode, verifyPassword };
 
@@ -20,6 +26,13 @@ export type SessionUser = {
   email: string;
   name: string;
   role: Role;
+  /** 头像：OSS/本地路径或微信 CDN；展示前需 resolveStoredAccessUrl */
+  avatarUrl: string;
+  /** 注册申请角色（待审核时有值） */
+  requestedRole: string;
+  roleApplicationStatus: string;
+  /** 是否有待站长审核的角色申请 */
+  rolePending: boolean;
 };
 
 function getSecret() {
@@ -28,7 +41,7 @@ function getSecret() {
   return new TextEncoder().encode(secret);
 }
 
-export async function createSession(user: SessionUser) {
+export async function createSession(user: Pick<SessionUser, "id" | "email" | "name" | "role">) {
   const token = await new SignJWT({
     id: user.id,
     email: user.email,
@@ -62,11 +75,30 @@ export async function getSession(): Promise<SessionUser | null> {
 
   try {
     const { payload } = await jwtVerify(token, getSecret());
+    const id = String(payload.id);
+    // 以数据库角色为准，避免站长改角色后 JWT 仍是旧值
+    const user = await prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        avatarUrl: true,
+        requestedRole: true,
+        roleApplicationStatus: true,
+      },
+    });
+    if (!user || !isRole(user.role)) return null;
     return {
-      id: String(payload.id),
-      email: String(payload.email),
-      name: String(payload.name),
-      role: payload.role as Role,
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      avatarUrl: user.avatarUrl || "",
+      requestedRole: user.requestedRole || "",
+      roleApplicationStatus: user.roleApplicationStatus || "NONE",
+      rolePending: isRoleApplicationPending(user.roleApplicationStatus || ""),
     };
   } catch {
     return null;
@@ -79,9 +111,10 @@ export async function requireUser() {
   return session;
 }
 
+/** 课程/素材创作者（站长、加盟代理、老师、入驻商家） */
 export async function requireTeacher() {
   const session = await requireUser();
-  if (session.role !== "TEACHER" && session.role !== "ADMIN") {
+  if (!canManageCourses(session.role)) {
     throw new Error("FORBIDDEN");
   }
   return session;

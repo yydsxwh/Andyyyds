@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-/** 旧入口：跳转到课程中心内的「创建课程」 */
+/** 旧入口：跳转到课程中心内的「创建课程/资料」 */
 export default async function StudioComposeRedirectPage({
   searchParams,
 }: {

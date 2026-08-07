@@ -3,11 +3,21 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { CoverImagePicker } from "@/components/cover-image-picker";
 import {
   MediaAssetPickerModal,
   type PickerMediaAsset,
 } from "@/components/media-asset-picker-modal";
+import {
+  postSave,
+  SaveFeedback,
+  type SaveStatus,
+} from "@/components/save-feedback";
+import { StudioProductDeleteButton } from "@/components/studio-product-delete-button";
 import { PRODUCT_TITLE_MAX } from "@/lib/media";
+import { centsToYuanString, isValidYuanInput } from "@/lib/money";
+import { productDetailPath } from "@/lib/product-types";
+import { formatPrice } from "@/lib/utils";
 
 type MediaOption = {
   id: string;
@@ -21,7 +31,8 @@ type LessonDraft = {
   id?: string;
   title: string;
   sortOrder: number;
-  type: "VIDEO" | "ARTICLE" | "LIVE";
+  /** 含资料文件类型 DOCUMENT/IMAGE/AUDIO/OTHER，避免编辑时被压成 VIDEO */
+  type: "VIDEO" | "ARTICLE" | "LIVE" | "DOCUMENT" | "IMAGE" | "AUDIO" | "OTHER";
   content: string;
   videoUrl: string;
   durationSec: number;
@@ -29,12 +40,31 @@ type LessonDraft = {
   mediaAssetId: string | null;
 };
 
+const LESSON_DRAFT_TYPES: LessonDraft["type"][] = [
+  "VIDEO",
+  "ARTICLE",
+  "LIVE",
+  "DOCUMENT",
+  "IMAGE",
+  "AUDIO",
+  "OTHER",
+];
+
 type ChapterDraft = {
   key: string;
   id?: string;
   title: string;
   sortOrder: number;
   lessons: LessonDraft[];
+};
+
+export type BundleCourseOption = {
+  id: string;
+  title: string;
+  slug: string;
+  price: number;
+  status: string;
+  coverUrl?: string;
 };
 
 export type EditableCourse = {
@@ -47,6 +77,7 @@ export type EditableCourse = {
   coverUrl: string;
   status: string;
   productType: string;
+  bundleCourses?: BundleCourseOption[];
   chapters: Array<{
     id: string;
     title: string;
@@ -68,6 +99,18 @@ export type EditableCourse = {
 type Props = {
   course: EditableCourse;
   mediaAssets: MediaOption[];
+  /** 可打进专栏套餐的名下单课 */
+  availableBundleCourses?: BundleCourseOption[];
+  /** 老师不可删章节/课程结构 */
+  canDeleteStructure?: boolean;
+  /** 站长/商家/代理可删除整件商品 */
+  canDeleteProduct?: boolean;
+  /**
+   * product = 产品介绍（标题/封面/价格等）；
+   * content = 章节课时或专栏套餐内容。
+   * 两套入口分开，避免改介绍时误动目录。
+   */
+  mode?: "product" | "content";
 };
 
 const inputClass =
@@ -88,7 +131,7 @@ function toDrafts(course: EditableCourse): ChapterDraft[] {
       id: l.id,
       title: l.title,
       sortOrder: l.sortOrder || li + 1,
-      type: (["VIDEO", "ARTICLE", "LIVE"].includes(l.type)
+      type: (LESSON_DRAFT_TYPES.includes(l.type as LessonDraft["type"])
         ? l.type
         : "VIDEO") as LessonDraft["type"],
       content: l.content || "",
@@ -100,22 +143,54 @@ function toDrafts(course: EditableCourse): ChapterDraft[] {
   }));
 }
 
-export function EditCourseForm({ course, mediaAssets }: Props) {
+export function EditCourseForm({
+  course,
+  mediaAssets,
+  availableBundleCourses = [],
+  canDeleteStructure = true,
+  canDeleteProduct = false,
+  mode = "product",
+}: Props) {
   const router = useRouter();
+  const isProductMode = mode === "product";
+  const isContentMode = mode === "content";
   const [title, setTitle] = useState(course.title);
   const [subtitle, setSubtitle] = useState(course.subtitle || "");
   const [description, setDescription] = useState(course.description || "");
-  const [price, setPrice] = useState(
-    String(Number((course.price / 100).toFixed(2))),
-  );
+  const [price, setPrice] = useState(centsToYuanString(course.price));
   const [coverUrl, setCoverUrl] = useState(course.coverUrl || "");
   const [slug, setSlug] = useState(course.slug);
-  const [productType, setProductType] = useState<"COURSE" | "COLUMN">(
-    course.productType === "COLUMN" ? "COLUMN" : "COURSE",
+  const [productType, setProductType] = useState<
+    "COURSE" | "COLUMN" | "MATERIAL"
+  >(
+    course.productType === "COLUMN"
+      ? "COLUMN"
+      : course.productType === "MATERIAL"
+        ? "MATERIAL"
+        : "COURSE",
   );
   const [published, setPublished] = useState(course.status === "PUBLISHED");
+  const [bundleCourseIds, setBundleCourseIds] = useState<string[]>(
+    () => (course.bundleCourses || []).map((c) => c.id),
+  );
   const [chapters, setChapters] = useState<ChapterDraft[]>(() =>
     toDrafts(course),
+  );
+  const isColumn = productType === "COLUMN";
+
+  const bundleCatalog = useMemo(() => {
+    const map = new Map<string, BundleCourseOption>();
+    for (const c of availableBundleCourses) map.set(c.id, c);
+    for (const c of course.bundleCourses || []) map.set(c.id, c);
+    return map;
+  }, [availableBundleCourses, course.bundleCourses]);
+
+  const selectedBundleCourses = useMemo(
+    () =>
+      bundleCourseIds
+        .map((id) => bundleCatalog.get(id))
+        .filter(Boolean) as BundleCourseOption[],
+    [bundleCourseIds, bundleCatalog],
   );
   const [assetCatalog, setAssetCatalog] = useState<MediaOption[]>(mediaAssets);
   const [pickerTarget, setPickerTarget] = useState<{
@@ -126,8 +201,14 @@ export function EditCourseForm({ course, mediaAssets }: Props) {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [saveFeedback, setSaveFeedback] = useState<SaveStatus>(null);
 
-  const kind = productType === "COLUMN" ? "专栏" : "课程";
+  const kind =
+    productType === "MATERIAL"
+      ? "资料"
+      : productType === "COLUMN"
+        ? "专栏"
+        : "课程";
   const mediaMap = useMemo(
     () => Object.fromEntries(assetCatalog.map((m) => [m.id, m])),
     [assetCatalog],
@@ -200,6 +281,10 @@ export function EditCourseForm({ course, mediaAssets }: Props) {
   }
 
   function removeChapter(key: string) {
+    if (!canDeleteStructure) {
+      setError("老师账号不可删除章节，请联系站长处理");
+      return;
+    }
     if (!confirm("确定删除该章节及其全部课时？")) return;
     setChapters((list) =>
       list
@@ -287,36 +372,58 @@ export function EditCourseForm({ course, mediaAssets }: Props) {
     });
   }
 
+  function toggleBundleCourse(id: string) {
+    setBundleCourseIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  }
+
+  function moveBundleCourse(id: string, dir: -1 | 1) {
+    setBundleCourseIds((prev) => {
+      const i = prev.indexOf(id);
+      if (i < 0) return prev;
+      const j = i + dir;
+      if (j < 0 || j >= prev.length) return prev;
+      const next = [...prev];
+      [next[i], next[j]] = [next[j], next[i]];
+      return next;
+    });
+  }
+
   async function save(e: React.FormEvent) {
     e.preventDefault();
     const trimmedTitle = title.trim();
     const trimmedDesc = description.trim();
-    if (trimmedTitle.length < 2) {
-      setError("标题至少需要 2 个字");
-      return;
-    }
-    if (trimmedDesc.length < 2) {
-      setError("介绍至少需要 2 个字");
-      return;
-    }
-    const priceNum = Number(price);
-    if (Number.isNaN(priceNum) || priceNum < 0) {
-      setError("请填写有效价格");
-      return;
-    }
-    if (chapters.length === 0) {
-      setError("请至少保留一个章节");
-      return;
-    }
-    for (const ch of chapters) {
-      if (!ch.title.trim()) {
-        setError("章节标题不能为空");
+
+    if (isProductMode) {
+      if (trimmedTitle.length < 2) {
+        setError("标题至少需要 2 个字");
         return;
       }
-      for (const ls of ch.lessons) {
-        if (!ls.title.trim()) {
-          setError(`章节「${ch.title}」里有课时标题为空`);
+      if (!isValidYuanInput(price)) {
+        setError("请填写有效价格（可到分，如 99.90）");
+        return;
+      }
+    } else if (isColumn) {
+      if (bundleCourseIds.length === 0) {
+        setError("专栏套餐请至少包含一门单课");
+        return;
+      }
+    } else {
+      if (chapters.length === 0) {
+        setError("请至少保留一个章节");
+        return;
+      }
+      for (const ch of chapters) {
+        if (!ch.title.trim()) {
+          setError("章节标题不能为空");
           return;
+        }
+        for (const ls of ch.lessons) {
+          if (!ls.title.trim()) {
+            setError(`章节「${ch.title}」里有课时标题为空`);
+            return;
+          }
         }
       }
     }
@@ -324,65 +431,115 @@ export function EditCourseForm({ course, mediaAssets }: Props) {
     setLoading(true);
     setError("");
     setMessage("");
-    const res = await fetch(`/api/studio/courses/${course.id}`, {
+    setSaveFeedback(null);
+
+    // 产品介绍与章节内容分接口载荷，避免互相覆盖空结构
+    const body = isProductMode
+      ? {
+          title: trimmedTitle,
+          subtitle: subtitle.trim(),
+          description: trimmedDesc,
+          price,
+          coverUrl: coverUrl.trim(),
+          slug: slug.trim(),
+          productType,
+          status: published ? "PUBLISHED" : "DRAFT",
+        }
+      : isColumn
+        ? { courseIds: bundleCourseIds }
+        : {
+            chapters: chapters.map((c, ci) => ({
+              id: c.id,
+              title: c.title.trim(),
+              sortOrder: ci + 1,
+              lessons: c.lessons.map((l, li) => ({
+                id: l.id,
+                title: l.title.trim(),
+                sortOrder: li + 1,
+                type: l.type,
+                content: l.content,
+                videoUrl: l.videoUrl,
+                durationSec: l.durationSec,
+                isPreview: l.isPreview,
+                mediaAssetId: l.mediaAssetId,
+              })),
+            })),
+          };
+
+    const result = await postSave(`/api/studio/courses/${course.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title: trimmedTitle,
-        subtitle: subtitle.trim(),
-        description: trimmedDesc,
-        price: priceNum,
-        coverUrl: coverUrl.trim(),
-        slug: slug.trim(),
-        productType,
-        status: published ? "PUBLISHED" : "DRAFT",
-        chapters: chapters.map((c, ci) => ({
-          id: c.id,
-          title: c.title.trim(),
-          sortOrder: ci + 1,
-          lessons: c.lessons.map((l, li) => ({
-            id: l.id,
-            title: l.title.trim(),
-            sortOrder: li + 1,
-            type: l.type,
-            content: l.content,
-            videoUrl: l.videoUrl,
-            durationSec: l.durationSec,
-            isPreview: l.isPreview,
-            mediaAssetId: l.mediaAssetId,
-          })),
-        })),
-      }),
+      body: JSON.stringify(body),
     });
-    const data = await res.json().catch(() => ({}));
     setLoading(false);
-    if (!res.ok) {
-      setError(data.error || "保存失败");
+    if (!result.ok) {
+      setError(result.error || "保存失败");
+      setSaveFeedback({ kind: "error", text: result.error || "保存失败" });
       return;
     }
-    if (data.course) {
-      setSlug(data.course.slug);
-      setChapters(toDrafts(data.course));
+    if (result.data.course) {
+      const next = result.data.course as EditableCourse;
+      setSlug(next.slug);
+      if (next.bundleCourses) {
+        setBundleCourseIds(next.bundleCourses.map((c) => c.id));
+      }
+      if (!isColumn) setChapters(toDrafts(next));
     }
-    setMessage("全部信息已保存，前台即时生效");
+    setMessage(
+      isProductMode ? "产品介绍已保存，前台即时生效" : "章节/内容已保存",
+    );
+    setSaveFeedback({ kind: "ok", text: "保存成功" });
     router.refresh();
   }
+
+  const contentHref = `/studio/courses/${course.id}/content`;
+  const productHref = `/studio/courses/${course.id}/edit`;
+  const contentLabel = isColumn ? "编辑套餐内容" : "编辑章节/课时";
 
   return (
     <form onSubmit={save} className="mx-auto max-w-3xl space-y-6">
       <div className="surface space-y-4 rounded-[28px] p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-semibold">编辑{kind}</h1>
+            <h1 className="text-2xl font-semibold">
+              {isProductMode ? `编辑${kind}` : contentLabel}
+            </h1>
             <p className="mt-1 text-sm text-[var(--muted)]">
-              可改基础信息、章节目录、课时视频与试看设置。
+              {isProductMode
+                ? isColumn
+                  ? "维护产品介绍、售价与上架；套餐内单课请到「编辑套餐内容」。"
+                  : "维护产品介绍信息（标题、封面、价格等）；章节与课时请到「编辑章节/课时」。"
+                : isColumn
+                  ? "勾选要打包的单课并调整顺序。买专栏会开通各单课权限。"
+                  : "管理章节目录、课时视频与试看设置。"}
             </p>
           </div>
-        <Link href="/studio/courses" className="btn btn-secondary px-4 py-2 text-sm">
-          返回课程中心
-        </Link>
+          <div className="flex flex-wrap gap-2">
+            {isProductMode ? (
+              <Link
+                href={contentHref}
+                className="btn btn-primary px-4 py-2 text-sm"
+              >
+                {contentLabel}
+              </Link>
+            ) : (
+              <Link
+                href={productHref}
+                className="btn btn-secondary px-4 py-2 text-sm"
+              >
+                编辑产品介绍
+              </Link>
+            )}
+            <Link
+              href="/studio/courses"
+              className="btn btn-secondary px-4 py-2 text-sm"
+            >
+              返回课程中心
+            </Link>
+          </div>
         </div>
 
+        {isProductMode ? (
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
@@ -396,9 +553,24 @@ export function EditCourseForm({ course, mediaAssets }: Props) {
             className={`btn ${productType === "COLUMN" ? "btn-primary" : "btn-secondary"}`}
             onClick={() => setProductType("COLUMN")}
           >
-            专栏
+            专栏套餐
+          </button>
+          <button
+            type="button"
+            className={`btn ${productType === "MATERIAL" ? "btn-primary" : "btn-secondary"}`}
+            onClick={() => setProductType("MATERIAL")}
+          >
+            资料
           </button>
         </div>
+        ) : (
+          <p className="rounded-2xl bg-[var(--brand-soft)] px-4 py-3 text-sm">
+            当前产品：<span className="font-medium">{course.title}</span>
+          </p>
+        )}
+
+        {isProductMode ? (
+        <>
 
         <label className="block text-sm">
           <span className="text-[var(--muted)]">标题</span>
@@ -440,9 +612,13 @@ export function EditCourseForm({ course, mediaAssets }: Props) {
               type="number"
               min={0}
               step="0.01"
+              inputMode="decimal"
               value={price}
               onChange={(e) => setPrice(e.target.value)}
             />
+            <p className="mt-1 text-xs text-[var(--muted)]">
+              可精确到分，例如 99.90
+            </p>
           </label>
           <label className="block text-sm">
             <span className="text-[var(--muted)]">链接地址 slug</span>
@@ -452,20 +628,21 @@ export function EditCourseForm({ course, mediaAssets }: Props) {
               onChange={(e) => setSlug(e.target.value)}
             />
             <p className="mt-1 text-xs text-[var(--muted)]">
-              前台：/courses/{slug || "…"}
+              前台：{productDetailPath(slug || "…", productType)}
             </p>
           </label>
         </div>
 
-        <label className="block text-sm">
+        <div className="block text-sm">
           <span className="text-[var(--muted)]">封面图 URL</span>
           <input
             className={`${inputClass} mt-1`}
             value={coverUrl}
             onChange={(e) => setCoverUrl(e.target.value)}
-            placeholder="https://..."
+            placeholder="/covers/... 或 https://..."
           />
-        </label>
+          <CoverImagePicker value={coverUrl} onChange={setCoverUrl} />
+        </div>
 
         <label className="flex items-center gap-2 text-sm">
           <input
@@ -475,8 +652,93 @@ export function EditCourseForm({ course, mediaAssets }: Props) {
           />
           上架售卖（取消勾选即下架为草稿）
         </label>
+        </>
+        ) : null}
       </div>
 
+      {isContentMode && isColumn ? (
+        <div className="surface space-y-4 rounded-[28px] p-6">
+          <div>
+            <h2 className="text-lg font-semibold">套餐内单课</h2>
+            <p className="mt-1 text-sm text-[var(--muted)]">
+              勾选要打包的单课并调整顺序。旧版「素材型专栏」可在此改为真正的单课套餐。
+            </p>
+          </div>
+          {selectedBundleCourses.length > 0 ? (
+            <ol className="space-y-2">
+              {selectedBundleCourses.map((c, index) => (
+                <li
+                  key={c.id}
+                  className="flex flex-wrap items-center gap-2 rounded-2xl border border-[var(--line)] px-3 py-2 text-sm"
+                >
+                  <span className="text-xs text-[var(--muted)]">{index + 1}.</span>
+                  <span className="min-w-0 flex-1 truncate font-medium">
+                    {c.title}
+                  </span>
+                  <span className="text-[var(--muted)]">
+                    {formatPrice(c.price)}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-secondary min-h-9 px-2 text-xs"
+                    onClick={() => moveBundleCourse(c.id, -1)}
+                    disabled={index === 0}
+                  >
+                    上移
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary min-h-9 px-2 text-xs"
+                    onClick={() => moveBundleCourse(c.id, 1)}
+                    disabled={index === selectedBundleCourses.length - 1}
+                  >
+                    下移
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary min-h-9 px-2 text-xs"
+                    onClick={() => toggleBundleCourse(c.id)}
+                  >
+                    移除
+                  </button>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="rounded-2xl border border-dashed border-[var(--line)] px-4 py-6 text-center text-sm text-[var(--muted)]">
+              尚未加入单课
+            </p>
+          )}
+          <div>
+            <h3 className="text-sm font-medium">可添加的单课</h3>
+            <ul className="mt-2 max-h-72 space-y-2 overflow-y-auto">
+              {availableBundleCourses
+                .filter((c) => !bundleCourseIds.includes(c.id))
+                .map((c) => (
+                  <li key={c.id}>
+                    <button
+                      type="button"
+                      className="flex w-full min-h-11 items-center justify-between gap-2 rounded-2xl border border-[var(--line)] px-3 py-2 text-left text-sm hover:border-[var(--brand)]/40"
+                      onClick={() => toggleBundleCourse(c.id)}
+                    >
+                      <span className="truncate">{c.title}</span>
+                      <span className="shrink-0 text-[var(--muted)]">
+                        {formatPrice(c.price)} · 加入
+                      </span>
+                    </button>
+                  </li>
+                ))}
+            </ul>
+            {availableBundleCourses.length === 0 ? (
+              <p className="mt-2 text-sm text-[var(--muted)]">
+                暂无单课可打包，请先创建单课。
+              </p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {isContentMode && !isColumn ? (
       <div className="surface space-y-4 rounded-[28px] p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -527,13 +789,15 @@ export function EditCourseForm({ course, mediaAssets }: Props) {
                 >
                   下移
                 </button>
-                <button
-                  type="button"
-                  className="rounded-full border border-red-200 px-3 py-1 text-xs text-red-700"
-                  onClick={() => removeChapter(chapter.key)}
-                >
-                  删除章节
-                </button>
+                {canDeleteStructure ? (
+                  <button
+                    type="button"
+                    className="rounded-full border border-red-200 px-3 py-1 text-xs text-red-700"
+                    onClick={() => removeChapter(chapter.key)}
+                  >
+                    删除章节
+                  </button>
+                ) : null}
               </div>
 
               <div className="mt-3 space-y-3">
@@ -595,10 +859,14 @@ export function EditCourseForm({ course, mediaAssets }: Props) {
                           <option value="VIDEO">视频</option>
                           <option value="ARTICLE">图文</option>
                           <option value="LIVE">直播</option>
+                          <option value="DOCUMENT">文档</option>
+                          <option value="IMAGE">图片</option>
+                          <option value="AUDIO">音频</option>
+                          <option value="OTHER">其他</option>
                         </select>
                       </label>
                       <div className="block text-xs">
-                        <span className="text-[var(--muted)]">绑定素材视频</span>
+                        <span className="text-[var(--muted)]">绑定素材</span>
                         <button
                           type="button"
                           className={`${inputClass} mt-1 flex w-full items-center justify-between gap-2 text-left`}
@@ -689,24 +957,63 @@ export function EditCourseForm({ course, mediaAssets }: Props) {
           ))}
         </div>
       </div>
-
-      {error ? <p className="text-sm text-red-700">{error}</p> : null}
-      {message ? (
-        <p className="text-sm text-[var(--brand-strong)]">{message}</p>
       ) : null}
 
-      <div className="flex flex-wrap gap-2">
-        <button className="btn btn-primary" disabled={loading} type="submit">
-          {loading ? "保存中…" : "保存全部修改"}
+      {error && !saveFeedback ? (
+        <p className="text-sm text-[var(--fire-strong)]">{error}</p>
+      ) : null}
+
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          className="btn btn-primary min-h-11"
+          disabled={loading}
+          type="submit"
+        >
+          {loading
+            ? "保存中…"
+            : isProductMode
+              ? "保存产品介绍"
+              : "保存章节/内容"}
         </button>
+        <SaveFeedback
+          status={
+            saveFeedback ||
+            (message ? { kind: "ok", text: message } : null)
+          }
+        />
+        {isProductMode ? (
+          <Link
+            href={contentHref}
+            className="btn btn-secondary min-h-11"
+          >
+            {contentLabel}
+          </Link>
+        ) : null}
         <Link
-          href={`/courses/${slug || course.slug}`}
-          className="btn btn-secondary"
+          href={productDetailPath(slug || course.slug, productType)}
+          className="btn btn-secondary min-h-11"
           target="_blank"
         >
           查看前台页
         </Link>
       </div>
+
+      {isProductMode && canDeleteProduct ? (
+        <div className="rounded-2xl border border-red-200 bg-red-50/60 px-4 py-4">
+          <p className="text-sm text-red-800">
+            删除后不可恢复，相关报名与订单也会一并清除。
+          </p>
+          <div className="mt-3">
+            <StudioProductDeleteButton
+              productId={course.id}
+              title={title || course.title}
+              productType={productType}
+              variant="button"
+              redirectTo="/studio/courses"
+            />
+          </div>
+        </div>
+      ) : null}
 
       <MediaAssetPickerModal
         open={Boolean(pickerTarget)}

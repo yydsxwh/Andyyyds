@@ -4,6 +4,7 @@ import { StudioNav } from "@/components/studio-nav";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { MERCHANT_STATUSES } from "@/lib/merchants";
+import { isAdmin } from "@/lib/roles";
 import type { MerchantStatus } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -11,37 +12,44 @@ export const dynamic = "force-dynamic";
 export default async function StudioMerchantsPage() {
   const session = await getSession();
   if (!session) redirect("/login");
-  if (session.role !== "ADMIN") {
+  if (!isAdmin(session.role)) {
     redirect("/studio");
   }
 
-  const merchants = await prisma.merchant.findMany({
-    include: {
-      user: {
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          role: true,
-          _count: { select: { courses: true } },
-          courses: {
-            select: {
-              orders: {
-                where: { status: "PAID" },
-                select: { amount: true },
+  const [merchants, agents, grouped] = await Promise.all([
+    prisma.merchant.findMany({
+      include: {
+        agent: { select: { id: true, name: true, email: true } },
+        user: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            role: true,
+            _count: { select: { courses: true } },
+            courses: {
+              select: {
+                orders: {
+                  where: { status: "PAID" },
+                  select: { amount: true },
+                },
               },
             },
           },
         },
       },
-    },
-    orderBy: { createdAt: "desc" },
-  });
-
-  const grouped = await prisma.merchant.groupBy({
-    by: ["status"],
-    _count: { _all: true },
-  });
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.user.findMany({
+      where: { role: "AGENT" },
+      select: { id: true, name: true, email: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.merchant.groupBy({
+      by: ["status"],
+      _count: { _all: true },
+    }),
+  ]);
 
   const counts = Object.fromEntries(
     MERCHANT_STATUSES.map((s) => [
@@ -52,14 +60,15 @@ export default async function StudioMerchantsPage() {
 
   return (
     <div className="container space-y-6 py-12">
-      <StudioNav current="merchants" />
+      <StudioNav current="merchants" area="admin" />
       <div>
         <h1 className="text-3xl font-semibold">商家管理</h1>
         <p className="mt-2 text-sm text-[var(--muted)]">
-          管理入驻卖课商家与加盟合作方：审核、启用/停用、维护联系资料，并查看其课程与营收概况。
+          管理入驻卖课商家与加盟合作方：审核、启用/停用、绑定加盟代理归属，并查看其课程与营收概况。
         </p>
       </div>
       <MerchantPanel
+        agents={agents}
         initialCounts={counts}
         initialMerchants={merchants.map((m) => ({
           id: m.id,
@@ -70,6 +79,8 @@ export default async function StudioMerchantsPage() {
           joinType: m.joinType,
           status: m.status,
           notes: m.notes,
+          agentId: m.agentId,
+          agent: m.agent,
           approvedAt: m.approvedAt?.toISOString() ?? null,
           createdAt: m.createdAt.toISOString(),
           user: m.user,

@@ -16,6 +16,7 @@ import {
   paletteById,
   themePackById,
 } from "@/lib/site-theme";
+import { normalizeTypography } from "@/lib/site-typography";
 import { requireAdmin, studioErrorResponse } from "@/lib/studio";
 import {
   getSiteSettings,
@@ -49,7 +50,20 @@ const patchSchema = z.object({
       heroSubtext: z.number().optional(),
       sectionTitle: z.number().optional(),
       sectionDesc: z.number().optional(),
+      portalCardTitle: z.number().optional(),
+      portalCardDesc: z.number().optional(),
     })
+    .optional(),
+  typography: z
+    .record(
+      z.string(),
+      z.object({
+        fontFamily: z.string().max(64).optional(),
+        color: z.string().max(32).optional(),
+        effect: z.string().max(32).optional(),
+        animation: z.string().max(32).optional(),
+      }),
+    )
     .optional(),
 });
 
@@ -105,6 +119,12 @@ export async function PATCH(req: Request) {
       ...current.fontSizes,
       ...(body.fontSizes || {}),
     });
+    // 排版（字体/特效/动画）整表归一；未传则保留
+    const typography = normalizeTypography(
+      body.typography
+        ? { ...current.typography, ...body.typography }
+        : current.typography,
+    );
 
     const next = {
       logoUrl: (body.logoUrl ?? current.logoUrl).trim() || DEFAULT_DECORATE.logoUrl,
@@ -128,6 +148,7 @@ export async function PATCH(req: Request) {
       backgroundId,
       layoutDensity,
       fontSizes,
+      typography,
     };
 
     const row = await prisma.siteSettings.update({

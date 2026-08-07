@@ -2,6 +2,7 @@ import os
 import sys
 import tarfile
 import tempfile
+import time
 import paramiko
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -50,12 +51,30 @@ def pack():
     return tmp
 
 
-def connect():
-    c = paramiko.SSHClient()
-    c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+def connect(retries=10):
     key = paramiko.Ed25519Key.from_private_key_file(os.path.expanduser(r"~\.ssh\yyds_aliyun"))
-    c.connect(HOST, username=USER, pkey=key, look_for_keys=False, allow_agent=False, timeout=30)
-    return c
+    last = None
+    for i in range(retries):
+        c = paramiko.SSHClient()
+        c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        try:
+            c.connect(
+                HOST,
+                username=USER,
+                pkey=key,
+                look_for_keys=False,
+                allow_agent=False,
+                timeout=60,
+                banner_timeout=90,
+                auth_timeout=60,
+            )
+            return c
+        except Exception as e:
+            last = e
+            wait = min(60, 15 * (i + 1))
+            print(f"ssh connect retry {i+1}/{retries}: {e}; sleep {wait}s", flush=True)
+            time.sleep(wait)
+    raise last
 
 
 def run(c, cmd, timeout=1200):
@@ -85,30 +104,40 @@ def main():
     run(c, f"mkdir -p {REMOTE_DIR}/.deploy_backup {REMOTE_DIR}/certs")
     run(c, f"cp -f {REMOTE_DIR}/.env {REMOTE_DIR}/.deploy_backup/.env || true")
     run(c, f"cp -f {REMOTE_DIR}/prisma/prod.db {REMOTE_DIR}/.deploy_backup/prod.db || true")
-    # 保留本地上传素材，避免部署后预览 404
+    # 本地上传备份：先拷到 staging，成功后再替换正式备份。
+    # 旧逻辑「先 rm 备份再 cp」会在 public/uploads 缺失时把唯一备份也删掉。
     run(
         c,
+        f"rm -rf {REMOTE_DIR}/.deploy_backup/uploads_staging && "
+        f"if [ -d {REMOTE_DIR}/public/uploads ]; then "
+        f"cp -a {REMOTE_DIR}/public/uploads {REMOTE_DIR}/.deploy_backup/uploads_staging && "
         f"rm -rf {REMOTE_DIR}/.deploy_backup/uploads && "
-        f"test -d {REMOTE_DIR}/public/uploads && "
-        f"cp -a {REMOTE_DIR}/public/uploads {REMOTE_DIR}/.deploy_backup/uploads || true",
+        f"mv {REMOTE_DIR}/.deploy_backup/uploads_staging {REMOTE_DIR}/.deploy_backup/uploads; "
+        f"fi",
     )
-    run(c, f"rm -rf {REMOTE_DIR}/src {REMOTE_DIR}/prisma {REMOTE_DIR}/public {REMOTE_DIR}/scripts")
+    # 保留 public/uploads，只清其它 public 子项，避免部署再次抹掉本地视频
+    run(c, f"rm -rf {REMOTE_DIR}/src {REMOTE_DIR}/prisma {REMOTE_DIR}/scripts")
     run(
         c,
-        f"cd {REMOTE_DIR} && tar -xzf {remote_tar} "
-        f"&& cp -f .deploy_backup/.env .env || true",
+        f"if [ -d {REMOTE_DIR}/public ]; then "
+        f"find {REMOTE_DIR}/public -mindepth 1 -maxdepth 1 ! -name uploads -exec rm -rf {{}} +; "
+        f"else mkdir -p {REMOTE_DIR}/public; fi",
     )
+    run(c, f"cd {REMOTE_DIR} && tar -xzf {remote_tar}")
+    run(c, f"cp -f {REMOTE_DIR}/.deploy_backup/.env {REMOTE_DIR}/.env || true")
     run(
         c,
         f"test -f {REMOTE_DIR}/.deploy_backup/prod.db && "
+        f"mkdir -p {REMOTE_DIR}/prisma && "
         f"cp -f {REMOTE_DIR}/.deploy_backup/prod.db {REMOTE_DIR}/prisma/prod.db || true",
     )
     run(
         c,
-        f"test -d {REMOTE_DIR}/.deploy_backup/uploads && "
+        f"if [ -d {REMOTE_DIR}/.deploy_backup/uploads ]; then "
         f"mkdir -p {REMOTE_DIR}/public && "
         f"rm -rf {REMOTE_DIR}/public/uploads && "
-        f"cp -a {REMOTE_DIR}/.deploy_backup/uploads {REMOTE_DIR}/public/uploads || true",
+        f"cp -a {REMOTE_DIR}/.deploy_backup/uploads {REMOTE_DIR}/public/uploads; "
+        f"fi",
     )
 
     # Ensure public site url for notify callback
@@ -118,12 +147,50 @@ def main():
         f"echo 'NEXT_PUBLIC_SITE_URL=https://www.yydsxwh.com' >> {REMOTE_DIR}/.env",
     )
 
-    run(c, f"cd {REMOTE_DIR} && npm ci")
+    # 1.6G 小机无 swap 时 prisma/next build 易被 OOM 杀掉；部署前确保有 2G swap
+    run(
+        c,
+        "if ! swapon --show | grep -q .; then "
+        "sudo fallocate -l 2G /swapfile 2>/dev/null || "
+        "sudo dd if=/dev/zero of=/swapfile bs=1M count=2048; "
+        "sudo chmod 600 /swapfile; sudo mkswap /swapfile; sudo swapon /swapfile; "
+        "fi; "
+        "grep -q '/swapfile' /etc/fstab || "
+        "echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab >/dev/null; "
+        "free -h",
+    )
+    # 清掉半截 node_modules；npm ci 与 postinstall prisma generate 并发时易 ENOENT，
+    # 故先 ignore-scripts 装完依赖，再单独 generate。
+    run(c, f"cd {REMOTE_DIR} && rm -rf node_modules")
+    run(
+        c,
+        f"cd {REMOTE_DIR} && "
+        f"PRISMA_SKIP_POSTINSTALL_GENERATE=1 npm ci --include=dev --ignore-scripts",
+    )
+    run(
+        c,
+        f"cd {REMOTE_DIR} && node -e \"require.resolve('@tailwindcss/postcss')\"",
+    )
     run(c, f"cd {REMOTE_DIR} && npx prisma generate")
     run(c, f"cd {REMOTE_DIR} && npx prisma db push")
     run(c, f"cd {REMOTE_DIR} && node scripts/ensure_distribution.js || true")
     run(c, f"cd {REMOTE_DIR} && node scripts/ensure_merchants.js || true")
-    run(c, f"cd {REMOTE_DIR} && npm run build")
+    # 构建前先挪走旧 .next：失败可回滚，避免「删掉构建产物后 build 失败 → 全站打不开」
+    run(
+        c,
+        f"cd {REMOTE_DIR} && rm -rf .next_prev && "
+        f"(test -d .next && mv .next .next_prev || true)",
+    )
+    try:
+        run(c, f"cd {REMOTE_DIR} && npm run build")
+    except Exception:
+        run(
+            c,
+            f"cd {REMOTE_DIR} && rm -rf .next && "
+            f"(test -d .next_prev && mv .next_prev .next || true)",
+        )
+        raise
+    run(c, f"cd {REMOTE_DIR} && rm -rf .next_prev")
     run(c, "pm2 restart yyds-course --update-env || pm2 start npm --name yyds-course -- start -- -p 3000")
     run(c, "pm2 save")
     run(

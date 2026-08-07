@@ -2,16 +2,24 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import {
+  isLessonFileType,
+  lessonNeedsAccessUrl,
+  lessonTypeLabel,
+} from "@/lib/lesson-kinds";
+import { formatBytes } from "@/lib/media";
 
 type Lesson = {
   id: string;
   title: string;
-  type: "VIDEO" | "ARTICLE" | "LIVE";
+  type: string;
   content: string;
   videoUrl: string;
   isPreview: boolean;
   durationSec: number;
   liveAt: string | null;
+  fileName?: string;
+  fileSizeBytes?: number;
 };
 
 type Chapter = {
@@ -27,6 +35,8 @@ type Props = {
   initialLessonId?: string;
   progressMap: Record<string, { completed: boolean; positionSec: number }>;
   enrollmentId?: string;
+  /** MATERIAL：资料包走预览/下载，不按视频课交互 */
+  productType?: string;
 };
 
 export function LearnPlayer({
@@ -36,45 +46,62 @@ export function LearnPlayer({
   initialLessonId,
   progressMap,
   enrollmentId,
+  productType = "COURSE",
 }: Props) {
   const router = useRouter();
+  const isMaterial = productType === "MATERIAL";
   const flat = useMemo(() => chapters.flatMap((c) => c.lessons), [chapters]);
   const [activeId, setActiveId] = useState(initialLessonId || flat[0]?.id);
   const active = flat.find((l) => l.id === activeId) || flat[0];
   const locked = active ? !(canAccessAll || active.isPreview) : true;
-  const [playSrc, setPlaySrc] = useState("");
-  const [playError, setPlayError] = useState("");
+  const [accessUrl, setAccessUrl] = useState("");
+  const [accessError, setAccessError] = useState("");
   /** CSS 伪横屏全屏（不依赖系统旋转权限） */
   const [landscapeFs, setLandscapeFs] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  /** 视频节点挂载后再上报进度（accessUrl 刚就绪时 ref 可能仍为空） */
+  const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
+  const progressMapRef = useRef(progressMap);
+  progressMapRef.current = progressMap;
 
   useEffect(() => {
     let cancelled = false;
-    async function loadPlayUrl() {
-      if (!active || locked || active.type !== "VIDEO" || !active.videoUrl) {
-        setPlaySrc("");
-        setPlayError("");
+    async function loadAccessUrl() {
+      if (!active || locked || !lessonNeedsAccessUrl(active.type)) {
+        setAccessUrl("");
+        setAccessError("");
         return;
       }
-      // 点播与私有 OSS 均走服务端签发，避免直链 403
-      setPlaySrc("");
-      setPlayError("");
+      // 无绑定地址时不请求（视频缺素材 / 资料缺文件）
+      if (!active.videoUrl && active.type === "VIDEO") {
+        setAccessUrl("");
+        setAccessError("");
+        return;
+      }
+      setAccessUrl("");
+      setAccessError("");
       const res = await fetch(`/api/media/play?lessonId=${active.id}`, {
         cache: "no-store",
       });
-      const data = await res.json().catch(() => ({}));
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        playUrl?: string;
+      };
       if (cancelled) return;
       if (!res.ok) {
-        setPlayError(data.error || "获取播放地址失败");
+        setAccessError(
+          data.error ||
+            (isMaterial ? "获取资料地址失败" : "获取播放地址失败"),
+        );
         return;
       }
-      setPlaySrc(data.playUrl || "");
+      setAccessUrl(data.playUrl || "");
     }
-    void loadPlayUrl();
+    void loadAccessUrl();
     return () => {
       cancelled = true;
     };
-  }, [active, locked]);
+  }, [active, locked, isMaterial]);
 
   // 切课时退出伪全屏，避免旧视频仍盖住页面
   useEffect(() => {
@@ -106,8 +133,115 @@ export function LearnPlayer({
     return () => window.removeEventListener("keydown", onKey);
   }, [landscapeFs]);
 
+  /**
+   * 视频课：定期上报播放位置与有效观看时长，供站长/老师/商家看学习进度。
+   * 仅正放且跳跃 < 3s 时累加时长，避免拖进度条刷时长。
+   */
+  useEffect(() => {
+    if (
+      !enrollmentId ||
+      !active ||
+      locked ||
+      active.type !== "VIDEO" ||
+      !accessUrl ||
+      !videoEl
+    ) {
+      return;
+    }
+    const video = videoEl;
+
+    const lessonId = active.id;
+    let lastCurrent = video.currentTime || 0;
+    let pendingDelta = 0;
+    let lastFlushAt = 0;
+    let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const savedPos = progressMapRef.current[lessonId]?.positionSec || 0;
+    if (savedPos > 2) {
+      const seek = () => {
+        try {
+          if (
+            Number.isFinite(savedPos) &&
+            savedPos < (video.duration || Infinity)
+          ) {
+            video.currentTime = savedPos;
+            lastCurrent = savedPos;
+          }
+        } catch {
+          /* ignore */
+        }
+      };
+      if (video.readyState >= 1) seek();
+      else video.addEventListener("loadedmetadata", seek, { once: true });
+    }
+
+    function flush() {
+      const positionSec = Math.floor(video.currentTime || 0);
+      const watchedDelta = Math.floor(pendingDelta);
+      pendingDelta = 0;
+      lastFlushAt = Date.now();
+      if (watchedDelta <= 0 && positionSec <= 0) return;
+      void fetch("/api/progress", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          enrollmentId,
+          lessonId,
+          positionSec,
+          watchedDelta: watchedDelta > 0 ? watchedDelta : undefined,
+        }),
+      });
+    }
+
+    function scheduleFlush() {
+      if (flushTimer) return;
+      flushTimer = setTimeout(() => {
+        flushTimer = null;
+        flush();
+      }, 12000);
+    }
+
+    function onTimeUpdate() {
+      const t = video.currentTime || 0;
+      if (t > lastCurrent && t - lastCurrent < 3) {
+        pendingDelta += t - lastCurrent;
+      }
+      lastCurrent = t;
+      if (Date.now() - lastFlushAt >= 15000 || pendingDelta >= 20) {
+        if (flushTimer) {
+          clearTimeout(flushTimer);
+          flushTimer = null;
+        }
+        flush();
+      } else {
+        scheduleFlush();
+      }
+    }
+
+    function onPause() {
+      if (flushTimer) {
+        clearTimeout(flushTimer);
+        flushTimer = null;
+      }
+      flush();
+    }
+
+    video.addEventListener("timeupdate", onTimeUpdate);
+    video.addEventListener("pause", onPause);
+    window.addEventListener("pagehide", onPause);
+
+    return () => {
+      video.removeEventListener("timeupdate", onTimeUpdate);
+      video.removeEventListener("pause", onPause);
+      window.removeEventListener("pagehide", onPause);
+      if (flushTimer) clearTimeout(flushTimer);
+      flush();
+    };
+  }, [enrollmentId, active?.id, active?.type, locked, accessUrl, videoEl]);
+
   async function markComplete() {
     if (!enrollmentId || !active) return;
+    const positionSec = Math.floor(videoRef.current?.currentTime || 0);
     await fetch("/api/progress", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -115,6 +249,7 @@ export function LearnPlayer({
         enrollmentId,
         lessonId: active.id,
         completed: true,
+        positionSec: positionSec > 0 ? positionSec : undefined,
       }),
     });
     router.refresh();
@@ -134,8 +269,15 @@ export function LearnPlayer({
   }
 
   if (!active) {
-    return <p className="text-[var(--muted)]">暂无课时</p>;
+    return (
+      <p className="text-[var(--muted)]">
+        {isMaterial ? "暂无资料文件" : "暂无课时"}
+      </p>
+    );
   }
+
+  const fileKind = isLessonFileType(active.type);
+  const plazaHref = isMaterial ? "/materials" : "/courses";
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1.35fr_0.75fr]">
@@ -145,31 +287,48 @@ export function LearnPlayer({
           data-landscape-fs={landscapeFs ? "1" : "0"}
         >
           {locked ? (
-            <div className="flex aspect-video items-center justify-center bg-[var(--bg-deep)] p-8 text-center">
+            <div className="flex min-h-[240px] aspect-video items-center justify-center bg-[var(--bg-deep)] p-8 text-center">
               <div>
-                <p className="text-lg font-medium">本课需购买后学习</p>
-                <button className="btn btn-primary mt-4" onClick={() => router.push("/courses")} type="button">
-                  返回课程广场
+                <p className="text-lg font-medium">
+                  {isMaterial
+                    ? "本资料需购买后查看 / 下载"
+                    : "本课需购买后学习"}
+                </p>
+                <button
+                  className="btn btn-primary mt-4"
+                  onClick={() => router.push(plazaHref)}
+                  type="button"
+                >
+                  {isMaterial ? "返回资料广场" : "返回课程广场"}
                 </button>
               </div>
             </div>
+          ) : fileKind ? (
+            <FileLessonPane
+              lesson={active}
+              accessUrl={accessUrl}
+              accessError={accessError}
+            />
           ) : active.type === "VIDEO" && active.videoUrl ? (
-            playError ? (
+            accessError ? (
               <div className="flex aspect-video items-center justify-center bg-[var(--bg-deep)] p-8 text-center text-sm text-red-700">
-                {playError}
+                {accessError}
               </div>
-            ) : playSrc ? (
+            ) : accessUrl ? (
               <>
                 <video
-                  key={playSrc}
-                  ref={videoRef}
+                  key={accessUrl}
+                  ref={(el) => {
+                    videoRef.current = el;
+                    setVideoEl(el);
+                  }}
                   className="aspect-video w-full bg-black"
                   controls
                   playsInline
                   preload="metadata"
-                  src={playSrc}
+                  src={accessUrl}
                   onError={() =>
-                    setPlayError(
+                    setAccessError(
                       "视频无法播放：文件可能已失效，请联系老师重新上传素材",
                     )
                   }
@@ -221,7 +380,9 @@ export function LearnPlayer({
               </div>
             </div>
           ) : (
-            <div className="min-h-[280px] p-8 leading-8">{active.content}</div>
+            <div className="min-h-[280px] p-8 leading-8">
+              {active.content || "暂无内容"}
+            </div>
           )}
         </div>
         <div className="surface rounded-[28px] p-6">
@@ -231,15 +392,21 @@ export function LearnPlayer({
             <p className="mt-4 leading-7 text-[var(--muted)]">{active.content}</p>
           ) : null}
           {canAccessAll && enrollmentId ? (
-            <button className="btn btn-secondary mt-4" onClick={markComplete} type="button">
-              标记已学完
+            <button
+              className="btn btn-secondary mt-4"
+              onClick={() => void markComplete()}
+              type="button"
+            >
+              {isMaterial ? "标记已查看" : "标记已学完"}
             </button>
           ) : null}
         </div>
       </div>
 
       <aside className="surface h-fit rounded-[28px] p-5">
-        <h2 className="font-semibold">目录</h2>
+        <h2 className="font-semibold">
+          {isMaterial ? "资料目录" : "目录"}
+        </h2>
         <div className="mt-4 space-y-4">
           {chapters.map((chapter) => (
             <div key={chapter.id}>
@@ -248,18 +415,33 @@ export function LearnPlayer({
                 {chapter.lessons.map((lesson) => {
                   const done = progressMap[lesson.id]?.completed;
                   const isActive = lesson.id === active.id;
+                  const kindLabel = lessonTypeLabel(lesson.type);
                   return (
                     <li key={lesson.id}>
                       <button
                         type="button"
                         onClick={() => setActiveId(lesson.id)}
                         className={`w-full rounded-xl px-3 py-2 text-left text-sm ${
-                          isActive ? "bg-[var(--brand)] text-white" : "hover:bg-white/70"
+                          isActive
+                            ? "bg-[var(--brand)] text-white"
+                            : "hover:bg-white/70"
                         }`}
                       >
-                        {lesson.title}
-                        {done ? " · 已学" : ""}
-                        {!canAccessAll && !lesson.isPreview ? " · 锁" : ""}
+                        <span className="block">{lesson.title}</span>
+                        <span
+                          className={`mt-0.5 block text-xs ${
+                            isActive ? "text-white/80" : "text-[var(--muted)]"
+                          }`}
+                        >
+                          {kindLabel}
+                          {done
+                            ? isMaterial
+                              ? " · 已看"
+                              : " · 已学"
+                            : ""}
+                          {!canAccessAll && !lesson.isPreview ? " · 锁" : ""}
+                          {lesson.isPreview && !canAccessAll ? " · 试看" : ""}
+                        </span>
                       </button>
                     </li>
                   );
@@ -269,6 +451,126 @@ export function LearnPlayer({
           ))}
         </div>
       </aside>
+    </div>
+  );
+}
+
+/** 资料文件：预览图片/音频，文档与其他提供打开与下载 */
+function FileLessonPane({
+  lesson,
+  accessUrl,
+  accessError,
+}: {
+  lesson: Lesson;
+  accessUrl: string;
+  accessError: string;
+}) {
+  const sizeLabel =
+    lesson.fileSizeBytes && lesson.fileSizeBytes > 0
+      ? formatBytes(lesson.fileSizeBytes)
+      : "";
+  const typeLabel = lessonTypeLabel(lesson.type);
+
+  if (accessError) {
+    return (
+      <div className="flex min-h-[240px] items-center justify-center bg-[var(--bg-deep)] p-8 text-center text-sm text-red-700">
+        {accessError}
+      </div>
+    );
+  }
+
+  if (!accessUrl) {
+    return (
+      <div className="flex min-h-[240px] items-center justify-center bg-[var(--bg-deep)] text-sm text-[var(--muted)]">
+        正在准备文件地址…
+      </div>
+    );
+  }
+
+  if (lesson.type === "IMAGE") {
+    return (
+      <div className="space-y-4 bg-[var(--bg-deep)] p-4 sm:p-6">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={accessUrl}
+          alt={lesson.title}
+          className="mx-auto max-h-[70vh] w-auto max-w-full rounded-xl object-contain"
+        />
+        <div className="flex flex-wrap justify-center gap-3">
+          <a
+            href={accessUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-primary min-h-11"
+          >
+            新窗口打开
+          </a>
+          <a
+            href={accessUrl}
+            download={lesson.fileName || lesson.title}
+            className="btn btn-secondary min-h-11"
+          >
+            下载图片
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  if (lesson.type === "AUDIO") {
+    return (
+      <div className="flex min-h-[240px] flex-col items-center justify-center gap-4 bg-[var(--bg-deep)] p-8">
+        <p className="text-sm text-[var(--muted)]">
+          {typeLabel}
+          {sizeLabel ? ` · ${sizeLabel}` : ""}
+        </p>
+        <audio
+          key={accessUrl}
+          className="w-full max-w-lg"
+          controls
+          preload="metadata"
+          src={accessUrl}
+        />
+        <a
+          href={accessUrl}
+          download={lesson.fileName || lesson.title}
+          className="btn btn-secondary min-h-11"
+        >
+          下载音频
+        </a>
+      </div>
+    );
+  }
+
+  // DOCUMENT / OTHER：预览（新窗口）+ 下载；PDF 等浏览器可内嵌打开
+  return (
+    <div className="flex min-h-[280px] flex-col items-center justify-center gap-4 bg-[var(--bg-deep)] p-8 text-center">
+      <p className="text-lg font-medium">{lesson.title}</p>
+      <p className="text-sm text-[var(--muted)]">
+        {typeLabel}
+        {sizeLabel ? ` · ${sizeLabel}` : ""}
+        {lesson.fileName ? ` · ${lesson.fileName}` : ""}
+      </p>
+      <p className="max-w-md text-sm text-[var(--muted)]">
+        可在线打开预览，或下载到手机 / 电脑本地查看。
+      </p>
+      <div className="flex w-full max-w-sm flex-col gap-3 sm:flex-row sm:justify-center">
+        <a
+          href={accessUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn btn-primary min-h-11 flex-1"
+        >
+          预览 / 打开
+        </a>
+        <a
+          href={accessUrl}
+          download={lesson.fileName || lesson.title}
+          className="btn btn-secondary min-h-11 flex-1"
+        >
+          下载文件
+        </a>
+      </div>
     </div>
   );
 }

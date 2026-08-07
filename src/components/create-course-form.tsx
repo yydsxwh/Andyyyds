@@ -2,21 +2,28 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { CoverImagePicker } from "@/components/cover-image-picker";
+import { DEFAULT_COURSE_COVER_URL } from "@/lib/cover-images";
 
 export function CreateCourseForm() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [coverUrl, setCoverUrl] = useState(DEFAULT_COURSE_COVER_URL);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
     setError("");
     const form = new FormData(e.currentTarget);
+    const payload = {
+      ...Object.fromEntries(form.entries()),
+      coverUrl: coverUrl.trim(),
+    };
     const res = await fetch("/api/studio/courses", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(Object.fromEntries(form.entries())),
+      body: JSON.stringify(payload),
     });
     const data = await res.json();
     setLoading(false);
@@ -26,6 +33,7 @@ export function CreateCourseForm() {
     }
     router.refresh();
     e.currentTarget.reset();
+    setCoverUrl(DEFAULT_COURSE_COVER_URL);
   }
 
   return (
@@ -33,9 +41,32 @@ export function CreateCourseForm() {
       <h2 className="text-lg font-semibold">快速上架一门课</h2>
       <input className="field" name="title" placeholder="课程标题" required />
       <input className="field" name="subtitle" placeholder="一句话卖点" />
-      <textarea className="field min-h-28" name="description" placeholder="课程介绍" required />
-      <input className="field" name="price" type="number" min="0" step="1" placeholder="价格（元）" defaultValue={99} />
-      <input className="field" name="coverUrl" placeholder="封面图 URL（可选）" />
+      <textarea
+        className="field min-h-28"
+        name="description"
+        placeholder="课程介绍"
+        required
+      />
+      <input
+        className="field"
+        name="price"
+        type="number"
+        min="0"
+        step="0.01"
+        inputMode="decimal"
+        placeholder="价格（元，可到分）"
+        defaultValue={99}
+      />
+      <div>
+        <input
+          className="field"
+          name="coverUrl"
+          placeholder="封面图 URL（可选）"
+          value={coverUrl}
+          onChange={(e) => setCoverUrl(e.target.value)}
+        />
+        <CoverImagePicker value={coverUrl} onChange={setCoverUrl} />
+      </div>
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" name="publish" value="1" defaultChecked />
         立即发布

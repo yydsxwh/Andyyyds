@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { AboutPageView } from "@/components/about-page";
+import { NavPageTemplateShell } from "@/components/nav-page-template-shell";
 import { getPortalConfig } from "@/lib/site-settings";
 
 export const dynamic = "force-dynamic";
@@ -14,5 +15,9 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function PersonAboutPage() {
   const portal = await getPortalConfig();
-  return <AboutPageView page={portal.person} />;
+  return (
+    <NavPageTemplateShell type="person">
+      <AboutPageView page={portal.person} />
+    </NavPageTemplateShell>
+  );
 }

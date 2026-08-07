@@ -17,6 +17,14 @@ export {
   palettesInCategory,
 } from "./site-theme-palettes";
 
+import {
+  EXTRA_THEME_BACKGROUNDS,
+  EXTRA_THEME_PACKS,
+} from "./site-theme-backgrounds-extra";
+import {
+  QZONE_THEME_BACKGROUNDS,
+  QZONE_THEME_PACKS,
+} from "./site-theme-qzone";
 import { THEME_PALETTES } from "./site-theme-palettes";
 
 export type ThemeBackgroundKind = "gradient" | "photo" | "pattern";
@@ -53,7 +61,9 @@ export type FontSizeKey =
   | "heroTitle"
   | "heroSubtext"
   | "sectionTitle"
-  | "sectionDesc";
+  | "sectionDesc"
+  | "portalCardTitle"
+  | "portalCardDesc";
 
 export type FontSizesConfig = Record<FontSizeKey, number>;
 
@@ -80,6 +90,10 @@ export const DEFAULT_FONT_SIZES: FontSizesConfig = {
   heroSubtext: 17,
   sectionTitle: 24,
   sectionDesc: 14,
+  /** 对应原 text-lg */
+  portalCardTitle: 18,
+  /** 对应原 text-sm */
+  portalCardDesc: 14,
 };
 
 export const FONT_SIZE_FIELDS: FontSizeFieldMeta[] = [
@@ -118,7 +132,7 @@ export const FONT_SIZE_FIELDS: FontSizeFieldMeta[] = [
   {
     key: "sectionTitle",
     label: "区块标题",
-    hint: "如「门户入口」「热门课程」",
+    hint: "「门户入口」「热门课程」等大标题",
     min: 18,
     max: 40,
     cssVar: "--fs-section-title",
@@ -126,10 +140,26 @@ export const FONT_SIZE_FIELDS: FontSizeFieldMeta[] = [
   {
     key: "sectionDesc",
     label: "区块说明",
-    hint: "区块标题下的灰色说明",
+    hint: "「门户入口」下方灰色说明等",
     min: 12,
     max: 20,
     cssVar: "--fs-section-desc",
+  },
+  {
+    key: "portalCardTitle",
+    label: "门户入口卡片标题",
+    hint: "如「公司介绍」「网课资料」",
+    min: 14,
+    max: 28,
+    cssVar: "--fs-portal-card-title",
+  },
+  {
+    key: "portalCardDesc",
+    label: "门户入口卡片说明",
+    hint: "如「点击进入」「即将开放…」",
+    min: 12,
+    max: 20,
+    cssVar: "--fs-portal-card-desc",
   },
 ];
 
@@ -300,6 +330,10 @@ export const THEME_BACKGROUNDS: ThemeBackground[] = [
     preview: 'url("/covers/team-discuss.jpg") center/cover',
     layers: photoLayers("/covers/team-discuss.jpg", PHOTO_VEIL_COOL),
   },
+  // 扩展库：高端商务照片 + 渐变纹理（见 site-theme-backgrounds-extra.ts）
+  ...EXTRA_THEME_BACKGROUNDS,
+  // QQ 空间式梦幻光斑（七彩心晴同系）
+  ...QZONE_THEME_BACKGROUNDS,
 ];
 
 export const THEME_PACKS: ThemePack[] = [
@@ -460,7 +494,11 @@ export const THEME_PACKS: ThemePack[] = [
     cover:
       "radial-gradient(ellipse at 20% 0%, rgba(34,197,94,0.4), transparent 50%), linear-gradient(180deg,#07140c,#030a06)",
   },
-]
+  ...EXTRA_THEME_PACKS,
+  // QQ 空间装扮一键包（站长在「一键主题」里选）
+  ...QZONE_THEME_PACKS,
+];
+
 export const LAYOUT_DENSITIES: {
   id: LayoutDensity;
   name: string;
@@ -527,6 +565,8 @@ export function buildThemeStyleVars(input: {
   backgroundId?: string | null;
   layoutDensity?: string | null;
   fontSizes?: Partial<FontSizesConfig> | null;
+  /** 可选：合并 --ff-*；由调用方传入避免与 site-typography 循环依赖 */
+  fontFamilyVars?: Record<string, string> | null;
 }): Record<string, string> {
   const palette = paletteById(input.paletteId);
   const background = backgroundById(input.backgroundId);
@@ -543,6 +583,9 @@ export function buildThemeStyleVars(input: {
   const fontVars: Record<string, string> = {};
   for (const field of FONT_SIZE_FIELDS) {
     fontVars[field.cssVar] = `${fontSizes[field.key]}px`;
+    // 无排版配置时给 --ff-* 合理回退，避免 var() 空值
+    const ffVar = field.cssVar.replace("--fs-", "--ff-");
+    fontVars[ffVar] = "var(--font-body)";
   }
 
   return {
@@ -565,6 +608,7 @@ export function buildThemeStyleVars(input: {
     "--surface-radius": radius,
     "--surface-pad": surfacePad,
     ...fontVars,
+    ...(input.fontFamilyVars || {}),
   };
 }
 

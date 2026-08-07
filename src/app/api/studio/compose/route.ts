@@ -1,21 +1,72 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import {
+  replaceColumnBundleItems,
+  resolveBundleCourses,
+} from "@/lib/course-bundle";
+import { DEFAULT_COURSE_COVER_URL } from "@/lib/cover-images";
 import { prisma } from "@/lib/db";
 import { PRODUCT_TITLE_MAX } from "@/lib/media";
-import { requireStudioUser, studioErrorResponse } from "@/lib/studio";
+import { yuanToCents } from "@/lib/money";
+import { requireCreateSellableUser, studioErrorResponse } from "@/lib/studio";
 import { slugify } from "@/lib/utils";
 
-const schema = z.object({
-  productType: z.enum(["COURSE", "COLUMN"]),
-  title: z.string().trim().min(2).max(PRODUCT_TITLE_MAX),
-  subtitle: z.string().trim().max(200).optional(),
-  description: z.string().trim().min(2).max(5000),
-  price: z.coerce.number().min(0),
-  coverUrl: z.string().optional(),
-  publish: z.boolean().optional(),
-  assetIds: z.array(z.string()).min(1),
-  groupByCategory: z.boolean().optional(),
-});
+const schema = z
+  .object({
+    productType: z.enum(["COURSE", "COLUMN", "MATERIAL"]),
+    title: z.string().trim().min(2).max(PRODUCT_TITLE_MAX),
+    subtitle: z.string().trim().max(200).optional(),
+    // 产品介绍选填；空字符串也允许
+    description: z.string().trim().max(5000).optional().default(""),
+    price: z.union([z.string(), z.number()]),
+    coverUrl: z.string().optional(),
+    publish: z.boolean().optional(),
+    /** 单课/资料：素材 id */
+    assetIds: z.array(z.string()).optional(),
+    /** 专栏套餐：所含单课 id（有序） */
+    courseIds: z.array(z.string()).optional(),
+    groupByCategory: z.boolean().optional(),
+  })
+  .superRefine((v, ctx) => {
+    if (v.productType === "COLUMN") {
+      if (!v.courseIds || v.courseIds.length < 1) {
+        ctx.addIssue({
+          code: "custom",
+          message: "请至少选择一门单课加入专栏套餐",
+          path: ["courseIds"],
+        });
+      }
+    } else if (!v.assetIds || v.assetIds.length < 1) {
+      ctx.addIssue({
+        code: "custom",
+        message: "请至少选择 1 个素材",
+        path: ["assetIds"],
+      });
+    }
+  });
+
+/** 资料包课时类型跟素材媒体类型走，便于前台区分下载/播放 */
+function lessonTypeFromAsset(asset: { type: string }) {
+  const t = (asset.type || "").toUpperCase();
+  if (t === "IMAGE" || t === "AUDIO" || t === "DOCUMENT" || t === "OTHER") {
+    return t;
+  }
+  return "VIDEO";
+}
+
+function defaultSubtitle(
+  productType: "COURSE" | "COLUMN" | "MATERIAL",
+  count: number,
+) {
+  if (productType === "MATERIAL") return `含 ${count} 个可售资料文件`;
+  if (productType === "COLUMN") return `含 ${count} 门单课的套餐专栏`;
+  return `由 ${count} 个视频素材组成的课程`;
+}
+
+function catalogTitle(productType: "COURSE" | "MATERIAL") {
+  if (productType === "MATERIAL") return "资料目录";
+  return "课程目录";
+}
 
 type LessonInput = {
   title: string;
@@ -36,21 +87,21 @@ type ChapterInput = {
 
 export async function POST(req: Request) {
   try {
-    const session = await requireStudioUser();
+    // 业务规则：组课/专栏创建走可售产品权限（ADMIN / MERCHANT / AGENT）
+    const session = await requireCreateSellableUser();
     const body = schema.parse(await req.json());
 
-    const assets = await prisma.mediaAsset.findMany({
-      where: { ownerId: session.id, id: { in: body.assetIds } },
-      include: { category: true },
-    });
-
-    if (assets.length !== body.assetIds.length) {
-      return NextResponse.json({ error: "部分素材不存在或无权使用" }, { status: 400 });
+    let priceCents: number;
+    try {
+      priceCents = yuanToCents(body.price);
+    } catch (e) {
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : "价格无效" },
+        { status: 400 },
+      );
     }
 
-    const ordered = body.assetIds
-      .map((id) => assets.find((a) => a.id === id))
-      .filter(Boolean) as typeof assets;
+    const publish = body.publish ?? true;
 
     const baseSlug = slugify(body.title) || `course-${Date.now()}`;
     let slug = baseSlug;
@@ -59,19 +110,69 @@ export async function POST(req: Request) {
       slug = `${baseSlug}-${i++}`;
     }
 
-    const priceCents = Math.round(Number(body.price) * 100);
-    const publish = body.publish ?? true;
+    // —— 专栏：打包多门单课，不建素材章节 ——
+    if (body.productType === "COLUMN") {
+      const bundled = await resolveBundleCourses({
+        ownerId: session.id,
+        courseIds: body.courseIds || [],
+      });
+
+      const course = await prisma.course.create({
+        data: {
+          title: body.title,
+          slug,
+          subtitle: body.subtitle || defaultSubtitle("COLUMN", bundled.length),
+          description: body.description,
+          coverUrl:
+            body.coverUrl ||
+            bundled[0]?.coverUrl ||
+            DEFAULT_COURSE_COVER_URL,
+          price: priceCents,
+          originalPrice: priceCents,
+          isFree: priceCents <= 0,
+          status: publish ? "PUBLISHED" : "DRAFT",
+          productType: "COLUMN",
+          teacherId: session.id,
+        },
+      });
+
+      await replaceColumnBundleItems(
+        prisma,
+        course.id,
+        bundled.map((c) => c.id),
+      );
+
+      return NextResponse.json({ id: course.id, slug: course.slug });
+    }
+
+    // —— 单课 / 资料：素材组成章节 ——
+    const assetIds = body.assetIds || [];
+    const assets = await prisma.mediaAsset.findMany({
+      where: { ownerId: session.id, id: { in: assetIds } },
+      include: { category: true },
+    });
+
+    if (assets.length !== assetIds.length) {
+      return NextResponse.json(
+        { error: "部分素材不存在或无权使用" },
+        { status: 400 },
+      );
+    }
+
+    const ordered = assetIds
+      .map((id) => assets.find((a) => a.id === id))
+      .filter(Boolean) as typeof assets;
 
     const chaptersData: ChapterInput[] = body.groupByCategory
       ? buildChaptersByCategory(ordered)
       : [
           {
-            title: body.productType === "COLUMN" ? "专栏目录" : "课程目录",
+            title: catalogTitle(body.productType),
             sortOrder: 1,
             lessons: ordered.map((asset, index) => ({
               title: asset.name,
               sortOrder: index + 1,
-              type: "VIDEO",
+              type: lessonTypeFromAsset(asset),
               content: asset.description || "",
               videoUrl: asset.fileUrl,
               durationSec: asset.durationSec || 0,
@@ -81,20 +182,15 @@ export async function POST(req: Request) {
           },
         ];
 
-    // 分步创建，避免 SQLite 深层嵌套偶发失败
     const course = await prisma.course.create({
       data: {
         title: body.title,
         slug,
         subtitle:
           body.subtitle ||
-          (body.productType === "COLUMN"
-            ? `精选 ${ordered.length} 个素材组成的专栏`
-            : `由 ${ordered.length} 个视频素材组成的课程`),
+          defaultSubtitle(body.productType, ordered.length),
         description: body.description,
-        coverUrl:
-          body.coverUrl ||
-          "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1200&q=80",
+        coverUrl: body.coverUrl || DEFAULT_COURSE_COVER_URL,
         price: priceCents,
         originalPrice: priceCents,
         isFree: priceCents <= 0,
@@ -124,8 +220,25 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ id: course.id, slug: course.slug });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: error.issues[0]?.message || "参数无效" },
+        { status: 400 },
+      );
+    }
     const mapped = studioErrorResponse(error);
-    return NextResponse.json({ error: mapped.error }, { status: mapped.status });
+    const message =
+      error instanceof Error && error.message && mapped.status === 500
+        ? error.message
+        : mapped.error;
+    // resolveBundleCourses 等业务错误用 400
+    if (error instanceof Error && /单课|套餐|素材/.test(error.message)) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    return NextResponse.json(
+      { error: message },
+      { status: mapped.status === 500 ? 400 : mapped.status },
+    );
   }
 }
 
@@ -136,6 +249,7 @@ function buildChaptersByCategory(
     description: string;
     fileUrl: string;
     durationSec: number;
+    type: string;
     category: { name: string } | null;
   }>,
 ): ChapterInput[] {
@@ -153,7 +267,7 @@ function buildChaptersByCategory(
     lessons: list.map((asset, index) => ({
       title: asset.name,
       sortOrder: index + 1,
-      type: "VIDEO",
+      type: lessonTypeFromAsset(asset),
       content: asset.description || "",
       videoUrl: asset.fileUrl,
       durationSec: asset.durationSec || 0,

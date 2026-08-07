@@ -24,12 +24,18 @@ export const MERCHANT_JOIN_LABEL: Record<MerchantJoinType, string> = {
   FRANCHISE: "加盟合作",
 };
 
-/** 根据商家状态同步账号角色（不改动 ADMIN） */
+/**
+ * 根据商家状态 / 入驻类型同步账号角色（不改动站长）。
+ * 已入驻：DIRECT → MERCHANT，FRANCHISE → AGENT；否则降为用户。
+ */
 export function roleForMerchantStatus(
   status: MerchantStatus,
   currentRole: Role,
+  joinType: MerchantJoinType = "DIRECT",
 ): Role {
   if (currentRole === "ADMIN") return "ADMIN";
-  if (status === "APPROVED") return "TEACHER";
+  if (status === "APPROVED") {
+    return joinType === "FRANCHISE" ? "AGENT" : "MERCHANT";
+  }
   return "STUDENT";
 }

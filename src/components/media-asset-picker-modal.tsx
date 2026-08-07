@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { MEDIA_KIND_LABEL, isMediaKind, type MediaKind } from "@/lib/media";
 
 export type PickerMediaAsset = {
   id: string;
   name: string;
   fileUrl: string;
   durationSec: number;
+  type?: string;
   categoryId?: string | null;
   category?: { id: string; name: string } | null;
   fileName?: string;
@@ -216,20 +218,28 @@ export function MediaAssetPickerModal({
             filtered.map((asset) => {
               const active = asset.id === selectedId;
               const duration = formatDuration(asset.durationSec || 0);
+              const mediaKind: MediaKind = isMediaKind(asset.type || "")
+                ? (asset.type as MediaKind)
+                : "OTHER";
               return (
                 <button
                   key={asset.id}
                   type="button"
                   className={`flex w-full items-start gap-3 rounded-2xl border px-3 py-3 text-left transition ${
                     active
-                      ? "border-[var(--brand)] bg-[rgba(15,107,92,0.08)]"
+                      ? "border-[var(--brand)] bg-[var(--brand-soft)]"
                       : "border-[var(--line)] bg-white/70 hover:border-[var(--brand)]"
                   }`}
                   onClick={() => onSelect(asset)}
                 >
                   <span className="min-w-0 flex-1">
-                    <span className="block break-words font-medium leading-snug">
-                      {asset.name}
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="break-words font-medium leading-snug">
+                        {asset.name}
+                      </span>
+                      <span className="rounded-full border border-[var(--line)] bg-white/80 px-2 py-0.5 text-[11px] text-[var(--muted)]">
+                        {MEDIA_KIND_LABEL[mediaKind]}
+                      </span>
                     </span>
                     <span className="mt-1 block text-xs text-[var(--muted)]">
                       {asset.category?.name || "未分类"}

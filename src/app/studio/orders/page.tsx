@@ -3,6 +3,7 @@ import { StudioNav } from "@/components/studio-nav";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { parseStoredAnswers } from "@/lib/order-form";
+import { isAdmin } from "@/lib/roles";
 import { formatPrice } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +17,7 @@ const STATUS_LABEL: Record<string, string> = {
 export default async function StudioOrdersPage() {
   const session = await getSession();
   if (!session) redirect("/login");
-  if (session.role !== "ADMIN") redirect("/studio");
+  if (!isAdmin(session.role)) redirect("/studio");
 
   const orders = await prisma.order.findMany({
     orderBy: { createdAt: "desc" },
@@ -56,6 +57,8 @@ export default async function StudioOrdersPage() {
                     <div className="font-medium">{order.course.title}</div>
                     <div className="mt-1 text-[var(--muted)]">
                       {order.orderNo} · {order.user.name || order.user.email}
+                      {order.quantity > 1 ? ` · ×${order.quantity}` : ""}
+                      {order.specLabel ? ` · ${order.specLabel}` : ""}
                     </div>
                   </div>
                   <div className="text-right">
@@ -66,6 +69,21 @@ export default async function StudioOrdersPage() {
                       {STATUS_LABEL[order.status] || order.status}
                       {order.payChannel ? ` · ${order.payChannel}` : ""}
                     </div>
+                    {order.status === "PAID" &&
+                    (order.platformCutAmount > 0 ||
+                      order.referrerShareAmount > 0) ? (
+                      <div className="mt-2 max-w-[16rem] text-left text-xs text-[var(--muted)]">
+                        {order.platformCutAmount > 0
+                          ? `平台抽成 ${formatPrice(order.platformCutAmount)} · 商家实得 ${formatPrice(order.merchantNetAmount)}`
+                          : null}
+                        {order.agentMerchantShareAmount > 0
+                          ? ` · 代理商家再分 ${formatPrice(order.agentMerchantShareAmount)}`
+                          : null}
+                        {order.referrerShareAmount > 0
+                          ? ` · 推荐提成 ${formatPrice(order.referrerShareAmount)}（${order.referrerRole || "推荐人"}）`
+                          : null}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
                 {entries.length > 0 ? (

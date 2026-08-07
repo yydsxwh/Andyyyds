@@ -1,5 +1,9 @@
 import { CourseCard } from "@/components/course-card";
+import { NavPageTemplateShell } from "@/components/nav-page-template-shell";
+import { PlazaSwitcher } from "@/components/plaza-switcher";
 import { prisma } from "@/lib/db";
+import { PRODUCT_PLAZA_ORDER_BY } from "@/lib/product-display-order";
+import { withSignedCoverUrls } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -13,39 +17,45 @@ export default async function CoursesPage({
   const category = params.category?.trim();
 
   const categories = await prisma.category.findMany({ orderBy: { name: "asc" } });
-  const courses = await prisma.course.findMany({
-    where: {
-      status: "PUBLISHED",
-      ...(category ? { category: { slug: category } } : {}),
-      ...(q
-        ? {
-            OR: [
-              { title: { contains: q } },
-              { subtitle: { contains: q } },
-              { description: { contains: q } },
-            ],
-          }
-        : {}),
-    },
-    include: { teacher: true, category: true },
-    orderBy: [{ studentCount: "desc" }, { createdAt: "desc" }],
-  });
+  // 课程广场只展示单课/专栏；资料走同页家族的 /materials Tab
+  const courses = await withSignedCoverUrls(
+    await prisma.course.findMany({
+      where: {
+        status: "PUBLISHED",
+        productType: { in: ["COURSE", "COLUMN"] },
+        ...(category ? { category: { slug: category } } : {}),
+        ...(q
+          ? {
+              OR: [
+                { title: { contains: q } },
+                { subtitle: { contains: q } },
+                { description: { contains: q } },
+              ],
+            }
+          : {}),
+      },
+      include: { teacher: true, category: true },
+      // 站长产品管理：置顶优先，再 sortOrder，再人气/时间
+      orderBy: PRODUCT_PLAZA_ORDER_BY,
+    }),
+  );
 
   return (
+    <NavPageTemplateShell type="courses">
     <div className="container py-12">
-      <div className="mb-8 space-y-3">
-        <h1 className="text-3xl font-semibold">课程广场</h1>
-        <p className="text-[var(--muted)]">按分类浏览，或搜索你想学的主题</p>
-      </div>
+      <PlazaSwitcher
+        active="courses"
+        subtitle="按分类浏览，或搜索你想学的主题"
+      />
 
-      <form className="mb-6 flex flex-col gap-3 sm:flex-row">
+      <form className="mb-6 flex flex-col gap-3 sm:flex-row" action="/courses">
         <input
-          className="field"
+          className="field min-h-11"
           name="q"
           defaultValue={q}
           placeholder="搜索课程，例如：AI、沟通、变现"
         />
-        <button className="btn btn-primary" type="submit">
+        <button className="btn btn-primary min-h-11" type="submit">
           搜索
         </button>
       </form>
@@ -53,7 +63,7 @@ export default async function CoursesPage({
       <div className="mb-8 flex flex-wrap gap-2">
         <a
           href="/courses"
-          className={`rounded-full px-4 py-2 text-sm ${!category ? "bg-[var(--brand)] text-white" : "bg-white/70 border border-[var(--line)]"}`}
+          className={`inline-flex min-h-11 items-center rounded-full px-4 py-2 text-sm ${!category ? "bg-[var(--brand)] text-white" : "border border-[var(--line)] bg-white/70"}`}
         >
           全部
         </a>
@@ -61,7 +71,7 @@ export default async function CoursesPage({
           <a
             key={c.id}
             href={`/courses?category=${c.slug}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
-            className={`rounded-full px-4 py-2 text-sm ${category === c.slug ? "bg-[var(--brand)] text-white" : "bg-white/70 border border-[var(--line)]"}`}
+            className={`inline-flex min-h-11 items-center rounded-full px-4 py-2 text-sm ${category === c.slug ? "bg-[var(--brand)] text-white" : "border border-[var(--line)] bg-white/70"}`}
           >
             {c.name}
           </a>
@@ -77,5 +87,6 @@ export default async function CoursesPage({
         <p className="py-16 text-center text-[var(--muted)]">没有找到相关课程</p>
       ) : null}
     </div>
+    </NavPageTemplateShell>
   );
 }

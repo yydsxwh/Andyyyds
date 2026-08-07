@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { MEDIA_CATEGORY_NAME_MAX } from "@/lib/media";
-import { requireStudioUser, studioErrorResponse } from "@/lib/studio";
+import { canDeleteMedia } from "@/lib/roles";
+import { requireCourseStudioUser, studioErrorResponse } from "@/lib/studio";
 
 const patchSchema = z.object({
   name: z.string().trim().min(1).max(MEDIA_CATEGORY_NAME_MAX),
@@ -13,7 +14,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const session = await requireStudioUser();
+    const session = await requireCourseStudioUser();
     const { id } = await params;
     const category = await prisma.mediaCategory.findFirst({
       where: { id, ownerId: session.id },
@@ -51,7 +52,13 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const session = await requireStudioUser();
+    const session = await requireCourseStudioUser();
+    if (!canDeleteMedia(session.role)) {
+      return NextResponse.json(
+        { error: "老师账号不可删除分类，请联系站长处理" },
+        { status: 403 },
+      );
+    }
     const { id } = await params;
     const category = await prisma.mediaCategory.findFirst({
       where: { id, ownerId: session.id },

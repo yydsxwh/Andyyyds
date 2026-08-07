@@ -6,13 +6,17 @@ import {
   getDistributionSettings,
   validateDistributionRates,
 } from "@/lib/distribution";
+import {
+  canManageDistributionSettings,
+  canViewDistribution,
+} from "@/lib/roles";
 
 export async function GET() {
   const session = await getSession();
   if (!session) {
     return NextResponse.json({ error: "请先登录" }, { status: 401 });
   }
-  if (session.role !== "TEACHER" && session.role !== "ADMIN") {
+  if (!canViewDistribution(session.role)) {
     return NextResponse.json({ error: "仅后台可查看" }, { status: 403 });
   }
 
@@ -32,8 +36,8 @@ export async function PATCH(req: Request) {
   if (!session) {
     return NextResponse.json({ error: "请先登录" }, { status: 401 });
   }
-  if (session.role !== "TEACHER" && session.role !== "ADMIN") {
-    return NextResponse.json({ error: "仅后台可修改" }, { status: 403 });
+  if (!canManageDistributionSettings(session.role)) {
+    return NextResponse.json({ error: "仅站长可修改分销比例" }, { status: 403 });
   }
 
   try {

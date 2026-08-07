@@ -111,15 +111,92 @@ def run(client: paramiko.SSHClient, cmd: str, timeout: int = 1200) -> str:
     return out
 
 
+def upload_tarball(client: paramiko.SSHClient, tarball: Path) -> paramiko.SSHClient:
+    """优先用系统 scp（更稳），失败再回退 paramiko SFTP；校验远端体积。"""
+    local_size = tarball.stat().st_size
+    key_path = os.path.expanduser(r"~\.ssh\yyds_aliyun")
+    remote_spec = f"{USER}@{HOST}:{REMOTE_TAR}"
+
+    for attempt in range(1, 8):
+        print(f"Uploading (attempt {attempt}/7, {local_size} bytes)...", flush=True)
+        try:
+            # Windows OpenSSH scp；BatchMode 避免交互
+            import subprocess
+
+            result = subprocess.run(
+                [
+                    "scp",
+                    "-i",
+                    key_path,
+                    "-o",
+                    "BatchMode=yes",
+                    "-o",
+                    "StrictHostKeyChecking=accept-new",
+                    "-o",
+                    "ConnectTimeout=60",
+                    str(tarball),
+                    remote_spec,
+                ],
+                capture_output=True,
+                text=True,
+                timeout=600,
+            )
+            if result.returncode != 0:
+                raise RuntimeError(
+                    f"scp exit {result.returncode}: {result.stderr[-500:]}"
+                )
+        except Exception as scp_exc:  # noqa: BLE001
+            print(f"scp failed: {scp_exc}; fallback SFTP", flush=True)
+            try:
+                sftp = client.open_sftp()
+                try:
+                    sftp.put(str(tarball), REMOTE_TAR)
+                finally:
+                    sftp.close()
+            except Exception as sftp_exc:  # noqa: BLE001
+                print(f"SFTP failed: {sftp_exc}", flush=True)
+                time.sleep(min(40, 5 * attempt))
+                try:
+                    client.close()
+                except Exception:  # noqa: BLE001
+                    pass
+                client = connect()
+                continue
+
+        # 校验体积
+        try:
+            out = run(client, f"stat -c%s {REMOTE_TAR}")
+            remote_size = int(out.strip().splitlines()[-1].strip())
+        except Exception as exc:  # noqa: BLE001
+            print(f"stat remote failed: {exc}; reconnect", flush=True)
+            try:
+                client.close()
+            except Exception:  # noqa: BLE001
+                pass
+            client = connect()
+            continue
+
+        if remote_size == local_size:
+            print(f"Upload done ({remote_size} bytes)", flush=True)
+            return client
+        print(
+            f"Size mismatch local={local_size} remote={remote_size}; retry",
+            flush=True,
+        )
+        time.sleep(min(40, 5 * attempt))
+        try:
+            client.close()
+        except Exception:  # noqa: BLE001
+            pass
+        client = connect()
+
+    raise RuntimeError(f"Upload failed after retries: local={local_size} bytes")
+
+
 def main() -> int:
     tarball = make_tarball()
     client = connect()
-
-    print("Uploading...", flush=True)
-    sftp = client.open_sftp()
-    sftp.put(str(tarball), REMOTE_TAR)
-    sftp.close()
-    print("Upload done", flush=True)
+    client = upload_tarball(client, tarball)
 
     # 解到临时目录，再 rsync 覆盖代码；绝不碰 .env / db / uploads
     run(client, f"rm -rf {REMOTE_STAGE} && mkdir -p {REMOTE_STAGE}")
@@ -136,6 +213,7 @@ def main() -> int:
         f"--exclude 'node_modules' "
         f"--exclude '.next' "
         f"--exclude 'public/uploads' "
+        f"--exclude '.deploy_backup' "
         f"--exclude '*.db' "
         f"--exclude '*.db-journal' "
         f"{REMOTE_STAGE}/ {REMOTE_DIR}/",
@@ -145,6 +223,14 @@ def main() -> int:
     run(client, f"cd {REMOTE_DIR} && npm install", timeout=900)
     run(client, f"cd {REMOTE_DIR} && npx prisma generate")
     run(client, f"cd {REMOTE_DIR} && npx prisma db push")
+    # 清 lock；用 [n]ext 避免 pkill -f 误匹配当前 SSH 命令行把自己杀掉
+    run(
+        client,
+        f"rm -f {REMOTE_DIR}/.next/lock; "
+        "pids=$(pgrep -f '[n]ext build' || true); "
+        "if [ -n \"$pids\" ]; then kill $pids || true; fi; "
+        "sleep 1",
+    )
     run(client, f"cd {REMOTE_DIR} && npm run build", timeout=1200)
     # 用 if/else，避免 || 与 && 连用导致 restart 成功后又多起一个进程
     run(

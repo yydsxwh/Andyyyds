@@ -1,0 +1,434 @@
+[
+  {
+    "id": "photo-biz-glass-office",
+    "file": "/covers/biz-glass-office.jpg",
+    "name": "玻璃办公廊",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-desk-plant",
+    "file": "/covers/biz-desk-plant.jpg",
+    "name": "绿植工位",
+    "veil": "light"
+  },
+  {
+    "id": "photo-biz-laptop-hands",
+    "file": "/covers/biz-laptop-hands.jpg",
+    "name": "键入专注",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-team-table",
+    "file": "/covers/biz-team-table.jpg",
+    "name": "长桌协作",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-team-smile",
+    "file": "/covers/biz-team-smile.jpg",
+    "name": "团队合影",
+    "veil": "light"
+  },
+  {
+    "id": "photo-biz-boardroom",
+    "file": "/covers/biz-boardroom.jpg",
+    "name": "董事会议室",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-handshake",
+    "file": "/covers/biz-handshake.jpg",
+    "name": "商务握手",
+    "veil": "light"
+  },
+  {
+    "id": "photo-biz-startup",
+    "file": "/covers/biz-startup.jpg",
+    "name": "创业冲刺",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-macbook",
+    "file": "/covers/biz-macbook.jpg",
+    "name": "极简笔电",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-present",
+    "file": "/covers/biz-present.jpg",
+    "name": "商务演讲",
+    "veil": "light"
+  },
+  {
+    "id": "photo-biz-pro-portrait",
+    "file": "/covers/biz-pro-portrait.jpg",
+    "name": "职场肖像",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-engineer",
+    "file": "/covers/biz-engineer.jpg",
+    "name": "工程现场",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-cowork-bright",
+    "file": "/covers/biz-cowork-bright.jpg",
+    "name": "明亮联合办公",
+    "veil": "light"
+  },
+  {
+    "id": "photo-biz-sofa-talk",
+    "file": "/covers/biz-sofa-talk.jpg",
+    "name": "沙发会谈",
+    "veil": "warm"
+  },
+  {
+    "id": "photo-biz-skyline-day",
+    "file": "/covers/biz-skyline-day.jpg",
+    "name": "日间天际线",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-city-aerial",
+    "file": "/covers/biz-city-aerial.jpg",
+    "name": "都市航拍",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-glass-tower",
+    "file": "/covers/biz-glass-tower.jpg",
+    "name": "玻璃塔楼",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-street",
+    "file": "/covers/biz-street.jpg",
+    "name": "现代街区",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-neon-alley",
+    "file": "/covers/biz-neon-alley.jpg",
+    "name": "霓虹巷道",
+    "veil": "cyber"
+  },
+  {
+    "id": "photo-biz-charts",
+    "file": "/covers/biz-charts.jpg",
+    "name": "图表案头",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-dashboard",
+    "file": "/covers/biz-dashboard.jpg",
+    "name": "数据仪表盘",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-code-dark",
+    "file": "/covers/biz-code-dark.jpg",
+    "name": "暗色代码",
+    "veil": "cyber"
+  },
+  {
+    "id": "photo-biz-circuit",
+    "file": "/covers/biz-circuit.jpg",
+    "name": "电路纹理",
+    "veil": "cyber"
+  },
+  {
+    "id": "photo-biz-matrix",
+    "file": "/covers/biz-matrix.jpg",
+    "name": "矩阵代码",
+    "veil": "cyber"
+  },
+  {
+    "id": "photo-biz-laptop-dark",
+    "file": "/covers/biz-laptop-dark.jpg",
+    "name": "暗调笔电",
+    "veil": "cyber"
+  },
+  {
+    "id": "photo-biz-gadgets",
+    "file": "/covers/biz-gadgets.jpg",
+    "name": "科技装置",
+    "veil": "cyber"
+  },
+  {
+    "id": "photo-biz-servers",
+    "file": "/covers/biz-servers.jpg",
+    "name": "机柜阵列",
+    "veil": "cyber"
+  },
+  {
+    "id": "photo-biz-standup",
+    "file": "/covers/biz-standup.jpg",
+    "name": "站会讨论",
+    "veil": "light"
+  },
+  {
+    "id": "photo-biz-conference",
+    "file": "/covers/biz-conference.jpg",
+    "name": "大型会场",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-pair",
+    "file": "/covers/biz-pair.jpg",
+    "name": "结对工作",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-sticky",
+    "file": "/covers/biz-sticky.jpg",
+    "name": "便签工坊",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-keynote",
+    "file": "/covers/biz-keynote.jpg",
+    "name": "领袖演讲",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-client",
+    "file": "/covers/biz-client.jpg",
+    "name": "客户会面",
+    "veil": "light"
+  },
+  {
+    "id": "photo-biz-keyboard",
+    "file": "/covers/biz-keyboard.jpg",
+    "name": "键盘特写",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-students",
+    "file": "/covers/biz-students.jpg",
+    "name": "青年成长",
+    "veil": "light"
+  },
+  {
+    "id": "photo-biz-collab",
+    "file": "/covers/biz-collab.jpg",
+    "name": "协作研讨",
+    "veil": "light"
+  },
+  {
+    "id": "photo-biz-training",
+    "file": "/covers/biz-training.jpg",
+    "name": "培训教室",
+    "veil": "light"
+  },
+  {
+    "id": "photo-biz-books",
+    "file": "/covers/biz-books.jpg",
+    "name": "书架光影",
+    "veil": "warm"
+  },
+  {
+    "id": "photo-biz-online-learn",
+    "file": "/covers/biz-online-learn.jpg",
+    "name": "在线学习",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-lecture",
+    "file": "/covers/biz-lecture.jpg",
+    "name": "阶梯讲堂",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-learner",
+    "file": "/covers/biz-learner.jpg",
+    "name": "学员笔电",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-classroom",
+    "file": "/covers/biz-classroom.jpg",
+    "name": "现代教室",
+    "veil": "light"
+  },
+  {
+    "id": "photo-biz-ai-glow",
+    "file": "/covers/biz-ai-glow.jpg",
+    "name": "AI 光感",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-abstract-3d",
+    "file": "/covers/biz-abstract-3d.jpg",
+    "name": "立体抽象",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-ui-code",
+    "file": "/covers/biz-ui-code.jpg",
+    "name": "界面代码",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-present-slide",
+    "file": "/covers/biz-present-slide.jpg",
+    "name": "投影汇报",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-hotel-lobby",
+    "file": "/covers/biz-hotel-lobby.jpg",
+    "name": "商务大堂",
+    "veil": "light"
+  },
+  {
+    "id": "photo-biz-skyline-dusk",
+    "file": "/covers/biz-skyline-dusk.jpg",
+    "name": "黄昏天际",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-handshake-desk",
+    "file": "/covers/biz-handshake-desk.jpg",
+    "name": "桌前握手",
+    "veil": "light"
+  },
+  {
+    "id": "photo-biz-lab-auto",
+    "file": "/covers/biz-lab-auto.jpg",
+    "name": "智能产线",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-kanban",
+    "file": "/covers/biz-kanban.jpg",
+    "name": "看板规划",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-robot",
+    "file": "/covers/biz-robot.jpg",
+    "name": "机器人臂",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-vr",
+    "file": "/covers/biz-vr.jpg",
+    "name": "沉浸体验",
+    "veil": "cyber"
+  },
+  {
+    "id": "photo-biz-fintech",
+    "file": "/covers/biz-fintech.jpg",
+    "name": "金融科技",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-cafe-work",
+    "file": "/covers/biz-cafe-work.jpg",
+    "name": "咖啡馆办公",
+    "veil": "warm"
+  },
+  {
+    "id": "photo-biz-loft",
+    "file": "/covers/biz-loft.jpg",
+    "name": "工业风办公",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-dev-team",
+    "file": "/covers/biz-dev-team.jpg",
+    "name": "研发团队",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-mobile",
+    "file": "/covers/biz-mobile.jpg",
+    "name": "移动办公",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-exec",
+    "file": "/covers/biz-exec.jpg",
+    "name": "高管肖像",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-sky-blue",
+    "file": "/covers/biz-sky-blue.jpg",
+    "name": "碧空都会",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-code2",
+    "file": "/covers/biz-code2.jpg",
+    "name": "终端流光",
+    "veil": "cyber"
+  },
+  {
+    "id": "photo-biz-elearn",
+    "file": "/covers/biz-elearn.jpg",
+    "name": "云端课堂",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-hall-seat",
+    "file": "/covers/biz-hall-seat.jpg",
+    "name": "会堂座席",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-slide2",
+    "file": "/covers/biz-slide2.jpg",
+    "name": "简报现场",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-design-desk",
+    "file": "/covers/biz-design-desk.jpg",
+    "name": "设计桌面",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-coin-tech",
+    "file": "/covers/biz-coin-tech.jpg",
+    "name": "数字金融",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-cafe2",
+    "file": "/covers/biz-cafe2.jpg",
+    "name": "街角办公",
+    "veil": "warm"
+  },
+  {
+    "id": "photo-biz-grow",
+    "file": "/covers/biz-grow.jpg",
+    "name": "成长学习",
+    "veil": "light"
+  },
+  {
+    "id": "photo-biz-travel",
+    "file": "/covers/biz-travel.jpg",
+    "name": "商旅客厅",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-crowd-conf",
+    "file": "/covers/biz-crowd-conf.jpg",
+    "name": "峰会现场",
+    "veil": "cool"
+  },
+  {
+    "id": "photo-biz-women-tech",
+    "file": "/covers/biz-women-tech.jpg",
+    "name": "科技女性",
+    "veil": "light"
+  },
+  {
+    "id": "photo-biz-lounge2",
+    "file": "/covers/biz-lounge2.jpg",
+    "name": "休闲洽谈",
+    "veil": "warm"
+  }
+]

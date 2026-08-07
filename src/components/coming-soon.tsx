@@ -17,8 +17,8 @@ export function ComingSoon({ title, description }: Props) {
           <Link href="/" className="btn btn-primary">
             返回首页
           </Link>
-          <Link href="/courses" className="btn btn-secondary">
-            先看知识付费
+          <Link href="/materials" className="btn btn-secondary">
+            看看网课资料
           </Link>
         </div>
       </div>

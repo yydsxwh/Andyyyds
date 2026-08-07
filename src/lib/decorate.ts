@@ -13,6 +13,11 @@ import {
   type FontSizesConfig,
   type LayoutDensity,
 } from "@/lib/site-theme";
+import {
+  DEFAULT_TYPOGRAPHY,
+  normalizeTypography,
+  type TypographyConfig,
+} from "@/lib/site-typography";
 
 export type DecorateBanner = {
   id: string;
@@ -39,8 +44,10 @@ export type DecorateConfig = {
   backgroundId: string;
   /** 轻量版式密度 */
   layoutDensity: LayoutDensity;
-  /** 各区块字号（px），站长在「网站装扮 → 字号」调整 */
+  /** 各区块字号（px），站长在「网站装扮 → 文字」调整 */
   fontSizes: FontSizesConfig;
+  /** 各文本角色的字体 / 特效 / 动画；缺省兼容旧 decorateJson */
+  typography: TypographyConfig;
 };
 
 export const DEFAULT_LOGO_URL = "/brand/logo.png";
@@ -69,6 +76,7 @@ export const DEFAULT_DECORATE: DecorateConfig = {
   backgroundId: DEFAULT_BACKGROUND_ID,
   layoutDensity: DEFAULT_LAYOUT_DENSITY,
   fontSizes: { ...DEFAULT_FONT_SIZES },
+  typography: structuredClone(DEFAULT_TYPOGRAPHY),
 };
 
 function newId() {
@@ -101,6 +109,7 @@ function resolveThemeFields(parsed: Partial<DecorateConfig>) {
     backgroundId,
     layoutDensity: normalizeLayoutDensity(parsed.layoutDensity),
     fontSizes: normalizeFontSizes(parsed.fontSizes),
+    typography: normalizeTypography(parsed.typography),
   };
 }
 

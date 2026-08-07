@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import {
+  replaceColumnBundleItems,
+  resolveBundleCourses,
+} from "@/lib/course-bundle";
 import { prisma } from "@/lib/db";
 import { PRODUCT_TITLE_MAX } from "@/lib/media";
-import { requireStudioUser, studioErrorResponse } from "@/lib/studio";
+import { yuanToCents } from "@/lib/money";
+import { canDeleteCourses, canViewAllStudioData } from "@/lib/roles";
+import { requireCourseStudioUser, studioErrorResponse } from "@/lib/studio";
 import { slugify } from "@/lib/utils";
 
 export const runtime = "nodejs";
@@ -11,7 +17,18 @@ const lessonSchema = z.object({
   id: z.string().optional(),
   title: z.string().trim().min(1).max(200),
   sortOrder: z.number().int().min(0),
-  type: z.enum(["VIDEO", "ARTICLE", "LIVE"]).default("VIDEO"),
+  // 资料课时可带 DOCUMENT/IMAGE 等；勿收窄成仅视频课类型
+  type: z
+    .enum([
+      "VIDEO",
+      "ARTICLE",
+      "LIVE",
+      "DOCUMENT",
+      "IMAGE",
+      "AUDIO",
+      "OTHER",
+    ])
+    .default("VIDEO"),
   content: z.string().max(20000).optional(),
   videoUrl: z.string().max(800).optional(),
   durationSec: z.number().int().min(0).optional(),
@@ -29,20 +46,22 @@ const chapterSchema = z.object({
 const patchSchema = z.object({
   title: z.string().trim().min(2).max(PRODUCT_TITLE_MAX).optional(),
   subtitle: z.string().trim().max(200).optional(),
-  description: z.string().trim().min(2).max(5000).optional(),
-  price: z.coerce.number().min(0).optional(),
+  description: z.string().trim().max(5000).optional(),
+  price: z.union([z.string(), z.number()]).optional(),
   coverUrl: z.string().max(800).optional(),
   status: z.enum(["DRAFT", "PUBLISHED"]).optional(),
-  productType: z.enum(["COURSE", "COLUMN"]).optional(),
+  productType: z.enum(["COURSE", "COLUMN", "MATERIAL"]).optional(),
   slug: z.string().trim().min(1).max(120).optional(),
   chapters: z.array(chapterSchema).max(100).optional(),
+  /** 专栏套餐所含单课 id（有序）；传则整体替换 */
+  courseIds: z.array(z.string()).optional(),
 });
 
 async function getOwnedCourse(id: string, sessionId: string, role: string) {
   return prisma.course.findFirst({
     where: {
       id,
-      ...(role === "ADMIN" ? {} : { teacherId: sessionId }),
+      ...(canViewAllStudioData(role) ? {} : { teacherId: sessionId }),
     },
     include: {
       chapters: {
@@ -52,6 +71,21 @@ async function getOwnedCourse(id: string, sessionId: string, role: string) {
             orderBy: { sortOrder: "asc" },
             include: {
               mediaAsset: { select: { id: true, name: true, fileUrl: true } },
+            },
+          },
+        },
+      },
+      bundleItems: {
+        orderBy: { sortOrder: "asc" },
+        include: {
+          course: {
+            select: {
+              id: true,
+              title: true,
+              slug: true,
+              coverUrl: true,
+              price: true,
+              status: true,
             },
           },
         },
@@ -74,6 +108,7 @@ function serializeCourse(
     status: course.status,
     productType: course.productType,
     isFree: course.isFree,
+    bundleCourses: course.bundleItems.map((item) => item.course),
     chapters: course.chapters.map((c) => ({
       id: c.id,
       title: c.title,
@@ -99,7 +134,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const session = await requireStudioUser();
+    const session = await requireCourseStudioUser();
     const { id } = await params;
     const course = await getOwnedCourse(id, session.id, session.role);
     if (!course) {
@@ -117,7 +152,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const session = await requireStudioUser();
+    const session = await requireCourseStudioUser();
     const { id } = await params;
     const course = await getOwnedCourse(id, session.id, session.role);
     if (!course) {
@@ -135,10 +170,17 @@ export async function PATCH(
     if (body.productType !== undefined) data.productType = body.productType;
 
     if (body.price !== undefined) {
-      const priceCents = Math.round(Number(body.price) * 100);
-      data.price = priceCents;
-      data.originalPrice = priceCents;
-      data.isFree = priceCents <= 0;
+      try {
+        const priceCents = yuanToCents(body.price);
+        data.price = priceCents;
+        data.originalPrice = priceCents;
+        data.isFree = priceCents <= 0;
+      } catch (e) {
+        return NextResponse.json(
+          { error: e instanceof Error ? e.message : "价格无效" },
+          { status: 400 },
+        );
+      }
     }
 
     if (body.slug !== undefined) {
@@ -155,6 +197,45 @@ export async function PATCH(
       }
     }
 
+    const nextType = body.productType ?? course.productType;
+
+    // 专栏套餐：替换所含单课
+    if (body.courseIds !== undefined || nextType === "COLUMN") {
+      if (body.courseIds !== undefined) {
+        try {
+          const ownerId = canViewAllStudioData(session.role)
+            ? course.teacherId
+            : session.id;
+          const bundled = await resolveBundleCourses({
+            ownerId,
+            courseIds: body.courseIds,
+            excludeColumnId: course.id,
+          });
+          await prisma.$transaction(async (tx) => {
+            if (Object.keys(data).length > 0) {
+              await tx.course.update({ where: { id: course.id }, data });
+            }
+            await replaceColumnBundleItems(
+              tx,
+              course.id,
+              bundled.map((c) => c.id),
+            );
+          });
+          const updated = await getOwnedCourse(
+            course.id,
+            session.id,
+            session.role,
+          );
+          return NextResponse.json({ course: serializeCourse(updated!) });
+        } catch (e) {
+          return NextResponse.json(
+            { error: e instanceof Error ? e.message : "套餐更新失败" },
+            { status: 400 },
+          );
+        }
+      }
+    }
+
     // 校验课时绑定的素材归属
     if (body.chapters) {
       const assetIds = body.chapters
@@ -164,7 +245,7 @@ export async function PATCH(
         const owned = await prisma.mediaAsset.findMany({
           where: {
             id: { in: assetIds },
-            ...(session.role === "ADMIN" ? {} : { ownerId: session.id }),
+            ...(canViewAllStudioData(session.role) ? {} : { ownerId: session.id }),
           },
           select: { id: true, fileUrl: true, durationSec: true, description: true },
         });
@@ -272,6 +353,45 @@ export async function PATCH(
 
     const updated = await getOwnedCourse(course.id, session.id, session.role);
     return NextResponse.json({ course: serializeCourse(updated!) });
+  } catch (error) {
+    const mapped = studioErrorResponse(error);
+    return NextResponse.json({ error: mapped.error }, { status: mapped.status });
+  }
+}
+
+/**
+ * 删除可售商品（单课 / 专栏 / 资料）。
+ * Order 未配置 onDelete Cascade，须先删订单（佣金随订单级联），再删课程。
+ */
+export async function DELETE(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const session = await requireCourseStudioUser();
+    if (!canDeleteCourses(session.role)) {
+      return NextResponse.json(
+        { error: "老师账号不可删除商品，请联系站长处理" },
+        { status: 403 },
+      );
+    }
+
+    const { id } = await params;
+    const course = await getOwnedCourse(id, session.id, session.role);
+    if (!course) {
+      return NextResponse.json(
+        { error: "商品不存在或无权删除" },
+        { status: 404 },
+      );
+    }
+
+    const deletedOrders = await prisma.$transaction(async (tx) => {
+      const orderResult = await tx.order.deleteMany({ where: { courseId: id } });
+      await tx.course.delete({ where: { id } });
+      return orderResult.count;
+    });
+
+    return NextResponse.json({ ok: true, deletedOrders });
   } catch (error) {
     const mapped = studioErrorResponse(error);
     return NextResponse.json({ error: mapped.error }, { status: mapped.status });

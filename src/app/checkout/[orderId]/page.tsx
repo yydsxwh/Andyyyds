@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { parseStoredAnswers } from "@/lib/order-form";
 import { getPaymentChannels } from "@/lib/payments";
 import { getOrderFormConfig } from "@/lib/site-settings";
+import { productDetailPath } from "@/lib/product-types";
 import { formatPrice } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +26,13 @@ export default async function CheckoutPage({
   if (!order || order.userId !== session.id) notFound();
 
   if (order.status === "PAID") {
+    // 商城订单回订单详情；专栏回详情选子课；单课/资料进学习页
+    if (order.course.productType === "PRODUCT") {
+      redirect(`/orders/${order.id}`);
+    }
+    if (order.course.productType === "COLUMN") {
+      redirect(productDetailPath(order.course.slug, "COLUMN"));
+    }
     redirect(`/learn/${order.course.slug}`);
   }
 
@@ -41,13 +49,37 @@ export default async function CheckoutPage({
         <p className="mt-2 text-sm text-[var(--muted)]">订单号 {order.orderNo}</p>
         <div className="mt-6 space-y-3 text-sm">
           <div className="flex justify-between gap-4">
-            <span>课程</span>
+            <span>商品</span>
             <span className="text-right font-medium">{order.course.title}</span>
           </div>
-          <div className="flex justify-between gap-4">
-            <span>优惠</span>
-            <span>-{formatPrice(order.discount)}</span>
-          </div>
+          {order.specLabel ? (
+            <div className="flex justify-between gap-4">
+              <span>规格</span>
+              <span className="text-right text-[var(--muted)]">{order.specLabel}</span>
+            </div>
+          ) : null}
+          {order.quantity > 1 ? (
+            <div className="flex justify-between gap-4">
+              <span>数量</span>
+              <span>×{order.quantity}</span>
+            </div>
+          ) : null}
+          {order.discount > 0 ? (
+            <div className="flex justify-between gap-4">
+              <span>
+                优惠
+                {order.coupon ? `（${order.coupon.code}）` : ""}
+              </span>
+              <span className="text-[var(--fire)]">
+                -{formatPrice(order.discount)}
+              </span>
+            </div>
+          ) : (
+            <div className="flex justify-between gap-4">
+              <span>优惠</span>
+              <span>-{formatPrice(0)}</span>
+            </div>
+          )}
           <div className="flex justify-between gap-4 text-lg font-semibold">
             <span>应付</span>
             <span className="text-[var(--brand)]">{formatPrice(order.amount)}</span>

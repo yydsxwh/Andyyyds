@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import {
   ensureOssBucket,
   testOssConnection,
+  testOssUpload,
 } from "@/lib/storage";
 import { requireAdmin, studioErrorResponse } from "@/lib/studio";
 import {
@@ -13,7 +14,7 @@ import {
 } from "@/lib/site-settings";
 
 const bodySchema = z.object({
-  action: z.enum(["test", "create"]),
+  action: z.enum(["test", "upload-test", "create"]),
   /** 可选：创建前先写入这些字段 */
   ossRegion: z.string().max(64).optional(),
   ossBucket: z.string().max(128).optional(),
@@ -62,6 +63,15 @@ export async function POST(req: Request) {
 
     if (body.action === "test") {
       const result = await testOssConnection(settings);
+      return NextResponse.json({
+        ...result,
+        settings: publicSiteSettings(await getSiteSettings()),
+      });
+    }
+
+    // 真正 PutObject 探测：List 通过也不代表 PDF 能入库
+    if (body.action === "upload-test") {
+      const result = await testOssUpload(settings);
       return NextResponse.json({
         ...result,
         settings: publicSiteSettings(await getSiteSettings()),

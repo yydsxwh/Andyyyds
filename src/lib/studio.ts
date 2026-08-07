@@ -1,22 +1,53 @@
 import { z } from "zod";
 import { getSession, type SessionUser } from "./auth";
 import { prisma } from "./db";
+import {
+  canAccessStudio,
+  canCreateSellableProducts,
+  canManageCourses,
+  isAdmin,
+} from "./roles";
 
 export async function requireStudioUser(): Promise<SessionUser> {
   const session = await getSession();
   if (!session) throw new Error("UNAUTHORIZED");
-  if (session.role === "ADMIN") return session;
+  if (!canAccessStudio(session.role)) {
+    throw new Error("FORBIDDEN");
+  }
+  // 角色申请待审核期间即使 JWT/角色异常，也不开放后台特权
+  if (session.rolePending) {
+    throw new Error("ROLE_PENDING");
+  }
+  if (isAdmin(session.role)) return session;
 
   const user = await prisma.user.findUnique({
     where: { id: session.id },
     include: { merchant: true },
   });
-  if (!user || user.role !== "TEACHER") {
+  if (!user || !canAccessStudio(user.role)) {
     throw new Error("FORBIDDEN");
   }
-  // 已建档商家必须以「已入驻」才能进入创作者后台（停用立即生效）
+  // 已建档商家必须以「已入驻」才能进后台（停用立即生效）；加盟代理同理
   if (user.merchant && user.merchant.status !== "APPROVED") {
     throw new Error("FORBIDDEN");
+  }
+  return session;
+}
+
+/** 需要课程/素材权限的接口（不含纯分销的加盟代理） */
+export async function requireCourseStudioUser(): Promise<SessionUser> {
+  const session = await requireStudioUser();
+  if (!canManageCourses(session.role)) {
+    throw new Error("FORBIDDEN");
+  }
+  return session;
+}
+
+/** 新建可售课程/专栏/商品（站长、入驻商家、加盟代理） */
+export async function requireCreateSellableUser(): Promise<SessionUser> {
+  const session = await requireStudioUser();
+  if (!canCreateSellableProducts(session.role)) {
+    throw new Error("CREATE_FORBIDDEN");
   }
   return session;
 }
@@ -24,7 +55,7 @@ export async function requireStudioUser(): Promise<SessionUser> {
 export async function requireAdmin(): Promise<SessionUser> {
   const session = await getSession();
   if (!session) throw new Error("UNAUTHORIZED");
-  if (session.role !== "ADMIN") {
+  if (!isAdmin(session.role)) {
     throw new Error("ADMIN_ONLY");
   }
   return session;
@@ -82,6 +113,15 @@ export function studioErrorResponse(error: unknown) {
   }
   if (message === "FORBIDDEN") {
     return { status: 403 as const, error: "仅创作者可操作" };
+  }
+  if (message === "ROLE_PENDING") {
+    return { status: 403 as const, error: "账号待站长审核" };
+  }
+  if (message === "CREATE_FORBIDDEN") {
+    return {
+      status: 403 as const,
+      error: "仅入驻商家、加盟代理与站长可新建课程、专栏或商品",
+    };
   }
   if (message === "ADMIN_ONLY") {
     return { status: 403 as const, error: "仅站长可操作" };

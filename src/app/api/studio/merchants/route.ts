@@ -8,7 +8,7 @@ import {
   roleForMerchantStatus,
 } from "@/lib/merchants";
 import { requireAdmin, studioErrorResponse } from "@/lib/studio";
-import type { MerchantStatus, Role } from "@/lib/types";
+import type { MerchantJoinType, MerchantStatus, Role } from "@/lib/types";
 
 const createSchema = z.object({
   email: z.string().email(),
@@ -21,6 +21,8 @@ const createSchema = z.object({
   joinType: z.enum(MERCHANT_JOIN_TYPES).optional().default("DIRECT"),
   status: z.enum(MERCHANT_STATUSES).optional().default("APPROVED"),
   notes: z.string().max(1000).optional().default(""),
+  // 业务规则：归属加盟代理用于平台抽成再分；站长可手工指定，须为 AGENT 角色
+  agentId: z.string().nullable().optional(),
 });
 
 function serializeMerchant(
@@ -33,9 +35,11 @@ function serializeMerchant(
     joinType: string;
     status: string;
     notes: string;
+    agentId: string | null;
     approvedAt: Date | null;
     createdAt: Date;
     updatedAt: Date;
+    agent: { id: string; name: string; email: string } | null;
     user: {
       id: string;
       email: string;
@@ -57,6 +61,8 @@ function serializeMerchant(
     joinType: merchant.joinType,
     status: merchant.status,
     notes: merchant.notes,
+    agentId: merchant.agentId,
+    agent: merchant.agent,
     approvedAt: merchant.approvedAt?.toISOString() ?? null,
     createdAt: merchant.createdAt.toISOString(),
     updatedAt: merchant.updatedAt.toISOString(),
@@ -72,6 +78,7 @@ function serializeMerchant(
 }
 
 const merchantInclude = {
+  agent: { select: { id: true, name: true, email: true } },
   user: {
     select: {
       id: true,
@@ -91,6 +98,23 @@ const merchantInclude = {
   },
 } as const;
 
+/** 校验 agentId 指向加盟代理；空/null 表示无归属 */
+async function resolveAgentId(
+  raw: string | null,
+): Promise<{ ok: true; agentId: string | null } | { ok: false; error: string }> {
+  if (raw === null || raw === "") {
+    return { ok: true, agentId: null };
+  }
+  const agent = await prisma.user.findUnique({
+    where: { id: raw },
+    select: { id: true, role: true },
+  });
+  if (!agent || agent.role !== "AGENT") {
+    return { ok: false, error: "所选用户不是加盟代理" };
+  }
+  return { ok: true, agentId: agent.id };
+}
+
 export async function GET(req: Request) {
   try {
     await requireAdmin();
@@ -98,26 +122,33 @@ export async function GET(req: Request) {
     const status = searchParams.get("status") || undefined;
     const q = (searchParams.get("q") || "").trim();
 
-    const merchants = await prisma.merchant.findMany({
-      where: {
-        ...(status && MERCHANT_STATUSES.includes(status as MerchantStatus)
-          ? { status }
-          : {}),
-        ...(q
-          ? {
-              OR: [
-                { storeName: { contains: q } },
-                { contactName: { contains: q } },
-                { contactPhone: { contains: q } },
-                { user: { email: { contains: q } } },
-                { user: { name: { contains: q } } },
-              ],
-            }
-          : {}),
-      },
-      include: merchantInclude,
-      orderBy: { createdAt: "desc" },
-    });
+    const [merchants, agents] = await Promise.all([
+      prisma.merchant.findMany({
+        where: {
+          ...(status && MERCHANT_STATUSES.includes(status as MerchantStatus)
+            ? { status }
+            : {}),
+          ...(q
+            ? {
+                OR: [
+                  { storeName: { contains: q } },
+                  { contactName: { contains: q } },
+                  { contactPhone: { contains: q } },
+                  { user: { email: { contains: q } } },
+                  { user: { name: { contains: q } } },
+                ],
+              }
+            : {}),
+        },
+        include: merchantInclude,
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.user.findMany({
+        where: { role: "AGENT" },
+        select: { id: true, name: true, email: true },
+        orderBy: { name: "asc" },
+      }),
+    ]);
 
     const counts = await prisma.merchant.groupBy({
       by: ["status"],
@@ -126,6 +157,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       merchants: merchants.map(serializeMerchant),
+      agents,
       counts: Object.fromEntries(
         MERCHANT_STATUSES.map((s) => [
           s,
@@ -166,11 +198,25 @@ export async function POST(req: Request) {
       );
     }
 
+    // 显式指定优先；未传时若注册上级是加盟代理则自动归属
+    let agentId: string | null = null;
+    if (body.agentId !== undefined) {
+      const resolved = await resolveAgentId(body.agentId);
+      if (!resolved.ok) {
+        return NextResponse.json({ error: resolved.error }, { status: 400 });
+      }
+      agentId = resolved.agentId;
+    }
+
     const merchant = await prisma.$transaction(async (tx) => {
       let userId: string;
 
       if (existing) {
-        const nextRole = roleForMerchantStatus(status, existing.role as Role);
+        const nextRole = roleForMerchantStatus(
+          status,
+          existing.role as Role,
+          body.joinType as MerchantJoinType,
+        );
         await tx.user.update({
           where: { id: existing.id },
           data: {
@@ -185,12 +231,28 @@ export async function POST(req: Request) {
             email,
             name: body.name,
             passwordHash: await hashPassword(body.password!),
-            role: roleForMerchantStatus(status, "STUDENT"),
+            role: roleForMerchantStatus(
+              status,
+              "STUDENT",
+              body.joinType as MerchantJoinType,
+            ),
             referralCode: makeReferralCode(),
             bio: `${body.storeName} 入驻商家`,
           },
         });
         userId = created.id;
+      }
+
+      if (body.agentId === undefined) {
+        const u = await tx.user.findUnique({
+          where: { id: userId },
+          select: {
+            referredById: true,
+            referredBy: { select: { role: true } },
+          },
+        });
+        agentId =
+          u?.referredBy?.role === "AGENT" ? u.referredById : null;
       }
 
       return tx.merchant.create({
@@ -204,6 +266,7 @@ export async function POST(req: Request) {
           status,
           notes: body.notes?.trim() || "",
           approvedAt,
+          agentId,
         },
         include: merchantInclude,
       });

@@ -7,6 +7,7 @@ import {
   SaveFeedback,
   type SaveStatus,
 } from "@/components/save-feedback";
+import { SiteFontLoader } from "@/components/site-font-loader";
 import type { DecorateConfig } from "@/lib/decorate";
 import {
   DEFAULT_FONT_SIZES,
@@ -29,6 +30,30 @@ import {
   type LayoutDensity,
   type ThemePaletteCategory,
 } from "@/lib/site-theme";
+import {
+  DEFAULT_TYPOGRAPHY,
+  FONT_CATEGORIES,
+  FONT_LIBRARY,
+  TEXT_ANIMATIONS,
+  TEXT_COLOR_PRESETS,
+  TEXT_EFFECTS,
+  THEME_TEXT_COLOR,
+  buildTypographyCss,
+  buildTypographyFontVars,
+  collectFontCssUrls,
+  collectTypographyFontUrls,
+  filterFonts,
+  fontById,
+  normalizeTextColor,
+  normalizeTypography,
+  typoRoleClass,
+  typographyEqual,
+  type FontCategory,
+  type RoleTypography,
+  type TextAnimationId,
+  type TextEffectId,
+  type TypographyConfig,
+} from "@/lib/site-typography";
 
 type TabKey = "packs" | "backgrounds" | "palettes" | "layout" | "type";
 type PaletteFilter = "all" | ThemePaletteCategory;
@@ -40,6 +65,7 @@ type ThemeDraft = {
   backgroundId: string;
   layoutDensity: LayoutDensity;
   fontSizes: FontSizesConfig;
+  typography: TypographyConfig;
 };
 
 type Props = {
@@ -51,7 +77,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "backgrounds", label: "换背景" },
   { key: "palettes", label: "换配色" },
   { key: "layout", label: "换版式" },
-  { key: "type", label: "字号" },
+  { key: "type", label: "文字" },
 ];
 
 function draftFromConfig(config: DecorateConfig): ThemeDraft {
@@ -61,6 +87,7 @@ function draftFromConfig(config: DecorateConfig): ThemeDraft {
     backgroundId: config.backgroundId,
     layoutDensity: config.layoutDensity,
     fontSizes: normalizeFontSizes(config.fontSizes),
+    typography: normalizeTypography(config.typography),
   };
 }
 
@@ -73,9 +100,10 @@ function draftsEqual(a: ThemeDraft, b: ThemeDraft): boolean {
   ) {
     return false;
   }
-  return FONT_SIZE_FIELDS.every(
+  const sizesMatch = FONT_SIZE_FIELDS.every(
     (field) => a.fontSizes[field.key] === b.fontSizes[field.key],
   );
+  return sizesMatch && typographyEqual(a.typography, b.typography);
 }
 
 export function SiteThemePanel({ initial }: Props) {
@@ -85,12 +113,21 @@ export function SiteThemePanel({ initial }: Props) {
   const [saved, setSaved] = useState<ThemeDraft>(() => draftFromConfig(initial));
   const [draft, setDraft] = useState<ThemeDraft>(() => draftFromConfig(initial));
   const [paletteFilter, setPaletteFilter] = useState<PaletteFilter>("all");
+  const [fontFilter, setFontFilter] = useState<FontCategory | "all">("all");
+  const [fontSearch, setFontSearch] = useState("");
+  const [activeTypeRole, setActiveTypeRole] = useState<FontSizeKey>("heroTitle");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [saveFeedback, setSaveFeedback] = useState<SaveStatus>(null);
 
-  const { themePackId, paletteId, backgroundId, layoutDensity, fontSizes } =
-    draft;
+  const {
+    themePackId,
+    paletteId,
+    backgroundId,
+    layoutDensity,
+    fontSizes,
+    typography,
+  } = draft;
   const isDirty = !draftsEqual(draft, saved);
   const savedRef = useRef(saved);
   const dirtyRef = useRef(isDirty);
@@ -115,6 +152,9 @@ export function SiteThemePanel({ initial }: Props) {
     initial.fontSizes?.heroSubtext,
     initial.fontSizes?.sectionTitle,
     initial.fontSizes?.sectionDesc,
+    initial.fontSizes?.portalCardTitle,
+    initial.fontSizes?.portalCardDesc,
+    initial.typography,
   ]);
 
   // 未保存离开页：浏览器原生提示（站内 Link 无法拦截，靠文案提醒）
@@ -158,13 +198,42 @@ export function SiteThemePanel({ initial }: Props) {
         backgroundId,
         layoutDensity,
         fontSizes,
+        fontFamilyVars: buildTypographyFontVars(typography),
       }),
-    [paletteId, backgroundId, layoutDensity, fontSizes],
+    [paletteId, backgroundId, layoutDensity, fontSizes, typography],
   );
+
+  const draftTypographyCss = useMemo(
+    () => buildTypographyCss(typography),
+    [typography],
+  );
+
+  const filteredFonts = useMemo(
+    () => filterFonts(fontFilter, fontSearch),
+    [fontFilter, fontSearch],
+  );
+
+  // 试穿中的字体 + 当前列表可见字体一并注入，选字预览才能立刻用真字体渲染
+  const draftFontUrls = useMemo(() => {
+    const urls = new Set([
+      ...collectTypographyFontUrls(typography),
+      ...collectFontCssUrls(filteredFonts),
+    ]);
+    return [...urls];
+  }, [typography, filteredFonts]);
 
   // 试穿只改本页 CSS 变量；离开或切换时写回「已保存」，避免草稿泄漏到其它路由
   useEffect(() => {
     applyThemePreview(draftVars);
+    let styleEl = document.getElementById(
+      "site-typography-preview",
+    ) as HTMLStyleElement | null;
+    if (!styleEl) {
+      styleEl = document.createElement("style");
+      styleEl.id = "site-typography-preview";
+      document.head.appendChild(styleEl);
+    }
+    styleEl.textContent = draftTypographyCss;
     return () => {
       const latest = savedRef.current;
       applyThemePreview(
@@ -173,10 +242,14 @@ export function SiteThemePanel({ initial }: Props) {
           backgroundId: latest.backgroundId,
           layoutDensity: latest.layoutDensity,
           fontSizes: latest.fontSizes,
+          fontFamilyVars: buildTypographyFontVars(latest.typography),
         }),
       );
+      if (styleEl) {
+        styleEl.textContent = buildTypographyCss(latest.typography);
+      }
     };
-  }, [draftVars]);
+  }, [draftVars, draftTypographyCss]);
 
   const currentPack = themePackById(themePackId);
   const currentPalette = paletteById(paletteId);
@@ -191,6 +264,7 @@ export function SiteThemePanel({ initial }: Props) {
       backgroundId: pack.backgroundId,
       layoutDensity: draft.layoutDensity,
       fontSizes: draft.fontSizes,
+      typography: draft.typography,
     });
     setMessage(`已试穿「${pack.name}」，请点「保存装扮」后全站生效`);
   }
@@ -203,12 +277,34 @@ export function SiteThemePanel({ initial }: Props) {
     setMessage("已试穿字号，请点「保存装扮」后全站生效");
   }
 
+  function applyRoleTypography(
+    key: FontSizeKey,
+    patch: Partial<RoleTypography>,
+  ) {
+    setDraft((prev) => ({
+      ...prev,
+      typography: normalizeTypography({
+        ...prev.typography,
+        [key]: { ...prev.typography[key], ...patch },
+      }),
+    }));
+    setMessage("已试穿文字样式，请点「保存装扮」后全站生效");
+  }
+
   function resetFontSizes() {
     setDraft((prev) => ({
       ...prev,
       fontSizes: { ...DEFAULT_FONT_SIZES },
     }));
     setMessage("已恢复默认字号（仍需点「保存装扮」）");
+  }
+
+  function resetTypography() {
+    setDraft((prev) => ({
+      ...prev,
+      typography: structuredClone(DEFAULT_TYPOGRAPHY),
+    }));
+    setMessage("已恢复默认字体与特效（仍需点「保存装扮」）");
   }
 
   function applyPalette(id: string) {
@@ -256,6 +352,7 @@ export function SiteThemePanel({ initial }: Props) {
         backgroundId,
         layoutDensity,
         fontSizes,
+        typography,
       }),
     });
     setSaving(false);
@@ -315,6 +412,7 @@ export function SiteThemePanel({ initial }: Props) {
 
   return (
     <div className="space-y-4 pb-24">
+      <SiteFontLoader urls={draftFontUrls} />
       {/*
         吸顶工具栏：压在全站 header（h-14/h-16、z-40）之下，
         滚动选配色时「保存装扮」始终可见。
@@ -427,8 +525,8 @@ export function SiteThemePanel({ initial }: Props) {
             preview="linear-gradient(135deg, var(--bg-deep), var(--card))"
           />
           <CurrentSlot
-            label="字号"
-            title={`导航 ${fontSizes.nav}px`}
+            label="文字"
+            title={`${fontById(typography.heroTitle.fontFamily).name} · ${fontSizes.heroTitle}px`}
             preview="linear-gradient(135deg, var(--brand-soft), var(--card))"
           />
         </div>
@@ -669,94 +767,393 @@ export function SiteThemePanel({ initial }: Props) {
       ) : null}
 
       {tab === "type" ? (
-        <section className="space-y-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <Header
-              title="字号"
-              hint="分别调节顶栏导航、首页主标题、区块标题等；拖动后即时试穿，需点「保存装扮」全站生效"
-            />
-            <button
-              type="button"
-              className="btn btn-secondary min-h-11 w-full shrink-0 px-4 text-sm sm:w-auto"
-              onClick={resetFontSizes}
-            >
-              恢复默认字号
-            </button>
-          </div>
-
-          <div className="surface rounded-[22px] p-4">
-            <p className="text-xs text-[var(--muted)]">预览</p>
-            <p
-              className="mt-2 font-medium text-[var(--muted)]"
-              style={{ fontSize: `${fontSizes.nav}px` }}
-            >
-              导航示例：首页 · 公司介绍 · 商城
-            </p>
-            <p
-              className="mt-3 font-semibold leading-tight text-[var(--ink)]"
-              style={{ fontSize: `${fontSizes.heroTitle}px` }}
-            >
-              首页主标题预览
-            </p>
-            <p
-              className="mt-2 text-[var(--muted)]"
-              style={{ fontSize: `${fontSizes.heroSubtext}px` }}
-            >
-              副文案预览：说明文字会随滑杆变大变小
-            </p>
-            <p
-              className="mt-4 font-semibold"
-              style={{ fontSize: `${fontSizes.sectionTitle}px` }}
-            >
-              区块标题
-            </p>
-            <p
-              className="mt-1 text-[var(--muted)]"
-              style={{ fontSize: `${fontSizes.sectionDesc}px` }}
-            >
-              区块说明文字
-            </p>
-          </div>
-
-          <div className="space-y-4">
-            {FONT_SIZE_FIELDS.map((field) => {
-              const value = fontSizes[field.key];
-              return (
-                <label
-                  key={field.key}
-                  className="block rounded-2xl border border-[var(--line)] bg-white/70 p-4"
-                >
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <span className="text-sm font-semibold text-[var(--ink)]">
-                      {field.label}
-                    </span>
-                    <span className="tabular-nums text-sm text-[var(--brand-strong)]">
-                      {value}px
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs text-[var(--muted)]">{field.hint}</p>
-                  <input
-                    type="range"
-                    className="mt-3 w-full accent-[var(--brand)]"
-                    min={field.min}
-                    max={field.max}
-                    step={1}
-                    value={value}
-                    onChange={(e) =>
-                      applyFontSize(field.key, Number(e.target.value))
-                    }
-                  />
-                  <div className="mt-1 flex justify-between text-[11px] text-[var(--muted)]">
-                    <span>{field.min}px</span>
-                    <span>{field.max}px</span>
-                  </div>
-                </label>
-              );
-            })}
-          </div>
-        </section>
+        <TypeTab
+          fontSizes={fontSizes}
+          typography={typography}
+          activeRole={activeTypeRole}
+          fontFilter={fontFilter}
+          fontSearch={fontSearch}
+          filteredFonts={filteredFonts}
+          onActiveRole={setActiveTypeRole}
+          onFontFilter={setFontFilter}
+          onFontSearch={setFontSearch}
+          onFontSize={applyFontSize}
+          onRoleTypography={applyRoleTypography}
+          onResetSizes={resetFontSizes}
+          onResetTypography={resetTypography}
+        />
       ) : null}
     </div>
+  );
+}
+
+function TypeTab({
+  fontSizes,
+  typography,
+  activeRole,
+  fontFilter,
+  fontSearch,
+  filteredFonts,
+  onActiveRole,
+  onFontFilter,
+  onFontSearch,
+  onFontSize,
+  onRoleTypography,
+  onResetSizes,
+  onResetTypography,
+}: {
+  fontSizes: FontSizesConfig;
+  typography: TypographyConfig;
+  activeRole: FontSizeKey;
+  fontFilter: FontCategory | "all";
+  fontSearch: string;
+  filteredFonts: ReturnType<typeof filterFonts>;
+  onActiveRole: (key: FontSizeKey) => void;
+  onFontFilter: (cat: FontCategory | "all") => void;
+  onFontSearch: (q: string) => void;
+  onFontSize: (key: FontSizeKey, value: number) => void;
+  onRoleTypography: (key: FontSizeKey, patch: Partial<RoleTypography>) => void;
+  onResetSizes: () => void;
+  onResetTypography: () => void;
+}) {
+  const field = FONT_SIZE_FIELDS.find((f) => f.key === activeRole)!;
+  const role = typography[activeRole];
+  const size = fontSizes[activeRole];
+  const previewClass = typoRoleClass(activeRole);
+  const colorValue = role.color || THEME_TEXT_COLOR;
+  const pickerValue = colorValue || "#1a1a1a";
+  // 十六进制输入允许半成品，合法时再写回，避免边输边被清空
+  const [hexDraft, setHexDraft] = useState(role.color);
+  useEffect(() => {
+    setHexDraft(role.color);
+  }, [activeRole, role.color]);
+
+  return (
+    <section className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <Header
+          title="文字装扮"
+          hint={`字号 + 颜色 + 字体（${FONT_LIBRARY.length} 款）+ 特效 + 动画；按文本角色分别设置，点选后即时试穿，需「保存装扮」全站生效。字体按需 CDN 加载，移动端/微信有系统字体回退。`}
+        />
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+          <button
+            type="button"
+            className="btn btn-secondary min-h-11 w-full px-4 text-sm sm:w-auto"
+            onClick={onResetSizes}
+          >
+            恢复默认字号
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary min-h-11 w-full px-4 text-sm sm:w-auto"
+            onClick={onResetTypography}
+          >
+            恢复字体特效
+          </button>
+        </div>
+      </div>
+
+      {/* 角色切换：窄屏横滑 */}
+      <div
+        className="flex gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        role="tablist"
+        aria-label="文本角色"
+      >
+        {FONT_SIZE_FIELDS.map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            role="tab"
+            aria-selected={activeRole === item.key}
+            className={`min-h-10 shrink-0 rounded-full px-3.5 text-sm font-medium transition ${
+              activeRole === item.key
+                ? "bg-[var(--brand)] text-white"
+                : "border border-[var(--line)] bg-white/80 text-[var(--muted)]"
+            }`}
+            onClick={() => onActiveRole(item.key)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="surface rounded-[22px] p-4">
+        <p className="text-xs text-[var(--muted)]">
+          预览 · {field.label}（{fontById(role.fontFamily).name}
+          {role.color ? ` · ${role.color}` : " · 跟随主题色"}）
+        </p>
+        <p
+          className={`mt-3 font-semibold leading-tight text-[var(--ink)] ${previewClass}`}
+          style={{
+            fontSize: `${size}px`,
+            ...(role.color ? { color: role.color } : {}),
+          }}
+        >
+          {field.label}预览：歪歪艾斯课程平台
+        </p>
+        <p className="mt-2 text-xs text-[var(--muted)]">{field.hint}</p>
+      </div>
+
+      {/* 字号 */}
+      <label className="block rounded-2xl border border-[var(--line)] bg-white/70 p-4">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <span className="text-sm font-semibold text-[var(--ink)]">字号</span>
+          <span className="tabular-nums text-sm text-[var(--brand-strong)]">
+            {size}px
+          </span>
+        </div>
+        <input
+          type="range"
+          className="mt-3 w-full accent-[var(--brand)]"
+          min={field.min}
+          max={field.max}
+          step={1}
+          value={size}
+          onChange={(e) => onFontSize(activeRole, Number(e.target.value))}
+        />
+        <div className="mt-1 flex justify-between text-[11px] text-[var(--muted)]">
+          <span>{field.min}px</span>
+          <span>{field.max}px</span>
+        </div>
+      </label>
+
+      {/* 文字颜色：快捷色板 + 原生 color（手机触控可用） */}
+      <div className="space-y-3 rounded-2xl border border-[var(--line)] bg-white/70 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold">文字颜色</h3>
+          <span className="text-xs text-[var(--muted)]">
+            {role.color ? role.color : "跟随主题"}
+          </span>
+        </div>
+        <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
+          {TEXT_COLOR_PRESETS.map((preset) => {
+            const selected =
+              normalizeTextColor(preset.value) ===
+              normalizeTextColor(colorValue);
+            const isTheme = preset.value === THEME_TEXT_COLOR;
+            return (
+              <button
+                key={preset.id}
+                type="button"
+                title={preset.label}
+                aria-label={preset.label}
+                aria-pressed={selected}
+                onClick={() =>
+                  onRoleTypography(activeRole, {
+                    color: normalizeTextColor(preset.value),
+                  })
+                }
+                className={`flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl border px-1 py-1.5 text-center transition ${
+                  selected
+                    ? "border-[var(--brand)] ring-2 ring-[var(--brand)]/30"
+                    : "border-[var(--line)] bg-white/90"
+                }`}
+              >
+                <span
+                  className="h-6 w-6 rounded-full border border-black/10"
+                  style={
+                    isTheme
+                      ? {
+                          background:
+                            "linear-gradient(135deg, var(--ink), var(--brand), var(--fire))",
+                        }
+                      : { background: preset.value }
+                  }
+                />
+                <span className="max-w-full truncate text-[10px] text-[var(--muted)]">
+                  {preset.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <label className="flex min-h-12 flex-1 items-center gap-3 rounded-xl border border-[var(--line)] bg-white/90 px-3">
+            <span className="shrink-0 text-sm text-[var(--muted)]">自定义</span>
+            <input
+              type="color"
+              className="h-10 w-14 cursor-pointer rounded border-0 bg-transparent p-0"
+              value={pickerValue}
+              onChange={(e) =>
+                onRoleTypography(activeRole, {
+                  color: normalizeTextColor(e.target.value),
+                })
+              }
+              aria-label="自定义文字颜色"
+            />
+            <input
+              type="text"
+              inputMode="text"
+              className="min-h-10 w-full min-w-0 flex-1 rounded-lg border border-[var(--line)] bg-white px-2 text-sm"
+              placeholder="#1a1a1a 或留空跟随主题"
+              value={hexDraft}
+              onChange={(e) => {
+                const next = e.target.value.trim();
+                if (next && !/^#[0-9a-fA-F]{0,6}$/.test(next)) return;
+                setHexDraft(next);
+                if (!next || /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(next)) {
+                  onRoleTypography(activeRole, {
+                    color: normalizeTextColor(next),
+                  });
+                }
+              }}
+              onBlur={() => {
+                const normalized = normalizeTextColor(hexDraft);
+                setHexDraft(normalized);
+                if (normalized !== role.color) {
+                  onRoleTypography(activeRole, { color: normalized });
+                }
+              }}
+              aria-label="文字颜色十六进制"
+            />
+          </label>
+          <button
+            type="button"
+            className="btn btn-secondary min-h-12 px-4 text-sm"
+            onClick={() =>
+              onRoleTypography(activeRole, { color: THEME_TEXT_COLOR })
+            }
+          >
+            跟随主题
+          </button>
+        </div>
+      </div>
+
+      {/* 字体 */}
+      <div className="space-y-3 rounded-2xl border border-[var(--line)] bg-white/70 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold">字体</h3>
+          <span className="text-xs text-[var(--muted)]">
+            当前：{fontById(role.fontFamily).name}
+          </span>
+        </div>
+        <label className="block">
+          <span className="sr-only">搜索字体</span>
+          <input
+            type="search"
+            enterKeyHint="search"
+            placeholder="搜索字体名 / 拼音 / 风格…"
+            className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-white px-3 text-sm"
+            value={fontSearch}
+            onChange={(e) => onFontSearch(e.target.value)}
+          />
+        </label>
+        <div
+          className="flex gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          role="tablist"
+          aria-label="字体分类"
+        >
+          <PaletteFilterChip
+            label="全部"
+            active={fontFilter === "all"}
+            onClick={() => onFontFilter("all")}
+          />
+          {FONT_CATEGORIES.map((cat) => (
+            <PaletteFilterChip
+              key={cat.id}
+              label={cat.label}
+              active={fontFilter === cat.id}
+              onClick={() => onFontFilter(cat.id)}
+            />
+          ))}
+        </div>
+        <div className="grid max-h-[22rem] grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2">
+          {filteredFonts.length === 0 ? (
+            <p className="col-span-full py-6 text-center text-sm text-[var(--muted)]">
+              没有匹配的字体，试试其它关键词
+            </p>
+          ) : null}
+          {filteredFonts.map((font) => {
+            const selected = role.fontFamily === font.id;
+            return (
+              <button
+                key={font.id}
+                type="button"
+                onClick={() =>
+                  onRoleTypography(activeRole, { fontFamily: font.id })
+                }
+                className={`min-h-14 rounded-xl border px-3 py-2.5 text-left transition ${
+                  selected
+                    ? "border-[var(--brand)] ring-2 ring-[var(--brand)]/30"
+                    : "border-[var(--line)] bg-white/90"
+                }`}
+              >
+                <p
+                  className="truncate text-base font-medium text-[var(--ink)]"
+                  style={{ fontFamily: font.stack }}
+                >
+                  {font.name}
+                </p>
+                <p className="mt-0.5 truncate text-[11px] text-[var(--muted)]">
+                  {font.license}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 特效 */}
+      <div className="space-y-3 rounded-2xl border border-[var(--line)] bg-white/70 p-4">
+        <h3 className="text-sm font-semibold">特效</h3>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {TEXT_EFFECTS.map((effect) => {
+            const selected = role.effect === effect.id;
+            return (
+              <button
+                key={effect.id}
+                type="button"
+                onClick={() =>
+                  onRoleTypography(activeRole, {
+                    effect: effect.id as TextEffectId,
+                  })
+                }
+                className={`min-h-12 rounded-xl border px-3 py-2 text-left transition ${
+                  selected
+                    ? "border-[var(--brand)] ring-2 ring-[var(--brand)]/30"
+                    : "border-[var(--line)] bg-white/90"
+                }`}
+              >
+                <p className="text-sm font-medium">{effect.label}</p>
+                <p className="text-[11px] text-[var(--muted)]">{effect.hint}</p>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 动画 */}
+      <div className="space-y-3 rounded-2xl border border-[var(--line)] bg-white/70 p-4">
+        <h3 className="text-sm font-semibold">动画</h3>
+        <p className="text-xs text-[var(--muted)]">
+          轻量 CSS；系统开启「减少动态效果」时自动关闭，兼顾微信耗电
+        </p>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {TEXT_ANIMATIONS.map((anim) => {
+            const selected = role.animation === anim.id;
+            return (
+              <button
+                key={anim.id}
+                type="button"
+                onClick={() =>
+                  onRoleTypography(activeRole, {
+                    animation: anim.id as TextAnimationId,
+                  })
+                }
+                className={`min-h-12 rounded-xl border px-3 py-2 text-left transition ${
+                  selected
+                    ? "border-[var(--brand)] ring-2 ring-[var(--brand)]/30"
+                    : "border-[var(--line)] bg-white/90"
+                }`}
+              >
+                <p className="text-sm font-medium">{anim.label}</p>
+                <p className="text-[11px] text-[var(--muted)]">{anim.hint}</p>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </section>
   );
 }
 

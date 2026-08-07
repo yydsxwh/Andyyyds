@@ -8,6 +8,10 @@
 import { prisma } from "./db";
 import { parseDecorate, type DecorateConfig } from "./decorate";
 import { parseOrderForm, type OrderFormConfig } from "./order-form";
+import {
+  parsePageTemplates,
+  type PageTemplatesConfig,
+} from "./page-templates";
 import { parsePortal, type PortalConfig } from "./portal";
 import { parseStudioNav, type StudioNavConfig } from "./studio-nav-config";
 import { parseUiCopy, type UiCopy } from "./ui-copy";
@@ -49,8 +53,22 @@ export type SiteSettingsRow = {
   uiCopyJson: string;
   orderFormJson: string;
   decorateJson: string;
+  pageTemplatesJson: string;
   studioNavJson: string;
   portalJson: string;
+  merchantPlatformCutPercent: number;
+  agentShareOfPlatformCutPercent: number;
+  agentBuyerOrderPercent: number;
+  teacherDistributionPercent: number;
+  userDistributionPercent: number;
+  smsEnabled: boolean;
+  smsProvider: string;
+  smsAccessKeyId: string;
+  smsAccessKeySecret: string;
+  smsSignName: string;
+  smsTemplateCode: string;
+  smsTestMode: boolean;
+  smsTestFixedCode: string;
   updatedAt: Date;
 };
 
@@ -86,7 +104,23 @@ export async function getOrderFormConfig(): Promise<OrderFormConfig> {
 
 export async function getDecorateConfig(): Promise<DecorateConfig> {
   const row = await getSiteSettings();
-  return parseDecorate(row.decorateJson);
+  const config = parseDecorate(row.decorateJson);
+  // 装修图若在私有 OSS，SSR 时签发临时读链，避免 <img> 直链 403
+  const { resolveStoredAccessUrl } = await import("./storage");
+  const [logoUrl, heroImageUrl, ...bannerUrls] = await Promise.all([
+    resolveStoredAccessUrl(config.logoUrl),
+    resolveStoredAccessUrl(config.heroImageUrl),
+    ...config.banners.map((b) => resolveStoredAccessUrl(b.url)),
+  ]);
+  return {
+    ...config,
+    logoUrl,
+    heroImageUrl,
+    banners: config.banners.map((b, i) => ({
+      ...b,
+      url: bannerUrls[i] || b.url,
+    })),
+  };
 }
 
 export async function getStudioNavConfig(): Promise<StudioNavConfig> {
@@ -97,6 +131,11 @@ export async function getStudioNavConfig(): Promise<StudioNavConfig> {
 export async function getPortalConfig(): Promise<PortalConfig> {
   const row = await getSiteSettings();
   return parsePortal(row.portalJson);
+}
+
+export async function getPageTemplatesConfig(): Promise<PageTemplatesConfig> {
+  const row = await getSiteSettings();
+  return parsePageTemplates(row.pageTemplatesJson);
 }
 
 export function maskSecret(value: string, keep = 4) {
@@ -173,8 +212,34 @@ export function publicSiteSettings(row: SiteSettingsRow) {
     uiCopy: parseUiCopy(row.uiCopyJson),
     orderForm: parseOrderForm(row.orderFormJson),
     decorate: parseDecorate(row.decorateJson),
+    pageTemplates: parsePageTemplates(row.pageTemplatesJson),
     studioNav: parseStudioNav(row.studioNavJson),
     portal: parsePortal(row.portalJson),
+    merchantPlatformCutPercent: row.merchantPlatformCutPercent ?? 10,
+    agentShareOfPlatformCutPercent: row.agentShareOfPlatformCutPercent ?? 30,
+    agentBuyerOrderPercent: row.agentBuyerOrderPercent ?? 10,
+    teacherDistributionPercent: row.teacherDistributionPercent ?? 8,
+    userDistributionPercent: row.userDistributionPercent ?? 5,
+    smsEnabled: Boolean(row.smsEnabled),
+    smsProvider: row.smsProvider || "test",
+    smsAccessKeyId: row.smsAccessKeyId || "",
+    smsAccessKeySecret: row.smsAccessKeySecret
+      ? maskSecret(row.smsAccessKeySecret)
+      : "",
+    smsSignName: row.smsSignName || "",
+    smsTemplateCode: row.smsTemplateCode || "",
+    smsTestMode: row.smsTestMode !== false,
+    smsTestFixedCode: row.smsTestFixedCode || "",
+    // 登录页是否展示手机号入口：启用且（测试模式或阿里云参数齐全）
+    smsLoginReady: Boolean(
+      row.smsEnabled &&
+        (row.smsTestMode ||
+          row.smsProvider === "test" ||
+          (row.smsAccessKeyId &&
+            row.smsAccessKeySecret &&
+            row.smsSignName &&
+            row.smsTemplateCode)),
+    ),
     updatedAt: row.updatedAt.toISOString(),
   };
 }

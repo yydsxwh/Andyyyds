@@ -5,7 +5,13 @@ export type OrderFormField = {
   label: string;
   placeholder: string;
   type: OrderFormFieldType;
+  /** true=必填；false=选填。站长可在 CMS 配置 */
   required: boolean;
+  /**
+   * 启用/停用：停用字段不下发到用户下单页，但配置保留便于再开。
+   * 缺省 true，兼容旧配置。
+   */
+  enabled: boolean;
   /** select 选项，每行一个 */
   options: string[];
 };
@@ -31,6 +37,20 @@ export const DEFAULT_ORDER_FORM: OrderFormConfig = {
   fields: [],
 };
 
+/** 商城常用采集模板（站长一键添加） */
+export const MALL_ORDER_FORM_SAMPLES: Partial<OrderFormField>[] = [
+  { label: "收货人姓名", placeholder: "请输入姓名", type: "text", required: true },
+  { label: "手机号", placeholder: "请输入手机号", type: "text", required: true },
+  {
+    label: "收货地址",
+    placeholder: "省市区 + 详细地址",
+    type: "textarea",
+    required: true,
+  },
+  { label: "微信号", placeholder: "选填", type: "text", required: false },
+  { label: "备注", placeholder: "选填，如配送说明", type: "textarea", required: false },
+];
+
 export function newOrderFormField(
   partial?: Partial<OrderFormField>,
 ): OrderFormField {
@@ -40,6 +60,7 @@ export function newOrderFormField(
     placeholder: "请输入",
     type: "text",
     required: true,
+    enabled: true,
     options: [],
     ...partial,
   };
@@ -64,6 +85,8 @@ export function parseOrderForm(raw: string | null | undefined): OrderFormConfig 
             ? (f.type as OrderFormFieldType)
             : "text",
           required: Boolean(f.required),
+          // 旧数据无 enabled 字段时默认启用，避免站长配置突然「消失」
+          enabled: f.enabled !== false,
           options: Array.isArray(f.options)
             ? f.options.map((o) => String(o).trim()).filter(Boolean).slice(0, 50)
             : [],
@@ -71,7 +94,7 @@ export function parseOrderForm(raw: string | null | undefined): OrderFormConfig 
       })
       .slice(0, 30);
     return {
-      enabled: Boolean(parsed.enabled) && fields.length > 0,
+      enabled: Boolean(parsed.enabled) && fields.some((f) => f.enabled),
       title: String(parsed.title || DEFAULT_ORDER_FORM.title).slice(0, 40),
       fields,
     };
@@ -88,9 +111,10 @@ export function stringifyOrderForm(config: OrderFormConfig) {
   });
 }
 
+/** 实际展示给用户的字段：总开关开 + 字段启用 + 有标签 */
 export function activeOrderFormFields(config: OrderFormConfig): OrderFormField[] {
   if (!config.enabled) return [];
-  return config.fields.filter((f) => f.label.trim());
+  return config.fields.filter((f) => f.enabled !== false && f.label.trim());
 }
 
 export function validateOrderFormAnswers(

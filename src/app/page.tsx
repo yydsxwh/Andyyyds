@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ContactUsPanel } from "@/components/contact-us-panel";
 import { CourseCard } from "@/components/course-card";
 import {
   PageModulesView,
@@ -6,13 +7,16 @@ import {
 } from "@/components/page-modules-view";
 import { DEFAULT_LOGO_URL, resolveHeroImage } from "@/lib/decorate";
 import { prisma } from "@/lib/db";
+import { DEFAULT_PORTAL_CONTACT } from "@/lib/portal";
 import { getDefaultTemplate } from "@/lib/page-templates";
+import { PRODUCT_PLAZA_ORDER_BY } from "@/lib/product-display-order";
 import {
   getDecorateConfig,
   getPageTemplatesConfig,
   getPortalConfig,
 } from "@/lib/site-settings";
 import { withSignedCoverUrls } from "@/lib/storage";
+import { typoRoleClass, typoRoleStyle } from "@/lib/site-typography";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +29,7 @@ export default async function HomePage() {
         productType: { in: ["COURSE", "COLUMN"] },
       },
       include: { teacher: true, category: true },
-      orderBy: { studentCount: "desc" },
+      orderBy: PRODUCT_PLAZA_ORDER_BY,
       // 加宽内容区后首页可多展示几门热门课
       take: 12,
     }),
@@ -34,11 +38,17 @@ export default async function HomePage() {
     getPageTemplatesConfig(),
   ]);
 
-  // 有默认首页模板且含模块时走 DIY；否则回退现有首页，避免生产空白
+  const contact = portal.contact || DEFAULT_PORTAL_CONTACT;
+
+  // 仅「已设为默认」且含模块的首页 DIY 才接管；否则用系统经典首页（介绍文案等）
   const diyHome = getDefaultTemplate(pageTemplates, "home");
   if (shouldUseDiyLayout(diyHome)) {
     return (
-      <div className="py-4 sm:py-6">
+      <div className="space-y-4 py-4 sm:py-6">
+        {/* 联系方式直接展在页顶左侧，不弹层 */}
+        <div className="container">
+          <ContactUsPanel contact={contact} variant="hero" />
+        </div>
         <PageModulesView template={diyHome!} />
       </div>
     );
@@ -59,6 +69,8 @@ export default async function HomePage() {
       <section className="relative overflow-hidden">
         <div className="container grid min-h-[78vh] items-center gap-10 py-16 lg:grid-cols-[1.05fr_0.95fr]">
           <div className="fade-up space-y-6">
+            {/* 左上角空白区：联系我们直接展开（内容管理可改） */}
+            <ContactUsPanel contact={contact} variant="hero" />
             <div className="space-y-3">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -68,22 +80,22 @@ export default async function HomePage() {
               />
               {decorate.showBrandText ? (
                 <p
-                  className="brand-mark text-[var(--ink)]"
-                  style={{ fontSize: "var(--fs-hero-title)" }}
+                  className={`brand-mark text-[var(--ink)] ${typoRoleClass("heroTitle")}`}
+                  style={typoRoleStyle("heroTitle")}
                 >
                   {decorate.brandName}
                 </p>
               ) : null}
             </div>
             <h1
-              className="max-w-3xl font-semibold leading-tight"
-              style={{ fontSize: "var(--fs-hero-title)" }}
+              className={`max-w-3xl font-semibold leading-tight ${typoRoleClass("heroTitle")}`}
+              style={typoRoleStyle("heroTitle")}
             >
               {decorate.heroHeadline}
             </h1>
             <p
-              className="max-w-2xl leading-7 text-[var(--muted)]"
-              style={{ fontSize: "var(--fs-hero-sub)" }}
+              className={`max-w-2xl leading-7 text-[var(--muted)] ${typoRoleClass("heroSubtext")}`}
+              style={typoRoleStyle("heroSubtext")}
             >
               {decorate.heroSubtext}
             </p>
@@ -135,14 +147,14 @@ export default async function HomePage() {
         <div className="container">
           <div className="mb-6">
             <h2
-              className="font-semibold"
-              style={{ fontSize: "var(--fs-section-title)" }}
+              className={`font-semibold ${typoRoleClass("sectionTitle")}`}
+              style={typoRoleStyle("sectionTitle")}
             >
               门户入口
             </h2>
             <p
-              className="mt-2 text-[var(--muted)]"
-              style={{ fontSize: "var(--fs-section-desc)" }}
+              className={`mt-2 text-[var(--muted)] ${typoRoleClass("sectionDesc")}`}
+              style={typoRoleStyle("sectionDesc")}
             >
               多功能站点正在扩展：介绍、知识付费、约搭已可用，商城 / 论坛 / 游戏陆续开放
             </p>
@@ -154,10 +166,16 @@ export default async function HomePage() {
                 href={item.href}
                 className="surface group rounded-[28px] p-5 transition hover:-translate-y-0.5"
               >
-                <div className="text-lg font-semibold group-hover:text-[var(--brand)]">
+                <div
+                  className={`font-semibold group-hover:text-[var(--brand)] ${typoRoleClass("portalCardTitle")}`}
+                  style={typoRoleStyle("portalCardTitle")}
+                >
                   {item.label}
                 </div>
-                <p className="mt-2 text-sm text-[var(--muted)]">
+                <p
+                  className={`mt-2 text-[var(--muted)] ${typoRoleClass("portalCardDesc")}`}
+                  style={typoRoleStyle("portalCardDesc")}
+                >
                   {item.comingSoon ? "即将开放，先了解规划" : "点击进入"}
                 </p>
               </Link>
@@ -171,22 +189,22 @@ export default async function HomePage() {
           <div className="mb-8 flex items-end justify-between gap-4">
             <div>
               <h2
-                className="font-semibold"
-                style={{ fontSize: "var(--fs-section-title)" }}
+                className={`font-semibold ${typoRoleClass("sectionTitle")}`}
+                style={typoRoleStyle("sectionTitle")}
               >
                 热门课程
               </h2>
               <p
-                className="mt-2 text-[var(--muted)]"
-                style={{ fontSize: "var(--fs-section-desc)" }}
+                className={`mt-2 text-[var(--muted)] ${typoRoleClass("sectionDesc")}`}
+                style={typoRoleStyle("sectionDesc")}
               >
                 先学一门，感受完整购买到学习的路径
               </p>
             </div>
             <Link
               href="/courses"
-              className="text-[var(--brand)]"
-              style={{ fontSize: "var(--fs-section-desc)" }}
+              className={`text-[var(--brand)] ${typoRoleClass("sectionDesc")}`}
+              style={typoRoleStyle("sectionDesc")}
             >
               查看全部
             </Link>

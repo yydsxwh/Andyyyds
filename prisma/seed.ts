@@ -25,10 +25,10 @@ async function main() {
   const admin = await prisma.user.create({
     data: {
       email: "admin@yyds.local",
-      name: "平台管理员",
+      name: "站长",
       passwordHash,
       role: "ADMIN",
-      bio: "YYDS 课程平台管理员",
+      bio: "YYDS 课程平台站长",
       referralCode: makeReferralCode(),
     },
   });
@@ -40,6 +40,17 @@ async function main() {
       passwordHash,
       role: "TEACHER",
       bio: "十年知识付费操盘手，擅长把复杂技能拆成可落地的学习路径。",
+      referralCode: makeReferralCode(),
+    },
+  });
+
+  const agent = await prisma.user.create({
+    data: {
+      email: "agent@yyds.local",
+      name: "加盟代理演示",
+      passwordHash,
+      role: "AGENT",
+      bio: "演示加盟代理账号",
       referralCode: makeReferralCode(),
     },
   });
@@ -72,8 +83,7 @@ async function main() {
       subtitle: "定位、产品、获客、交付全链路实战",
       description:
         "一套可落地的知识付费运营框架：从选题定位、课程包装、售前转化，到交付复购与私域沉淀。适合想做个人 IP、工作室或企业内训变现的人。",
-      coverUrl:
-        "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=1200&q=80",
+      coverUrl: "/covers/team-collab.jpg",
       price: 19900,
       originalPrice: 39900,
       status: "PUBLISHED",
@@ -144,8 +154,7 @@ async function main() {
       subtitle: "提示词、自动化与个人知识库",
       description:
         "面向职场人的 AI 落地课。不讲空概念，直接搭建写作、复盘、客户跟进与资料整理的工作流。",
-      coverUrl:
-        "https://images.unsplash.com/photo-1677442136019-21780ecad995?auto=format&fit=crop&w=1200&q=80",
+      coverUrl: "/covers/ai-tech.jpg",
       price: 9900,
       originalPrice: 19900,
       status: "PUBLISHED",
@@ -191,8 +200,7 @@ async function main() {
       subtitle: "职场表达、反馈与冲突处理",
       description:
         "用可练习的沟通框架，减少误解和内耗。适合团队负责人、项目经理和希望提升影响力的同学。",
-      coverUrl:
-        "https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&w=1200&q=80",
+      coverUrl: "/covers/whiteboard-workshop.jpg",
       price: 0,
       originalPrice: 12900,
       isFree: true,
@@ -229,9 +237,12 @@ async function main() {
     data: {
       code: "YYDS20",
       title: "新学员立减 20 元",
+      type: "FIXED",
       discountCents: 2000,
+      percentOff: 0,
       minAmount: 9900,
       maxUses: 1000,
+      maxPerUser: 1,
       expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 90),
     },
   });
@@ -319,7 +330,21 @@ async function main() {
       contactWechat: "zhixia-studio",
       joinType: "DIRECT",
       status: "APPROVED",
-      notes: "演示已入驻商家（对应 teacher 账号）",
+      notes: "演示已入驻商家（对应 teacher 账号；角色保持老师）",
+      approvedAt: new Date(),
+    },
+  });
+
+  await prisma.merchant.create({
+    data: {
+      userId: agent.id,
+      storeName: "加盟代理演示",
+      contactName: "代理演示",
+      contactPhone: "13700003333",
+      contactWechat: "agent-demo",
+      joinType: "FRANCHISE",
+      status: "APPROVED",
+      notes: "seed 加盟代理",
       approvedAt: new Date(),
     },
   });
@@ -342,22 +367,23 @@ async function main() {
       contactName: "王加盟",
       contactPhone: "13900002222",
       contactWechat: "xinghuo-join",
-      joinType: "FRANCHISE",
+      joinType: "DIRECT",
       status: "PENDING",
-      notes: "演示待审核加盟申请",
+      notes: "演示待审核商家入驻；审核通过后角色变为入驻商家",
     },
   });
 
   console.log("Seed OK");
-  console.log("Admin:   admin@yyds.local / 123456");
-  console.log("Teacher: teacher@yyds.local / 123456");
-  console.log("Student: student@yyds.local / 123456");
-  console.log("Pending merchant: merchant@yyds.local / 123456");
+  console.log("站长 ADMIN:     admin@yyds.local / 123456");
+  console.log("老师 TEACHER:   teacher@yyds.local / 123456");
+  console.log("加盟代理 AGENT: agent@yyds.local / 123456");
+  console.log("用户 STUDENT:   student@yyds.local / 123456");
+  console.log("待审商家:       merchant@yyds.local / 123456");
   console.log(`Courses: ${course1.slug}, ${course2.slug}, ${course3.slug}`);
   console.log("Coupon: YYDS20");
   console.log("Media: 4 sample assets for teacher@yyds.local");
   console.log("Distribution: L1 20% / L2 10% / L3 5%");
-  console.log("Merchants: 1 approved + 1 pending");
+  console.log("Merchants: teacher approved + agent franchise + 1 pending");
   console.log(`Admin id: ${admin.id}`);
 }
 

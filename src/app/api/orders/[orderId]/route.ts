@@ -27,7 +27,9 @@ export async function GET(
   const { orderId } = await params;
   let order = await prisma.order.findUnique({
     where: { id: orderId },
-    include: { course: { select: { slug: true, title: true } } },
+    include: {
+      course: { select: { slug: true, title: true, productType: true } },
+    },
   });
 
   if (!order || order.userId !== session.id) {
@@ -62,6 +64,7 @@ export async function GET(
     codeUrl: order.codeUrl,
     slug: order.course.slug,
     title: order.course.title,
+    productType: order.course.productType,
     paidAt: order.paidAt,
   });
 }

@@ -293,7 +293,7 @@ export async function createH5Payment(input: {
   return { mwebUrl: data.h5_url, notifyUrl };
 }
 
-/** 用网页授权 code 换 openid（需要 AppSecret） */
+/** 用网页授权 code 换 openid / access_token（需要 AppSecret） */
 export async function exchangeWechatOAuthCode(code: string) {
   const oauth = await getWechatOAuthConfig();
   if (!oauth) {
@@ -308,6 +308,9 @@ export async function exchangeWechatOAuthCode(code: string) {
   const data = (await res.json()) as {
     access_token?: string;
     openid?: string;
+    /** 公众号已绑定开放平台时才有 */
+    unionid?: string;
+    scope?: string;
     errcode?: number;
     errmsg?: string;
   };
@@ -316,7 +319,47 @@ export async function exchangeWechatOAuthCode(code: string) {
       data.errmsg || `微信授权失败${data.errcode ? ` (${data.errcode})` : ""}`,
     );
   }
-  return { openid: data.openid, accessToken: data.access_token || "" };
+  return {
+    openid: data.openid,
+    unionid: data.unionid || "",
+    accessToken: data.access_token || "",
+    scope: data.scope || "",
+  };
+}
+
+/** snsapi_userinfo：拉取微信昵称与头像（须用户确认授权） */
+export async function fetchWechatUserInfo(input: {
+  accessToken: string;
+  openid: string;
+}): Promise<{ nickname: string; headimgurl: string }> {
+  const token = input.accessToken.trim();
+  const openid = input.openid.trim();
+  if (!token || !openid) {
+    return { nickname: "", headimgurl: "" };
+  }
+  const url = new URL("https://api.weixin.qq.com/sns/userinfo");
+  url.searchParams.set("access_token", token);
+  url.searchParams.set("openid", openid);
+  url.searchParams.set("lang", "zh_CN");
+  const res = await fetch(url.toString(), { cache: "no-store" });
+  const data = (await res.json()) as {
+    nickname?: string;
+    headimgurl?: string;
+    errcode?: number;
+    errmsg?: string;
+  };
+  if (data.errcode) {
+    throw new Error(
+      data.errmsg || `获取微信资料失败 (${data.errcode})`,
+    );
+  }
+  return {
+    nickname: (data.nickname || "").trim().slice(0, 40),
+    // 微信头像多为 http，统一成 https 便于站点展示
+    headimgurl: (data.headimgurl || "")
+      .trim()
+      .replace(/^http:\/\//i, "https://"),
+  };
 }
 
 export async function queryNativePaymentByOrderNo(orderNo: string) {

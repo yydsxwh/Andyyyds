@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { typoRoleClass, typoRoleStyle } from "@/lib/site-typography";
 
 export type HeaderNavLink = {
   label: string;
@@ -16,6 +18,18 @@ type Props = {
   /** desktop=中间列居中菜单；mobile=汉堡（仅窄屏显示） */
   variant?: "desktop" | "mobile";
 };
+
+/** 门户默认入口：CMS 未返回或异常时仍保证汉堡菜单可点 */
+const FALLBACK_MOBILE_LINKS: HeaderNavLink[] = [
+  { href: "/", label: "首页" },
+  { href: "/about/company", label: "公司介绍" },
+  { href: "/about/person", label: "个人介绍" },
+  { href: "/courses", label: "网课资料" },
+  { href: "/meetup", label: "约搭" },
+  { href: "/shop", label: "商城" },
+  { href: "/forum", label: "大学论坛" },
+  { href: "/games", label: "游戏中心" },
+];
 
 function DesktopDropdown({
   label,
@@ -113,9 +127,9 @@ function DesktopDropdown({
 function DesktopNav({ links }: { links: HeaderNavLink[] }) {
   return (
     <nav
-      className="flex max-w-full items-center justify-center overflow-x-auto text-[var(--muted)] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className={`flex max-w-full items-center justify-center overflow-x-auto text-[var(--muted)] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${typoRoleClass("nav")}`}
       aria-label="主导航"
-      style={{ fontSize: "var(--fs-nav)" }}
+      style={typoRoleStyle("nav")}
     >
       {/* 单行横向滚动，避免换行溢出盖住页面主按钮 */}
       <div className="flex flex-nowrap items-center justify-center gap-x-5 xl:gap-x-7">
@@ -142,113 +156,308 @@ function DesktopNav({ links }: { links: HeaderNavLink[] }) {
   );
 }
 
+/**
+ * 手机/微信汉堡菜单：挂到 body 的全屏抽屉。
+ * 不用 CSS min()/复杂 inset 组合——部分微信 X5 会解析失败导致面板塌成一条「导航菜单」空壳。
+ */
 function MobileNav({ links }: { links: HeaderNavLink[] }) {
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const [mobileOpenKey, setMobileOpenKey] = useState<string | null>(null);
+  const panelId = useId();
+  const closeBtnRef = useRef<HTMLButtonElement>(null);
+
+  const menuLinks =
+    links.filter((l) => l.href || (l.children && l.children.length > 0))
+      .length > 0
+      ? links
+      : FALLBACK_MOBILE_LINKS;
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    closeBtnRef.current?.focus();
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener("keydown", onKey);
+    };
   }, [open]);
 
+  const drawer =
+    open && mounted
+      ? createPortal(
+          <div
+            className="site-mobile-nav-root"
+            role="presentation"
+            style={{
+              position: "fixed",
+              top: 0,
+              right: 0,
+              bottom: 0,
+              left: 0,
+              zIndex: 10060,
+            }}
+          >
+            <button
+              type="button"
+              aria-label="关闭菜单遮罩"
+              onClick={() => setOpen(false)}
+              style={{
+                position: "absolute",
+                top: 0,
+                right: 0,
+                bottom: 0,
+                left: 0,
+                border: 0,
+                margin: 0,
+                padding: 0,
+                background: "rgba(0,0,0,0.45)",
+              }}
+            />
+            <aside
+              id={panelId}
+              role="dialog"
+              aria-modal="true"
+              aria-label="站点导航"
+              style={{
+                position: "absolute",
+                top: 0,
+                right: 0,
+                bottom: 0,
+                width: "85%",
+                maxWidth: "20rem",
+                display: "flex",
+                flexDirection: "column",
+                background: "#fff",
+                boxShadow: "-8px 0 28px rgba(15,23,42,0.18)",
+                borderLeft: "1px solid rgba(15,23,42,0.1)",
+                paddingTop: "max(0.75rem, env(safe-area-inset-top, 0px))",
+                paddingBottom: "max(0.75rem, env(safe-area-inset-bottom, 0px))",
+                paddingRight: "max(0.5rem, env(safe-area-inset-right, 0px))",
+                boxSizing: "border-box",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: "0.5rem",
+                  padding: "0 0.75rem 0.75rem",
+                  borderBottom: "1px solid rgba(15,23,42,0.1)",
+                  flexShrink: 0,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "0.875rem",
+                    fontWeight: 600,
+                    color: "#5b6b7c",
+                  }}
+                >
+                  门户入口
+                </span>
+                <button
+                  ref={closeBtnRef}
+                  type="button"
+                  aria-label="关闭菜单"
+                  onClick={() => setOpen(false)}
+                  style={{
+                    display: "inline-flex",
+                    width: "2.75rem",
+                    height: "2.75rem",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderRadius: "999px",
+                    border: "1px solid rgba(15,23,42,0.1)",
+                    background: "#fff",
+                    fontSize: "1.25rem",
+                    color: "#0f172a",
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+              <nav
+                aria-label="门户导航"
+                className={typoRoleClass("nav")}
+                style={{
+                  flex: 1,
+                  minHeight: 0,
+                  overflowY: "auto",
+                  WebkitOverflowScrolling: "touch",
+                  padding: "0.5rem",
+                  color: "#0f172a",
+                  ...typoRoleStyle("nav"),
+                }}
+              >
+                {menuLinks.map((link) => {
+                  if (link.children?.length) {
+                    const key = `m-${link.label}`;
+                    const expanded = mobileOpenKey === key;
+                    return (
+                      <div key={key}>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "stretch",
+                            gap: "0.25rem",
+                          }}
+                        >
+                          {link.href ? (
+                            <Link
+                              href={link.href}
+                              onClick={() => setOpen(false)}
+                              style={{
+                                flex: 1,
+                                minWidth: 0,
+                                borderRadius: "0.75rem",
+                                padding: "0.85rem 0.75rem",
+                                color: "#0f172a",
+                                fontWeight: 600,
+                              }}
+                            >
+                              {link.label}
+                            </Link>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setMobileOpenKey(expanded ? null : key)
+                              }
+                              style={{
+                                flex: 1,
+                                minWidth: 0,
+                                border: 0,
+                                background: "transparent",
+                                borderRadius: "0.75rem",
+                                padding: "0.85rem 0.75rem",
+                                textAlign: "left",
+                                color: "#0f172a",
+                                fontWeight: 600,
+                                font: "inherit",
+                              }}
+                            >
+                              {link.label}
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            aria-expanded={expanded}
+                            aria-label={
+                              expanded
+                                ? `收起${link.label}`
+                                : `展开${link.label}`
+                            }
+                            onClick={() =>
+                              setMobileOpenKey(expanded ? null : key)
+                            }
+                            style={{
+                              flexShrink: 0,
+                              border: 0,
+                              background: "transparent",
+                              borderRadius: "0.75rem",
+                              padding: "0.85rem 0.75rem",
+                              color: "#5b6b7c",
+                              font: "inherit",
+                            }}
+                          >
+                            {expanded ? "▴" : "▾"}
+                          </button>
+                        </div>
+                        {expanded ? (
+                          <div
+                            style={{
+                              margin: "0 0 0.25rem 0.75rem",
+                              paddingLeft: "0.5rem",
+                              borderLeft: "1px solid rgba(15,23,42,0.1)",
+                              display: "flex",
+                              flexDirection: "column",
+                            }}
+                          >
+                            {link.children.map((child) => (
+                              <Link
+                                key={child.href + child.label}
+                                href={child.href}
+                                onClick={() => setOpen(false)}
+                                style={{
+                                  borderRadius: "0.75rem",
+                                  padding: "0.7rem 0.75rem",
+                                  color: "#0f172a",
+                                }}
+                              >
+                                {child.label}
+                              </Link>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  }
+                  if (!link.href) return null;
+                  return (
+                    <Link
+                      key={link.href + link.label}
+                      href={link.href}
+                      onClick={() => setOpen(false)}
+                      style={{
+                        display: "block",
+                        borderRadius: "0.75rem",
+                        padding: "0.85rem 0.75rem",
+                        color: "#0f172a",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {link.label}
+                    </Link>
+                  );
+                })}
+              </nav>
+            </aside>
+          </div>,
+          document.body,
+        )
+      : null;
+
   return (
-    <div className="relative lg:hidden">
+    <div className="lg:hidden">
       <button
         type="button"
-        className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[var(--line)] bg-white/70 text-[var(--ink)]"
+        className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[var(--line)] bg-white/70 text-[var(--ink)]"
         aria-expanded={open}
+        aria-controls={panelId}
         aria-label={open ? "关闭菜单" : "打开菜单"}
         onClick={() => setOpen((v) => !v)}
       >
         <span className="sr-only">{open ? "关闭菜单" : "打开菜单"}</span>
         <span className="flex flex-col gap-1.5" aria-hidden>
           <span
-            className={`block h-0.5 w-4 bg-current transition ${open ? "translate-y-2 rotate-45" : ""}`}
+            className={`block h-0.5 w-4 origin-center bg-current transition ${
+              open ? "translate-y-2 rotate-45" : ""
+            }`}
           />
-          <span className={`block h-0.5 w-4 bg-current transition ${open ? "opacity-0" : ""}`} />
           <span
-            className={`block h-0.5 w-4 bg-current transition ${open ? "-translate-y-2 -rotate-45" : ""}`}
+            className={`block h-0.5 w-4 bg-current transition ${
+              open ? "opacity-0" : ""
+            }`}
+          />
+          <span
+            className={`block h-0.5 w-4 origin-center bg-current transition ${
+              open ? "-translate-y-2 -rotate-45" : ""
+            }`}
           />
         </span>
       </button>
-
-      {open ? (
-        <div className="absolute right-0 top-full z-50 mt-2 w-[min(100vw-1.5rem,20rem)] rounded-2xl border border-[var(--line)] bg-white/97 px-2 py-2 shadow-lg backdrop-blur-md">
-          <nav
-            className="flex max-h-[70vh] flex-col gap-1 overflow-y-auto"
-            style={{ fontSize: "var(--fs-nav)" }}
-          >
-            {links.map((link) => {
-              if (link.children?.length) {
-                const key = `m-${link.label}`;
-                const expanded = mobileOpenKey === key;
-                return (
-                  <div key={key}>
-                    <div className="flex items-stretch gap-1">
-                      {link.href ? (
-                        <Link
-                          href={link.href}
-                          className="min-w-0 flex-1 rounded-xl px-3 py-3 text-[var(--ink)] hover:bg-white/70"
-                          onClick={() => setOpen(false)}
-                        >
-                          {link.label}
-                        </Link>
-                      ) : (
-                        <button
-                          type="button"
-                          className="min-w-0 flex-1 rounded-xl px-3 py-3 text-left text-[var(--ink)] hover:bg-white/70"
-                          onClick={() => setMobileOpenKey(expanded ? null : key)}
-                        >
-                          {link.label}
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        className="shrink-0 rounded-xl px-3 py-3 text-[var(--muted)] hover:bg-white/70"
-                        style={{ fontSize: "0.875em" }}
-                        aria-expanded={expanded}
-                        aria-label={expanded ? `收起${link.label}` : `展开${link.label}`}
-                        onClick={() => setMobileOpenKey(expanded ? null : key)}
-                      >
-                        {expanded ? "▴" : "▾"}
-                      </button>
-                    </div>
-                    {expanded ? (
-                      <div className="mb-1 ml-3 flex flex-col border-l border-[var(--line)] pl-2">
-                        {link.children.map((child) => (
-                          <Link
-                            key={child.href + child.label}
-                            href={child.href}
-                            className="rounded-xl px-3 py-2.5 text-[var(--ink)] hover:bg-white/70"
-                            onClick={() => setOpen(false)}
-                          >
-                            {child.label}
-                          </Link>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              }
-              if (!link.href) return null;
-              return (
-                <Link
-                  key={link.href + link.label}
-                  href={link.href}
-                  className="rounded-xl px-3 py-3 text-[var(--ink)] hover:bg-white/70"
-                  onClick={() => setOpen(false)}
-                >
-                  {link.label}
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
-      ) : null}
+      {drawer}
     </div>
   );
 }

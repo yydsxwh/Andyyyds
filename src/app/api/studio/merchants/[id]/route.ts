@@ -7,7 +7,7 @@ import {
   roleForMerchantStatus,
 } from "@/lib/merchants";
 import { requireAdmin, studioErrorResponse } from "@/lib/studio";
-import type { MerchantStatus, Role } from "@/lib/types";
+import type { MerchantJoinType, MerchantStatus, Role } from "@/lib/types";
 
 const patchSchema = z.object({
   storeName: z.string().min(1).max(120).optional(),
@@ -18,9 +18,12 @@ const patchSchema = z.object({
   status: z.enum(MERCHANT_STATUSES).optional(),
   notes: z.string().max(1000).optional(),
   name: z.string().min(1).max(80).optional(),
+  /** 发展该商家的加盟代理 User.id；空字符串或 null 表示清空 */
+  agentId: z.string().nullable().optional(),
 });
 
 const merchantInclude = {
+  agent: { select: { id: true, name: true, email: true } },
   user: {
     select: {
       id: true,
@@ -50,9 +53,11 @@ function serializeMerchant(
     joinType: string;
     status: string;
     notes: string;
+    agentId: string | null;
     approvedAt: Date | null;
     createdAt: Date;
     updatedAt: Date;
+    agent: { id: string; name: string; email: string } | null;
     user: {
       id: string;
       email: string;
@@ -74,6 +79,8 @@ function serializeMerchant(
     joinType: merchant.joinType,
     status: merchant.status,
     notes: merchant.notes,
+    agentId: merchant.agentId,
+    agent: merchant.agent,
     approvedAt: merchant.approvedAt?.toISOString() ?? null,
     createdAt: merchant.createdAt.toISOString(),
     updatedAt: merchant.updatedAt.toISOString(),
@@ -86,6 +93,22 @@ function serializeMerchant(
     courseCount: merchant.user._count.courses,
     revenue,
   };
+}
+
+async function resolveAgentId(
+  raw: string | null | undefined,
+): Promise<{ ok: true; agentId: string | null } | { ok: false; error: string }> {
+  if (raw === null || raw === "") {
+    return { ok: true, agentId: null };
+  }
+  const agent = await prisma.user.findUnique({
+    where: { id: raw },
+    select: { id: true, role: true },
+  });
+  if (!agent || agent.role !== "AGENT") {
+    return { ok: false, error: "所选用户不是加盟代理" };
+  }
+  return { ok: true, agentId: agent.id };
 }
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -104,19 +127,30 @@ export async function PATCH(req: Request, ctx: Ctx) {
       return NextResponse.json({ error: "商家不存在" }, { status: 404 });
     }
 
+    let nextAgentId: string | null | undefined;
+    if (body.agentId !== undefined) {
+      const resolved = await resolveAgentId(body.agentId);
+      if (!resolved.ok) {
+        return NextResponse.json({ error: resolved.error }, { status: 400 });
+      }
+      nextAgentId = resolved.agentId;
+    }
+
     const nextStatus = (body.status || existing.status) as MerchantStatus;
+    const nextJoinType = (body.joinType || existing.joinType) as MerchantJoinType;
 
     const merchant = await prisma.$transaction(async (tx) => {
-      if (body.name || body.status) {
+      if (body.name || body.status || body.joinType) {
         await tx.user.update({
           where: { id: existing.userId },
           data: {
             ...(body.name ? { name: body.name } : {}),
-            ...(body.status
+            ...(body.status || body.joinType
               ? {
                   role: roleForMerchantStatus(
                     nextStatus,
                     existing.user.role as Role,
+                    nextJoinType,
                   ),
                 }
               : {}),
@@ -141,6 +175,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
             : {}),
           ...(body.joinType !== undefined ? { joinType: body.joinType } : {}),
           ...(body.notes !== undefined ? { notes: body.notes.trim() } : {}),
+          ...(nextAgentId !== undefined ? { agentId: nextAgentId } : {}),
           ...(body.status !== undefined
             ? {
                 status: body.status,

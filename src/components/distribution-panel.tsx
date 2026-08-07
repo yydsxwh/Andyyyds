@@ -2,6 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import {
+  postSave,
+  SaveFeedback,
+  type SaveStatus,
+} from "@/components/save-feedback";
 import { formatPrice } from "@/lib/utils";
 
 type Settings = {
@@ -30,6 +35,8 @@ type Props = {
   inviteUrl: string;
   myEarnings: number;
   teamCount: number;
+  /** 仅站长可改全局分销比例 */
+  canEditSettings?: boolean;
 };
 
 export function DistributionPanel({
@@ -39,16 +46,17 @@ export function DistributionPanel({
   inviteUrl,
   myEarnings,
   teamCount,
+  canEditSettings = false,
 }: Props) {
   const router = useRouter();
   const [settings, setSettings] = useState(initialSettings);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState("");
+  const [feedback, setFeedback] = useState<SaveStatus>(null);
 
   async function save() {
     setSaving(true);
-    setMessage("");
-    const res = await fetch("/api/studio/distribution", {
+    setFeedback(null);
+    const result = await postSave("/api/studio/distribution", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -58,14 +66,15 @@ export function DistributionPanel({
         level3Percent: Number(settings.level3Percent),
       }),
     });
-    const data = await res.json();
     setSaving(false);
-    if (!res.ok) {
-      setMessage(data.error || "保存失败");
+    if (!result.ok) {
+      setFeedback({ kind: "error", text: result.error || "保存失败" });
       return;
     }
-    setSettings(data.settings);
-    setMessage("分销比例已保存");
+    if (result.data.settings) {
+      setSettings(result.data.settings as typeof settings);
+    }
+    setFeedback({ kind: "ok", text: "分销比例已保存成功" });
     router.refresh();
   }
 
@@ -96,6 +105,7 @@ export function DistributionPanel({
         </p>
       </div>
 
+      {canEditSettings ? (
       <div className="surface space-y-4 rounded-[28px] p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -148,11 +158,28 @@ export function DistributionPanel({
           （平台/讲师保留其余部分）
         </div>
 
-        {message ? <p className="text-sm text-[var(--brand)]">{message}</p> : null}
-        <button className="btn btn-primary" type="button" disabled={saving} onClick={save}>
-          {saving ? "保存中..." : "保存分销设置"}
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            className="btn btn-primary min-h-11"
+            type="button"
+            disabled={saving}
+            onClick={() => void save()}
+          >
+            {saving ? "保存中…" : "保存分销设置"}
+          </button>
+          <SaveFeedback status={feedback} />
+        </div>
       </div>
+      ) : (
+        <div className="surface rounded-[28px] p-6">
+          <h2 className="text-lg font-semibold">当前分销比例</h2>
+          <p className="mt-2 text-sm text-[var(--muted)]">
+            {settings.enabled
+              ? `已启用：一级 ${settings.level1Percent}% · 二级 ${settings.level2Percent}% · 三级 ${settings.level3Percent}%（由站长配置）`
+              : "分销未启用（由站长配置）"}
+          </p>
+        </div>
+      )}
 
       <div className="surface rounded-[28px] p-6">
         <h2 className="text-lg font-semibold">最近佣金记录</h2>
@@ -173,7 +200,13 @@ export function DistributionPanel({
               {commissions.map((row) => (
                 <tr key={row.id} className="border-t border-[var(--line)]">
                   <td className="py-3">{new Date(row.createdAt).toLocaleString("zh-CN")}</td>
-                  <td className="py-3">{row.level} 级</td>
+                  <td className="py-3">
+                    {row.level === 91
+                      ? "商家抽成再分"
+                      : row.level === 93
+                        ? "推荐成交"
+                        : `${row.level} 级`}
+                  </td>
                   <td className="py-3">{row.beneficiary.name}</td>
                   <td className="py-3">{row.buyer.name}</td>
                   <td className="py-3">{row.order.course.title}</td>

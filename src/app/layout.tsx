@@ -1,14 +1,24 @@
 import type { Metadata, Viewport } from "next";
 import type { CSSProperties } from "react";
+import { CouponCapture } from "@/components/coupon-capture";
 import { ReferralCapture } from "@/components/referral-capture";
+import { SiteFontLinks } from "@/components/site-font-loader";
 import { SiteHeader } from "@/components/site-header";
+import { SiteTypographyStyles } from "@/components/site-typography-styles";
 import { DEFAULT_DECORATE, DEFAULT_LOGO_URL } from "@/lib/decorate";
 import { getDecorateConfig } from "@/lib/site-settings";
 import { buildThemeStyleVars, paletteById } from "@/lib/site-theme";
+import {
+  buildTypographyCss,
+  buildTypographyFontVars,
+  collectTypographyFontUrls,
+  typoRoleClass,
+  typoRoleStyle,
+} from "@/lib/site-typography";
 import "./globals.css";
 
 // 不用 next/font/google：香港机器构建时常拉不到 fonts.googleapis.com 导致整站发版失败。
-// 字体栈在 globals.css 的 --font-body / --font-display 中定义。
+// 站长选中的中文字体在运行时按需 CDN 注入（见 SiteFontLinks）。
 
 export async function generateViewport(): Promise<Viewport> {
   const decorate = await getDecorateConfig();
@@ -26,6 +36,7 @@ export async function generateMetadata(): Promise<Metadata> {
     decorate.siteName?.trim() ||
     decorate.brandName?.trim() ||
     DEFAULT_DECORATE.siteName;
+  // 标签栏 / 收藏夹图标用商标图形标（由 /brand/logo.png 裁切）；与顶栏完整 Logo 配套
   return {
     title: {
       default: siteName,
@@ -34,6 +45,15 @@ export async function generateMetadata(): Promise<Metadata> {
     applicationName: siteName,
     description:
       "多功能门户：公司与个人介绍、知识付费、商城/论坛/游戏中心陆续开放",
+    icons: {
+      icon: [
+        { url: "/favicon.ico", sizes: "any" },
+        { url: "/brand/favicon-32.png", sizes: "32x32", type: "image/png" },
+        { url: "/brand/icon-192.png", sizes: "192x192", type: "image/png" },
+      ],
+      apple: [{ url: "/brand/apple-touch-icon.png", sizes: "180x180" }],
+      shortcut: "/favicon.ico",
+    },
   };
 }
 
@@ -44,18 +64,24 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     decorate.siteName?.trim() ||
     decorate.brandName?.trim() ||
     DEFAULT_DECORATE.siteName;
-  // 站长装扮：把配色/背景写入 html，全站（含微信内）即时读 CSS 变量
+  // 站长装扮：配色/背景/字号/字体写入 html，全站（含微信内）即时读 CSS 变量
   const themeStyle = buildThemeStyleVars({
     paletteId: decorate.paletteId,
     backgroundId: decorate.backgroundId,
     layoutDensity: decorate.layoutDensity,
     fontSizes: decorate.fontSizes,
+    fontFamilyVars: buildTypographyFontVars(decorate.typography),
   }) as CSSProperties;
+  const typographyCss = buildTypographyCss(decorate.typography);
+  const fontUrls = collectTypographyFontUrls(decorate.typography);
 
   return (
     <html lang="zh-CN" className="h-full" style={themeStyle}>
       <body className="min-h-full flex flex-col antialiased">
+        <SiteFontLinks urls={fontUrls} />
+        <SiteTypographyStyles css={typographyCss} />
         <ReferralCapture />
+        <CouponCapture />
         <SiteHeader />
         <main className="flex-1">{children}</main>
         <footer className="border-t border-[var(--line)] py-8 text-sm text-[var(--muted)]">
@@ -69,8 +95,8 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
               />
               {decorate.showBrandText ? (
                 <span
-                  className="brand-mark text-[var(--ink)]"
-                  style={{ fontSize: "var(--fs-brand)" }}
+                  className={`brand-mark text-[var(--ink)] ${typoRoleClass("brand")}`}
+                  style={typoRoleStyle("brand")}
                 >
                   {decorate.brandName}
                 </span>
