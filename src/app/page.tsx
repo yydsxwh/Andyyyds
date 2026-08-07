@@ -7,7 +7,15 @@ import {
 } from "@/components/page-modules-view";
 import { DEFAULT_LOGO_URL, resolveHeroImage } from "@/lib/decorate";
 import { prisma } from "@/lib/db";
-import { DEFAULT_PORTAL_CONTACT } from "@/lib/portal";
+import {
+  DEFAULT_HOME_SECTION_ORDER,
+  DEFAULT_PORTAL_CONTACT,
+  normalizeHomeSectionOrder,
+  shouldShowContactBeforeDiyContent,
+  type HomeSectionId,
+  type PortalContact,
+  type PortalNavLink,
+} from "@/lib/portal";
 import { getDefaultTemplate } from "@/lib/page-templates";
 import { PRODUCT_PLAZA_ORDER_BY } from "@/lib/product-display-order";
 import {
@@ -17,8 +25,231 @@ import {
 } from "@/lib/site-settings";
 import { withSignedCoverUrls } from "@/lib/storage";
 import { typoRoleClass, typoRoleStyle } from "@/lib/site-typography";
+import type { DecorateConfig } from "@/lib/decorate";
+import type { Category, Course, User } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
+
+type CourseCardRow = Course & {
+  teacher: User;
+  category: Category | null;
+};
+
+function ContactSection({ contact }: { contact: PortalContact }) {
+  return (
+    <section className="pt-4 sm:pt-6">
+      <div className="container">
+        <ContactUsPanel contact={contact} variant="hero" />
+      </div>
+    </section>
+  );
+}
+
+function HeroSection({ decorate }: { decorate: DecorateConfig }) {
+  const logoUrl = decorate.logoUrl || DEFAULT_LOGO_URL;
+  const heroImage = resolveHeroImage(decorate);
+  const heroAlt = decorate.banners[0]?.alt || "品牌主视觉";
+
+  return (
+    <section className="relative overflow-hidden">
+      <div className="container grid min-h-[78vh] items-center gap-10 py-16 lg:grid-cols-[1.05fr_0.95fr]">
+        <div className="fade-up space-y-6">
+          <div className="space-y-3">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={logoUrl}
+              alt={decorate.brandName || "歪歪艾斯"}
+              className="h-20 w-auto max-w-[min(100%,420px)] object-contain sm:h-24 md:h-28"
+            />
+            {decorate.showBrandText ? (
+              <p
+                className={`brand-mark text-[var(--ink)] ${typoRoleClass("heroTitle")}`}
+                style={typoRoleStyle("heroTitle")}
+              >
+                {decorate.brandName}
+              </p>
+            ) : null}
+          </div>
+          <h1
+            className={`max-w-3xl font-semibold leading-tight ${typoRoleClass("heroTitle")}`}
+            style={typoRoleStyle("heroTitle")}
+          >
+            {decorate.heroHeadline}
+          </h1>
+          <p
+            className={`max-w-2xl leading-7 text-[var(--muted)] ${typoRoleClass("heroSubtext")}`}
+            style={typoRoleStyle("heroSubtext")}
+          >
+            {decorate.heroSubtext}
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <Link href="/courses" className="btn btn-primary">
+              进入知识付费
+            </Link>
+            <Link href="/about/company" className="btn btn-fire">
+              了解公司
+            </Link>
+          </div>
+        </div>
+        <div className="fade-up-delay hero-glow relative">
+          <div className="float-soft surface surface-fire overflow-hidden rounded-[36px]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={heroImage}
+              alt={heroAlt}
+              className="aspect-[4/5] w-full object-cover sm:aspect-[5/4] lg:aspect-[4/5]"
+            />
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function BannersSection({ decorate }: { decorate: DecorateConfig }) {
+  if (decorate.banners.length <= 1) return null;
+  return (
+    <section className="pb-8">
+      <div className="container">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {decorate.banners.slice(1).map((banner) => (
+            <div
+              key={banner.id}
+              className="surface overflow-hidden rounded-[28px]"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={banner.url}
+                alt={banner.alt || decorate.brandName}
+                className="aspect-[16/10] w-full object-cover"
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function PortalEntranceSection({ modules }: { modules: PortalNavLink[] }) {
+  return (
+    <section className="pb-14">
+      <div className="container">
+        <div className="mb-6">
+          <h2
+            className={`font-semibold ${typoRoleClass("sectionTitle")}`}
+            style={typoRoleStyle("sectionTitle")}
+          >
+            门户入口
+          </h2>
+          <p
+            className={`mt-2 text-[var(--muted)] ${typoRoleClass("sectionDesc")}`}
+            style={typoRoleStyle("sectionDesc")}
+          >
+            多功能站点正在扩展：介绍、知识付费、约搭已可用，商城 / 论坛 / 游戏陆续开放
+          </p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {modules.map((item) => (
+            <Link
+              key={item.key}
+              href={item.href}
+              className="surface group rounded-[28px] p-5 transition hover:-translate-y-0.5"
+            >
+              <div
+                className={`font-semibold group-hover:text-[var(--brand)] ${typoRoleClass("portalCardTitle")}`}
+                style={typoRoleStyle("portalCardTitle")}
+              >
+                {item.label}
+              </div>
+              <p
+                className={`mt-2 text-[var(--muted)] ${typoRoleClass("portalCardDesc")}`}
+                style={typoRoleStyle("portalCardDesc")}
+              >
+                {item.comingSoon ? "即将开放，先了解规划" : "点击进入"}
+              </p>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function HotCoursesSection({ courses }: { courses: CourseCardRow[] }) {
+  return (
+    <section className="pb-20">
+      <div className="container">
+        <div className="mb-8 flex items-end justify-between gap-4">
+          <div>
+            <h2
+              className={`font-semibold ${typoRoleClass("sectionTitle")}`}
+              style={typoRoleStyle("sectionTitle")}
+            >
+              热门课程
+            </h2>
+            <p
+              className={`mt-2 text-[var(--muted)] ${typoRoleClass("sectionDesc")}`}
+              style={typoRoleStyle("sectionDesc")}
+            >
+              先学一门，感受完整购买到学习的路径
+            </p>
+          </div>
+          <Link
+            href="/courses"
+            className={`text-[var(--brand)] ${typoRoleClass("sectionDesc")}`}
+            style={typoRoleStyle("sectionDesc")}
+          >
+            查看全部
+          </Link>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {courses.map((course) => (
+            <CourseCard key={course.id} course={course} />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ClassicHomeByOrder({
+  order,
+  contact,
+  decorate,
+  modules,
+  courses,
+}: {
+  order: HomeSectionId[];
+  contact: PortalContact;
+  decorate: DecorateConfig;
+  modules: PortalNavLink[];
+  courses: CourseCardRow[];
+}) {
+  // 按 CMS 保存的顺序渲染；联系我们不再硬编码嵌在主视觉里
+  return (
+    <div>
+      {order.map((sectionId) => {
+        switch (sectionId) {
+          case "contact":
+            return <ContactSection key="contact" contact={contact} />;
+          case "hero":
+            return <HeroSection key="hero" decorate={decorate} />;
+          case "banners":
+            return <BannersSection key="banners" decorate={decorate} />;
+          case "portal":
+            return <PortalEntranceSection key="portal" modules={modules} />;
+          case "courses":
+            return <HotCoursesSection key="courses" courses={courses} />;
+          default: {
+            const _exhaustive: never = sectionId;
+            return _exhaustive;
+          }
+        }
+      })}
+    </div>
+  );
+}
 
 export default async function HomePage() {
   const [coursesRaw, decorate, portal, pageTemplates] = await Promise.all([
@@ -39,17 +270,29 @@ export default async function HomePage() {
   ]);
 
   const contact = portal.contact || DEFAULT_PORTAL_CONTACT;
+  const homeSectionOrder = normalizeHomeSectionOrder(
+    portal.homeSectionOrder?.length
+      ? portal.homeSectionOrder
+      : DEFAULT_HOME_SECTION_ORDER,
+  );
 
   // 仅「已设为默认」且含模块的首页 DIY 才接管；否则用系统经典首页（介绍文案等）
   const diyHome = getDefaultTemplate(pageTemplates, "home");
   if (shouldUseDiyLayout(diyHome)) {
+    const contactBefore = shouldShowContactBeforeDiyContent(homeSectionOrder);
     return (
       <div className="space-y-4 py-4 sm:py-6">
-        {/* 联系方式直接展在页顶左侧，不弹层 */}
-        <div className="container">
-          <ContactUsPanel contact={contact} variant="hero" />
-        </div>
+        {contactBefore ? (
+          <div className="container">
+            <ContactUsPanel contact={contact} variant="hero" />
+          </div>
+        ) : null}
         <PageModulesView template={diyHome!} />
+        {!contactBefore ? (
+          <div className="container">
+            <ContactUsPanel contact={contact} variant="hero" />
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -60,162 +303,13 @@ export default async function HomePage() {
     (item) => item.enabled !== false && item.key !== "home",
   );
 
-  const logoUrl = decorate.logoUrl || DEFAULT_LOGO_URL;
-  const heroImage = resolveHeroImage(decorate);
-  const heroAlt = decorate.banners[0]?.alt || "品牌主视觉";
-
   return (
-    <div>
-      <section className="relative overflow-hidden">
-        <div className="container grid min-h-[78vh] items-center gap-10 py-16 lg:grid-cols-[1.05fr_0.95fr]">
-          <div className="fade-up space-y-6">
-            {/* 左上角空白区：联系我们直接展开（内容管理可改） */}
-            <ContactUsPanel contact={contact} variant="hero" />
-            <div className="space-y-3">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={logoUrl}
-                alt={decorate.brandName || "歪歪艾斯"}
-                className="h-20 w-auto max-w-[min(100%,420px)] object-contain sm:h-24 md:h-28"
-              />
-              {decorate.showBrandText ? (
-                <p
-                  className={`brand-mark text-[var(--ink)] ${typoRoleClass("heroTitle")}`}
-                  style={typoRoleStyle("heroTitle")}
-                >
-                  {decorate.brandName}
-                </p>
-              ) : null}
-            </div>
-            <h1
-              className={`max-w-3xl font-semibold leading-tight ${typoRoleClass("heroTitle")}`}
-              style={typoRoleStyle("heroTitle")}
-            >
-              {decorate.heroHeadline}
-            </h1>
-            <p
-              className={`max-w-2xl leading-7 text-[var(--muted)] ${typoRoleClass("heroSubtext")}`}
-              style={typoRoleStyle("heroSubtext")}
-            >
-              {decorate.heroSubtext}
-            </p>
-            <div className="flex flex-wrap gap-3">
-              <Link href="/courses" className="btn btn-primary">
-                进入知识付费
-              </Link>
-              <Link href="/about/company" className="btn btn-fire">
-                了解公司
-              </Link>
-            </div>
-          </div>
-          <div className="fade-up-delay hero-glow relative">
-            <div className="float-soft surface surface-fire overflow-hidden rounded-[36px]">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={heroImage}
-                alt={heroAlt}
-                className="aspect-[4/5] w-full object-cover sm:aspect-[5/4] lg:aspect-[4/5]"
-              />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {decorate.banners.length > 1 ? (
-        <section className="pb-8">
-          <div className="container">
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {decorate.banners.slice(1).map((banner) => (
-                <div
-                  key={banner.id}
-                  className="surface overflow-hidden rounded-[28px]"
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={banner.url}
-                    alt={banner.alt || decorate.brandName}
-                    className="aspect-[16/10] w-full object-cover"
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-      ) : null}
-
-      <section className="pb-14">
-        <div className="container">
-          <div className="mb-6">
-            <h2
-              className={`font-semibold ${typoRoleClass("sectionTitle")}`}
-              style={typoRoleStyle("sectionTitle")}
-            >
-              门户入口
-            </h2>
-            <p
-              className={`mt-2 text-[var(--muted)] ${typoRoleClass("sectionDesc")}`}
-              style={typoRoleStyle("sectionDesc")}
-            >
-              多功能站点正在扩展：介绍、知识付费、约搭已可用，商城 / 论坛 / 游戏陆续开放
-            </p>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {modules.map((item) => (
-              <Link
-                key={item.key}
-                href={item.href}
-                className="surface group rounded-[28px] p-5 transition hover:-translate-y-0.5"
-              >
-                <div
-                  className={`font-semibold group-hover:text-[var(--brand)] ${typoRoleClass("portalCardTitle")}`}
-                  style={typoRoleStyle("portalCardTitle")}
-                >
-                  {item.label}
-                </div>
-                <p
-                  className={`mt-2 text-[var(--muted)] ${typoRoleClass("portalCardDesc")}`}
-                  style={typoRoleStyle("portalCardDesc")}
-                >
-                  {item.comingSoon ? "即将开放，先了解规划" : "点击进入"}
-                </p>
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="pb-20">
-        <div className="container">
-          <div className="mb-8 flex items-end justify-between gap-4">
-            <div>
-              <h2
-                className={`font-semibold ${typoRoleClass("sectionTitle")}`}
-                style={typoRoleStyle("sectionTitle")}
-              >
-                热门课程
-              </h2>
-              <p
-                className={`mt-2 text-[var(--muted)] ${typoRoleClass("sectionDesc")}`}
-                style={typoRoleStyle("sectionDesc")}
-              >
-                先学一门，感受完整购买到学习的路径
-              </p>
-            </div>
-            <Link
-              href="/courses"
-              className={`text-[var(--brand)] ${typoRoleClass("sectionDesc")}`}
-              style={typoRoleStyle("sectionDesc")}
-            >
-              查看全部
-            </Link>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {courses.map((course) => (
-              <CourseCard key={course.id} course={course} />
-            ))}
-          </div>
-        </div>
-      </section>
-    </div>
+    <ClassicHomeByOrder
+      order={homeSectionOrder}
+      contact={contact}
+      decorate={decorate}
+      modules={modules}
+      courses={courses}
+    />
   );
 }

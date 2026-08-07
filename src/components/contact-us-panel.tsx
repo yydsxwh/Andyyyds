@@ -1,6 +1,6 @@
 /**
- * 「联系我们」：直接展开在页面左上角（非弹层）。
- * 字段由内容管理配置；留空不展示。
+ * 「联系我们」：直接展开（非弹层）。
+ * 字段由内容管理配置；首页上下位置由 portal.homeSectionOrder 决定（CMS「首页区块顺序」拖拽）。
  */
 
 import type { PortalContact } from "@/lib/portal";

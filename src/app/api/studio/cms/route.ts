@@ -13,8 +13,11 @@ import {
   type OrderFormFieldType,
 } from "@/lib/order-form";
 import {
+  DEFAULT_HOME_SECTION_ORDER,
   DEFAULT_PORTAL,
   DEFAULT_PORTAL_CONTACT,
+  HOME_SECTION_IDS,
+  normalizeHomeSectionOrder,
   parsePortal,
   stringifyPortal,
 } from "@/lib/portal";
@@ -148,6 +151,13 @@ const patchSchema = z.object({
           note: z.string().max(2000).optional(),
         })
         .optional(),
+      // 首页区块拖拽顺序；缺省时服务端沿用库内或默认（联系我们置顶）
+      homeSectionOrder: z
+        .array(
+          z.enum(["contact", "hero", "banners", "portal", "courses"]),
+        )
+        .max(HOME_SECTION_IDS.length)
+        .optional(),
     })
     .optional(),
 });
@@ -214,7 +224,7 @@ export async function PATCH(req: Request) {
     }
 
     if (body.portal) {
-      // 分区保存只带 nav / company / person / contact 之一时，其余沿用库里已有配置
+      // 分区保存只带 nav / company / person / contact / homeSectionOrder 之一时，其余沿用库内配置
       const currentPortal = parsePortal(
         (await getSiteSettings()).portalJson,
       );
@@ -247,6 +257,14 @@ export async function PATCH(req: Request) {
               ...body.portal.contact,
             }
           : currentPortal.contact,
+        homeSectionOrder:
+          body.portal.homeSectionOrder !== undefined
+            ? normalizeHomeSectionOrder(body.portal.homeSectionOrder)
+            : normalizeHomeSectionOrder(
+                currentPortal.homeSectionOrder?.length
+                  ? currentPortal.homeSectionOrder
+                  : DEFAULT_HOME_SECTION_ORDER,
+              ),
       });
     }
 

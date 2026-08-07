@@ -6,6 +6,7 @@ import { OrderFormSettings } from "@/components/order-form-settings";
 import {
   AboutEditor,
   ContactEditor,
+  HomeSectionOrderEditor,
   PortalNavSettings,
 } from "@/components/portal-settings";
 import {
@@ -16,8 +17,11 @@ import {
 import { StudioNavSettings } from "@/components/studio-nav-settings";
 import { DEFAULT_ORDER_FORM, type OrderFormConfig } from "@/lib/order-form";
 import {
+  DEFAULT_HOME_SECTION_ORDER,
   DEFAULT_PORTAL,
   DEFAULT_PORTAL_CONTACT,
+  HOME_SECTION_LABELS,
+  normalizeHomeSectionOrder,
   type PortalConfig,
 } from "@/lib/portal";
 import {
@@ -55,6 +59,7 @@ const inputClass =
 
 type CmsSectionId =
   | "portal-nav"
+  | "portal-home-order"
   | "portal-contact"
   | "portal-company"
   | "portal-person"
@@ -110,6 +115,7 @@ function CmsSection({
 
 const SECTION_SAVE_LABEL: Record<CmsSectionId, string> = {
   "portal-nav": "保存门户导航",
+  "portal-home-order": "保存首页顺序",
   "portal-contact": "保存联系我们",
   "portal-company": "保存公司介绍",
   "portal-person": "保存个人介绍",
@@ -152,6 +158,11 @@ export function CmsPanel({ initial }: Props) {
       ...DEFAULT_PORTAL_CONTACT,
       ...(initial.portal?.contact || {}),
     },
+    homeSectionOrder: normalizeHomeSectionOrder(
+      initial.portal?.homeSectionOrder?.length
+        ? initial.portal.homeSectionOrder
+        : DEFAULT_HOME_SECTION_ORDER,
+    ),
   }));
   // 默认全部收起；可同时展开多块，互不自动关闭
   const [openSections, setOpenSections] = useState<Set<CmsSectionId>>(
@@ -204,6 +215,8 @@ export function CmsPanel({ initial }: Props) {
     switch (section) {
       case "portal-nav":
         return { portal: { nav: portal.nav } };
+      case "portal-home-order":
+        return { portal: { homeSectionOrder: portal.homeSectionOrder } };
       case "portal-contact":
         return { portal: { contact: portal.contact } };
       case "portal-company":
@@ -272,6 +285,14 @@ export function CmsPanel({ initial }: Props) {
 
   const busy = savingAll || savingSection !== null;
   const navEnabledCount = portal.nav.filter((n) => n.enabled !== false).length;
+  const homeOrder = normalizeHomeSectionOrder(
+    portal.homeSectionOrder?.length
+      ? portal.homeSectionOrder
+      : DEFAULT_HOME_SECTION_ORDER,
+  );
+  const homeOrderSummary = homeOrder
+    .map((id) => HOME_SECTION_LABELS[id])
+    .join(" → ");
 
   function SectionSaveButton({ section }: { section: CmsSectionId }) {
     return (
@@ -309,6 +330,17 @@ export function CmsPanel({ initial }: Props) {
       </CmsSection>
 
       <CmsSection
+        id="portal-home-order"
+        title="首页区块顺序"
+        summary={`拖拽排序 · ${homeOrderSummary}`}
+        open={openSections.has("portal-home-order")}
+        onToggle={toggleSection}
+      >
+        <HomeSectionOrderEditor value={portal} onChange={setPortal} />
+        <SectionSaveButton section="portal-home-order" />
+      </CmsSection>
+
+      <CmsSection
         id="portal-contact"
         title="联系我们"
         summary={
@@ -324,7 +356,7 @@ export function CmsPanel({ initial }: Props) {
                 portal.contact?.bilibili && "B站",
               ]
                 .filter(Boolean)
-                .join(" · ") || "首页左上角直接展开 · 可填多渠道"
+                .join(" · ") || "首页直接展开 · 可填多渠道 · 位置见「首页区块顺序」"
         }
         open={openSections.has("portal-contact")}
         onToggle={toggleSection}

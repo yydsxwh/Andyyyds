@@ -25,7 +25,7 @@ export type PortalAboutPage = {
   highlights: { label: string; text: string }[];
 };
 
-/** 联系我们：内容管理可改；首页左上角直接展开展示 */
+/** 联系我们：内容管理可改；在首页按 homeSectionOrder 排序展示 */
 export type PortalContact = {
   /** 是否在前台显示联系信息 */
   enabled: boolean;
@@ -53,11 +53,52 @@ export type PortalContact = {
   note: string;
 };
 
+/**
+ * 经典首页区块 id：与 page.tsx 渲染分支一一对应。
+ * 旧配置无 homeSectionOrder 时用 DEFAULT_HOME_SECTION_ORDER（联系我们置顶，贴近原先硬编码在首屏左上角的效果）。
+ */
+export type HomeSectionId =
+  | "contact"
+  | "hero"
+  | "banners"
+  | "portal"
+  | "courses";
+
+export const HOME_SECTION_IDS: HomeSectionId[] = [
+  "contact",
+  "hero",
+  "banners",
+  "portal",
+  "courses",
+];
+
+/** 无序配置时的默认：联系我们 → 主视觉 → 横幅 → 门户入口 → 热门课程 */
+export const DEFAULT_HOME_SECTION_ORDER: HomeSectionId[] = [
+  "contact",
+  "hero",
+  "banners",
+  "portal",
+  "courses",
+];
+
+export const HOME_SECTION_LABELS: Record<HomeSectionId, string> = {
+  contact: "联系我们",
+  hero: "品牌主视觉",
+  banners: "更多横幅",
+  portal: "门户入口",
+  courses: "热门课程",
+};
+
 export type PortalConfig = {
   nav: PortalNavLink[];
   company: PortalAboutPage;
   person: PortalAboutPage;
   contact: PortalContact;
+  /**
+   * 经典首页区块上下顺序（内容管理可拖拽）。
+   * DIY 首页仅用其中 contact 相对其它区块的前后：contact 排在 hero 之前则在 DIY 模块上方，否则下方。
+   */
+  homeSectionOrder: HomeSectionId[];
 };
 
 export const DEFAULT_PORTAL_CONTACT: PortalContact = {
@@ -91,6 +132,7 @@ export const DEFAULT_PORTAL: PortalConfig = {
     { key: "games", label: "游戏中心", href: "/games", comingSoon: true },
   ],
   contact: structuredClone(DEFAULT_PORTAL_CONTACT),
+  homeSectionOrder: [...DEFAULT_HOME_SECTION_ORDER],
   company: {
     title: "公司介绍",
     subtitle: "把内容、服务与数字化能力，做成可持续经营的产品。",
@@ -236,6 +278,52 @@ function normalizeContact(
   };
 }
 
+const HOME_SECTION_ID_SET = new Set<string>(HOME_SECTION_IDS);
+
+/**
+ * 合并首页区块顺序：保留已保存顺序，过滤未知 id，缺项按默认顺序补到末尾。
+ * 旧库无该字段时返回完整默认，避免联系我们从「首屏上方」突然消失到末尾。
+ */
+export function normalizeHomeSectionOrder(
+  raw: unknown,
+): HomeSectionId[] {
+  if (!Array.isArray(raw) || raw.length === 0) {
+    return [...DEFAULT_HOME_SECTION_ORDER];
+  }
+
+  const seen = new Set<HomeSectionId>();
+  const ordered: HomeSectionId[] = [];
+
+  for (const item of raw) {
+    const id = String(item || "").trim() as HomeSectionId;
+    if (!HOME_SECTION_ID_SET.has(id) || seen.has(id)) continue;
+    seen.add(id);
+    ordered.push(id);
+  }
+
+  for (const id of DEFAULT_HOME_SECTION_ORDER) {
+    if (seen.has(id)) continue;
+    ordered.push(id);
+  }
+
+  return ordered;
+}
+
+/**
+ * DIY 首页时：contact 若排在 hero 之前（或未配置 hero），则放在 DIY 模块上方，否则下方。
+ * 用 hero 作锚点，与经典首页「联系我们相对主视觉」的语义一致。
+ */
+export function shouldShowContactBeforeDiyContent(
+  order: HomeSectionId[],
+): boolean {
+  const normalized = normalizeHomeSectionOrder(order);
+  const contactIndex = normalized.indexOf("contact");
+  const heroIndex = normalized.indexOf("hero");
+  if (contactIndex < 0) return true;
+  if (heroIndex < 0) return true;
+  return contactIndex < heroIndex;
+}
+
 /** 是否已填写至少一项可展示的联系方式 */
 export function hasContactDetails(contact: PortalContact) {
   return Boolean(
@@ -264,6 +352,7 @@ export function parsePortal(raw: string | null | undefined): PortalConfig {
       company: normalizeAbout(parsed.company, DEFAULT_PORTAL.company),
       person: normalizeAbout(parsed.person, DEFAULT_PORTAL.person),
       contact: normalizeContact(parsed.contact),
+      homeSectionOrder: normalizeHomeSectionOrder(parsed.homeSectionOrder),
     };
   } catch {
     return structuredClone(DEFAULT_PORTAL);

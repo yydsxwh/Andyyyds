@@ -7,7 +7,13 @@ import type {
   PortalContact,
   PortalNavLink,
 } from "@/lib/portal";
-import { DEFAULT_PORTAL, DEFAULT_PORTAL_CONTACT } from "@/lib/portal";
+import {
+  DEFAULT_HOME_SECTION_ORDER,
+  DEFAULT_PORTAL,
+  DEFAULT_PORTAL_CONTACT,
+  HOME_SECTION_LABELS,
+  normalizeHomeSectionOrder,
+} from "@/lib/portal";
 
 type Props = {
   value: PortalConfig;
@@ -18,6 +24,7 @@ const inputClass =
   "w-full rounded-2xl border border-[var(--line)] bg-white/80 px-3 py-2.5 text-sm outline-none focus:border-[var(--brand)]";
 
 const NAV_DND_MIME = "application/x-portal-nav-index";
+const HOME_SECTION_DND_MIME = "application/x-portal-home-section-index";
 
 export function AboutEditor({
   title,
@@ -275,7 +282,124 @@ export function PortalNavSettings({ value, onChange }: Props) {
   );
 }
 
-/** 联系我们：首页左上角直接展开；留空字段不展示 */
+/**
+ * 首页区块顺序：与门户导航同一套拖拽手柄 + 上下按钮（触控可用，不依赖 hover）。
+ * 保存后经典首页按此顺序渲染；「联系我们」由此从硬编码首屏改为可配置位次。
+ */
+export function HomeSectionOrderEditor({ value, onChange }: Props) {
+  const order = normalizeHomeSectionOrder(
+    value.homeSectionOrder?.length
+      ? value.homeSectionOrder
+      : DEFAULT_HOME_SECTION_ORDER,
+  );
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+  function moveSection(from: number, to: number) {
+    if (
+      from === to ||
+      from < 0 ||
+      to < 0 ||
+      from >= order.length ||
+      to >= order.length
+    ) {
+      return;
+    }
+    const next = order.slice();
+    const [item] = next.splice(from, 1);
+    next.splice(to, 0, item);
+    onChange({ ...value, homeSectionOrder: next });
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-[var(--muted)]">
+        拖拽左侧手柄或点上下箭头，调整经典首页各区块的上下顺序（含「联系我们」）。保存后前台立即按新顺序展示。更多横幅仅在配置了多张横幅时出现。
+      </p>
+      {order.map((sectionId, index) => (
+        <div
+          key={sectionId}
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "move";
+            setDragOverIndex(index);
+          }}
+          onDragLeave={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+              setDragOverIndex((current) =>
+                current === index ? null : current,
+              );
+            }
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragOverIndex(null);
+            const raw = e.dataTransfer.getData(HOME_SECTION_DND_MIME);
+            const from = Number.parseInt(raw, 10);
+            if (Number.isFinite(from)) moveSection(from, index);
+          }}
+          className={`flex items-center gap-2 rounded-2xl border bg-white/50 p-3 ${
+            dragOverIndex === index
+              ? "border-[var(--brand)] ring-1 ring-[var(--brand)]"
+              : "border-[var(--line)]"
+          }`}
+        >
+          <button
+            type="button"
+            draggable
+            className="flex h-11 w-11 shrink-0 cursor-grab items-center justify-center rounded-xl border border-[var(--line)] bg-white/80 text-[var(--muted)] touch-manipulation active:cursor-grabbing"
+            aria-label={`拖拽调整「${HOME_SECTION_LABELS[sectionId]}」顺序`}
+            title="按住拖动调整顺序"
+            onDragStart={(e) => {
+              e.dataTransfer.setData(HOME_SECTION_DND_MIME, String(index));
+              e.dataTransfer.effectAllowed = "move";
+            }}
+            onDragEnd={() => setDragOverIndex(null)}
+          >
+            <span aria-hidden className="select-none text-base leading-none">
+              ⋮⋮
+            </span>
+          </button>
+          <div className="min-w-0 flex-1">
+            <div className="font-medium text-[var(--ink)]">
+              {HOME_SECTION_LABELS[sectionId]}
+            </div>
+            <div className="text-xs text-[var(--muted)]">
+              {sectionId === "contact"
+                ? "内容在下方「联系我们」分区编辑"
+                : sectionId === "banners"
+                  ? "网站装扮里配置多张横幅后显示"
+                  : "经典首页区块"}
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              className="btn btn-secondary min-h-11 min-w-11 touch-manipulation px-2.5 py-2 text-sm disabled:opacity-40"
+              disabled={index === 0}
+              aria-label={`上移「${HOME_SECTION_LABELS[sectionId]}」`}
+              title="上移"
+              onClick={() => moveSection(index, index - 1)}
+            >
+              ↑
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary min-h-11 min-w-11 touch-manipulation px-2.5 py-2 text-sm disabled:opacity-40"
+              disabled={index === order.length - 1}
+              aria-label={`下移「${HOME_SECTION_LABELS[sectionId]}」`}
+              title="下移"
+              onClick={() => moveSection(index, index + 1)}
+            >
+              ↓
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** 联系我们：字段编辑；页面位置由「首页区块顺序」拖拽决定 */
 export function ContactEditor({
   value,
   onChange,
@@ -292,7 +416,7 @@ export function ContactEditor({
   return (
     <div className="space-y-3">
       <p className="text-sm text-[var(--muted)]">
-        填写后会在首页左上角直接展开显示（无需点击）。留空的字段不会出现在前台。
+        填写后会在首页按「首页区块顺序」展开显示（无需点击）。留空的字段不会出现在前台。
       </p>
       <label className="flex min-h-11 items-center gap-2 text-sm">
         <input
@@ -424,10 +548,11 @@ export function PortalSettings({ value, onChange }: Props) {
       <div>
         <h2 className="text-lg font-semibold">门户导航与介绍页</h2>
         <p className="mt-1 text-sm text-[var(--muted)]">
-          控制前台顶部菜单显示与顺序，以及「公司介绍」「个人介绍」文案。拖拽左侧手柄可调整排版顺序；保存后立即生效。
+          控制前台顶部菜单显示与顺序、首页区块顺序，以及「公司介绍」「个人介绍」文案。拖拽左侧手柄可调整排版顺序；保存后立即生效。
         </p>
       </div>
       <PortalNavSettings value={value} onChange={onChange} />
+      <HomeSectionOrderEditor value={value} onChange={onChange} />
       <ContactEditor
         value={value.contact || DEFAULT_PORTAL_CONTACT}
         onChange={(contact) => onChange({ ...value, contact })}

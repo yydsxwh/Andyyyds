@@ -265,13 +265,14 @@ def main() -> int:
     run(client, f"cd {REMOTE_DIR} && npm install", timeout=900)
     run(client, f"cd {REMOTE_DIR} && npx prisma generate")
     run(client, f"cd {REMOTE_DIR} && npx prisma db push")
-    # 清 lock；用 [n]ext 避免 pkill -f 误匹配当前 SSH 命令行把自己杀掉
+    # 清 lock / 残留 .next，避免并发或半成品导致 pages-manifest ENOENT
+    # 用 [n]ext 避免 pkill -f 误匹配当前 SSH 命令行把自己杀掉
     run(
         client,
         f"rm -f {REMOTE_DIR}/.next/lock; "
         "pids=$(pgrep -f '[n]ext build' || true); "
         "if [ -n \"$pids\" ]; then kill $pids || true; fi; "
-        "sleep 1",
+        f"sleep 1; rm -rf {REMOTE_DIR}/.next",
     )
     run(client, f"cd {REMOTE_DIR} && npm run build", timeout=1200)
     # 用 if/else，避免 || 与 && 连用导致 restart 成功后又多起一个进程

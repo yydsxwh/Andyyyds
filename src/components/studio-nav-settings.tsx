@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   DEFAULT_STUDIO_NAV,
   type StudioNavConfig,
@@ -16,13 +17,16 @@ type Props = {
 const inputClass =
   "w-full rounded-2xl border border-[var(--line)] bg-white/80 px-3 py-2.5 text-sm outline-none focus:border-[var(--brand)]";
 
+/** 与门户导航 MIME 隔离，避免跨面板误投放 */
+const STUDIO_NAV_DND_MIME = "application/x-studio-nav-index";
+
 type SectionKey = keyof StudioNavConfig;
 
 const SECTIONS: { key: SectionKey; title: string; hint: string }[] = [
   {
     key: "topBase",
     title: "创作者中心导航",
-    hint: "出现在「创作者中心」顶部 Tab。其中「订单查看」仅站长可见；勿把用户/商家/装修/内容/系统设置放这里。",
+    hint: "出现在「创作者中心」顶部 Tab。拖拽左侧手柄或点上下箭头调顺序；「订单查看」仅站长可见；勿把用户/商家/装修/内容/系统设置放这里。",
   },
   {
     key: "topAdmin",
@@ -32,9 +36,11 @@ const SECTIONS: { key: SectionKey; title: string; hint: string }[] = [
   {
     key: "courses",
     title: "课程与资料子菜单",
-    hint: "出现在课程中心内的二级导航，例如「课程与资料 / 我的资料 / 创建课程/资料」。",
+    hint: "出现在课程中心内的二级导航（如「我的课程 / 创建产品 / 我的资料」）。拖拽或箭头调整的顺序会同步到前台子导航。",
   },
 ];
+
+type DragTarget = { section: SectionKey; index: number };
 
 export function StudioNavSettings({ value, onChange, embedded }: Props) {
   const config: StudioNavConfig = {
@@ -48,6 +54,9 @@ export function StudioNavSettings({ value, onChange, embedded }: Props) {
       ? value.courses
       : DEFAULT_STUDIO_NAV.courses,
   };
+
+  // 拖拽悬停高亮目标行，便于看出将插入的位置（分区内排序，不跨区）
+  const [dragOver, setDragOver] = useState<DragTarget | null>(null);
 
   function patchSection(section: SectionKey, items: StudioNavLink[]) {
     onChange({ ...config, [section]: items });
@@ -66,14 +75,22 @@ export function StudioNavSettings({ value, onChange, embedded }: Props) {
     );
   }
 
-  function moveItem(section: SectionKey, key: string, dir: -1 | 1) {
-    const items = [...config[section]];
-    const index = items.findIndex((item) => item.key === key);
-    const next = index + dir;
-    if (index < 0 || next < 0 || next >= items.length) return;
-    const [item] = items.splice(index, 1);
-    items.splice(next, 0, item);
-    patchSection(section, items);
+  /** 数组下标即创作者中心 / 站长管理 / 课程子导航的渲染顺序 */
+  function moveItem(section: SectionKey, from: number, to: number) {
+    const items = config[section];
+    if (
+      from === to ||
+      from < 0 ||
+      to < 0 ||
+      from >= items.length ||
+      to >= items.length
+    ) {
+      return;
+    }
+    const next = items.slice();
+    const [item] = next.splice(from, 1);
+    next.splice(to, 0, item);
+    patchSection(section, next);
   }
 
   function resetDefaults() {
@@ -85,7 +102,7 @@ export function StudioNavSettings({ value, onChange, embedded }: Props) {
       {embedded ? (
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-[var(--muted)]">
-            自定义工作室后台顶部导航与课程中心子菜单。留空保存时会回退到默认值。
+            自定义工作室后台顶部导航与课程中心子菜单。拖拽左侧手柄或点上下箭头调顺序；留空保存时会回退到默认值。
           </p>
           <button
             type="button"
@@ -100,7 +117,7 @@ export function StudioNavSettings({ value, onChange, embedded }: Props) {
           <div>
             <h2 className="text-lg font-semibold">后台导航菜单</h2>
             <p className="mt-1 text-sm text-[var(--muted)]">
-              自定义工作室后台顶部导航与课程中心子菜单的显示名称和跳转链接。留空保存时会回退到默认值。
+              自定义工作室后台顶部导航与课程中心子菜单的显示名称、跳转链接与顺序。拖拽左侧手柄或点上下箭头即可排序。
             </p>
           </div>
           <button
@@ -120,63 +137,120 @@ export function StudioNavSettings({ value, onChange, embedded }: Props) {
             <p className="mt-0.5 text-xs text-[var(--muted)]">{section.hint}</p>
           </div>
           <div className="space-y-3">
-            {config[section.key].map((item, index) => (
-              <div
-                key={item.key}
-                className="grid gap-3 rounded-2xl bg-white/60 p-3 sm:grid-cols-[1fr_1.4fr_auto]"
-              >
-                <label className="block text-sm">
-                  <span className="text-[var(--muted)]">显示名称</span>
-                  <input
-                    className={`${inputClass} mt-1`}
-                    value={item.label}
-                    maxLength={40}
-                    onChange={(e) =>
-                      updateItem(section.key, item.key, {
-                        label: e.target.value,
-                      })
+            {config[section.key].map((item, index) => {
+              const isDragOver =
+                dragOver?.section === section.key && dragOver.index === index;
+              return (
+                <div
+                  key={item.key}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "move";
+                    setDragOver({ section: section.key, index });
+                  }}
+                  onDragLeave={(e) => {
+                    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                      setDragOver((current) =>
+                        current?.section === section.key &&
+                        current.index === index
+                          ? null
+                          : current,
+                      );
                     }
-                  />
-                </label>
-                <label className="block text-sm">
-                  <span className="text-[var(--muted)]">链接</span>
-                  <input
-                    className={`${inputClass} mt-1`}
-                    value={item.href}
-                    maxLength={300}
-                    placeholder="/studio/..."
-                    onChange={(e) =>
-                      updateItem(section.key, item.key, {
-                        href: e.target.value,
-                      })
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragOver(null);
+                    const raw = e.dataTransfer.getData(STUDIO_NAV_DND_MIME);
+                    // 载荷含分区，防止把创作者项拖进站长管理或反之
+                    const [fromSection, fromRaw] = raw.split(":");
+                    if (fromSection !== section.key) return;
+                    const from = Number.parseInt(fromRaw, 10);
+                    if (Number.isFinite(from)) {
+                      moveItem(section.key, from, index);
                     }
-                  />
-                </label>
-                <div className="flex items-end gap-2">
+                  }}
+                  className={`grid gap-3 rounded-2xl border bg-white/60 p-3 sm:grid-cols-[auto_1fr_1.4fr_auto] ${
+                    isDragOver
+                      ? "border-[var(--brand)] ring-1 ring-[var(--brand)]"
+                      : "border-[var(--line)]"
+                  }`}
+                >
+                  {/* 仅手柄可拖：避免改文案/链接时误触发排序；touch-manipulation 便于微信内触控 */}
                   <button
                     type="button"
-                    className="rounded-full border border-[var(--line)] px-3 py-2 text-sm disabled:opacity-40"
-                    disabled={index === 0}
-                    onClick={() => moveItem(section.key, item.key, -1)}
-                    aria-label="上移"
+                    draggable
+                    className="flex h-11 w-11 shrink-0 cursor-grab items-center justify-center self-center rounded-xl border border-[var(--line)] bg-white/80 text-[var(--muted)] touch-manipulation active:cursor-grabbing"
+                    aria-label={`拖拽调整「${item.label || item.key}」顺序`}
+                    title="按住拖动调整顺序"
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData(
+                        STUDIO_NAV_DND_MIME,
+                        `${section.key}:${index}`,
+                      );
+                      e.dataTransfer.effectAllowed = "move";
+                    }}
+                    onDragEnd={() => setDragOver(null)}
                   >
-                    ↑
+                    <span aria-hidden className="select-none text-base leading-none">
+                      ⋮⋮
+                    </span>
                   </button>
-                  <button
-                    type="button"
-                    className="rounded-full border border-[var(--line)] px-3 py-2 text-sm disabled:opacity-40"
-                    disabled={index === config[section.key].length - 1}
-                    onClick={() => moveItem(section.key, item.key, 1)}
-                    aria-label="下移"
-                  >
-                    ↓
-                  </button>
-                  <span className="pb-2 text-xs text-[var(--muted)]">
-                    {item.key}
-                  </span>
+                  <label className="block min-w-0 text-sm">
+                    <span className="text-[var(--muted)]">显示名称</span>
+                    <input
+                      className={`${inputClass} mt-1`}
+                      value={item.label}
+                      maxLength={40}
+                      onChange={(e) =>
+                        updateItem(section.key, item.key, {
+                          label: e.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <label className="block min-w-0 text-sm">
+                    <span className="text-[var(--muted)]">链接</span>
+                    <input
+                      className={`${inputClass} mt-1`}
+                      value={item.href}
+                      maxLength={300}
+                      placeholder="/studio/..."
+                      onChange={(e) =>
+                        updateItem(section.key, item.key, {
+                          href: e.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <div className="flex flex-wrap items-end gap-2 sm:self-end">
+                    <button
+                      type="button"
+                      className="btn btn-secondary min-h-11 min-w-11 touch-manipulation px-2.5 py-2 text-sm disabled:opacity-40"
+                      disabled={index === 0}
+                      onClick={() => moveItem(section.key, index, index - 1)}
+                      aria-label={`上移「${item.label || item.key}」`}
+                      title="上移"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary min-h-11 min-w-11 touch-manipulation px-2.5 py-2 text-sm disabled:opacity-40"
+                      disabled={index === config[section.key].length - 1}
+                      onClick={() => moveItem(section.key, index, index + 1)}
+                      aria-label={`下移「${item.label || item.key}」`}
+                      title="下移"
+                    >
+                      ↓
+                    </button>
+                    <span className="pb-2 text-xs text-[var(--muted)]">
+                      {item.key}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       ))}
