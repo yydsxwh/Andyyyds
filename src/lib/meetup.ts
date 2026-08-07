@@ -74,9 +74,66 @@ export const MEETUP_SCORE_WEIGHTS = {
   timeHorizonDays: 60,
 } as const;
 
-/** 人数上下限：太小无意义，太大难管理线下集合 */
-export const MEETUP_MIN_PEOPLE = 2;
-export const MEETUP_MAX_PEOPLE = 50;
+/** 单档最少 1 人；默认档显示 2（见 MEETUP_DEFAULT_SLOT_PEOPLE） */
+export const MEETUP_MIN_PEOPLE = 1;
+/** 单档人数上限：2000 亿（在 Number.MAX_SAFE_INTEGER 内，可用 number 运算） */
+export const MEETUP_MAX_PEOPLE = 200_000_000_000;
+/** 活动总人数上限：各档之和，最多 8 档 */
+export const MEETUP_MAX_TOTAL_PEOPLE = MEETUP_MAX_PEOPLE * 8;
+/** 下拉快捷选项上限；超过须手输 */
+export const MEETUP_PEOPLE_SELECT_MAX = 100;
+/** 新建分档默认人数 */
+export const MEETUP_DEFAULT_SLOT_PEOPLE = 2;
+
+/**
+ * Prisma BigInt → number。
+ * 为何不用直接透传 bigint：Next JSON / React props 不支持 bigint；且 2000 亿在安全整数内。
+ */
+export function fromMeetupPeopleDb(value: bigint | number | string): number {
+  if (typeof value === "bigint") return Number(value);
+  if (typeof value === "string") {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : 0;
+  }
+  return Number.isFinite(value) ? value : 0;
+}
+
+/** number → Prisma BigInt（SQLite Int 仅约 21 亿，2000 亿须 BigInt 列） */
+export function toMeetupPeopleDb(value: number): bigint {
+  return BigInt(Math.trunc(value));
+}
+
+/**
+ * 解析人数手输：编辑中可为空；提交/失焦时调用。
+ * 允许自由键入后在此收成整数，避免 type=number + min 卡住删改。
+ */
+export function parseMeetupPeopleInput(
+  raw: string,
+): { ok: true; value: number } | { ok: false; error: string } {
+  const text = raw.trim();
+  if (text === "") {
+    return { ok: false, error: "请填写人数" };
+  }
+  // 仅接受非负整数字符串，拒绝小数/科学计数/文字
+  if (!/^\d+$/.test(text)) {
+    return { ok: false, error: "人数须为整数，请勿输入文字或小数" };
+  }
+  // 超长数字 Number 会丢精度；先挡在安全整数位数外
+  if (text.length > String(MEETUP_MAX_PEOPLE).length) {
+    return { ok: false, error: `人数不能超过 ${MEETUP_MAX_PEOPLE}` };
+  }
+  const value = Number(text);
+  if (!Number.isSafeInteger(value)) {
+    return { ok: false, error: "人数无效" };
+  }
+  if (value < MEETUP_MIN_PEOPLE) {
+    return { ok: false, error: `人数至少为 ${MEETUP_MIN_PEOPLE}` };
+  }
+  if (value > MEETUP_MAX_PEOPLE) {
+    return { ok: false, error: `人数不能超过 ${MEETUP_MAX_PEOPLE}` };
+  }
+  return { ok: true, value };
+}
 
 const CATEGORY_KEYS = new Set<string>(MEETUP_CATEGORIES.map((c) => c.key));
 const STATUS_KEYS = new Set<string>(MEETUP_STATUSES.map((s) => s.key));

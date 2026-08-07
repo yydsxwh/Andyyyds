@@ -177,8 +177,12 @@ export default async function StudioAdminHubPage() {
     }),
     prisma.user.count({ where: { roleApplicationStatus: "PENDING" } }),
     prisma.merchant.count({ where: { status: "PENDING" } }),
+    // 上架课程统计不含约搭壳/商城：那些有独立运营入口，勿把活动算进「课程数」
     prisma.course.count({
-      where: { status: "PUBLISHED", productType: { not: "MATERIAL" } },
+      where: {
+        status: "PUBLISHED",
+        productType: { in: ["COURSE", "COLUMN"] },
+      },
     }),
     prisma.course.count({
       where: { status: "PUBLISHED", productType: "MATERIAL" },

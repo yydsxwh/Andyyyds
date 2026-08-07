@@ -4,7 +4,11 @@ import { CoursesSubnav } from "@/components/courses-subnav";
 import { StudioNav } from "@/components/studio-nav";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { productTypeLabel } from "@/lib/product-types";
+import {
+  isMeetupProductType,
+  meetupActivityEditPath,
+  productTypeLabel,
+} from "@/lib/product-types";
 import {
   canCreateSellableProducts,
   canViewAllStudioData,
@@ -71,6 +75,10 @@ export default async function CourseLearnerProgressPage({
   });
   if (!course) notFound();
 
+  // 约搭是报名活动，无学习进度；误开时回到活动编辑
+  if (isMeetupProductType(course.productType)) {
+    redirect(meetupActivityEditPath(course.slug, { fromCourseEdit: true }));
+  }
   if (course.productType === "MATERIAL") {
     redirect(`/studio/courses/${course.id}/edit`);
   }

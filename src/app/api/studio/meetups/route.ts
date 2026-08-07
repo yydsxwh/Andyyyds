@@ -8,7 +8,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { fromMeetupPeopleDb, toMeetupPeopleDb } from "@/lib/meetup";
 import {
+  meetupDetailDbFields,
   meetupWriteSchema,
   parseMeetupWriteBody,
 } from "@/lib/meetup-payload";
@@ -58,7 +60,7 @@ export async function GET() {
       place: m.place,
       startsAt: m.startsAt.toISOString(),
       endsAt: m.endsAt?.toISOString() ?? null,
-      maxPeople: m.maxPeople,
+      maxPeople: fromMeetupPeopleDb(m.maxPeople),
       joinCount: m._count.joins,
       slotCount: m._count.slots,
       coverUrl: m.coverUrl || "",
@@ -105,7 +107,7 @@ export async function POST(req: Request) {
           place: data.place,
           latitude: data.latitude,
           longitude: data.longitude,
-          maxPeople: data.maxPeople,
+          maxPeople: toMeetupPeopleDb(data.maxPeople),
           coverUrl: data.coverUrl,
           tagsJson: data.tagsJson,
           feeIncludes: data.feeIncludes,
@@ -113,12 +115,13 @@ export async function POST(req: Request) {
           autoRefund: data.autoRefund,
           galleryJson: data.galleryJson,
           contactUrl: data.contactUrl,
+          ...meetupDetailDbFields(data),
           status: "OPEN",
           hostId: session.id,
           slots: {
             create: data.slots.map((s, i) => ({
               name: s.name,
-              maxPeople: s.maxPeople,
+              maxPeople: toMeetupPeopleDb(s.maxPeople),
               sortOrder: i,
             })),
           },
@@ -131,6 +134,7 @@ export async function POST(req: Request) {
           meetupId: created.id,
           userId: session.id,
           slotId: created.slots[0]?.id || null,
+          partySize: 1,
         },
       });
 

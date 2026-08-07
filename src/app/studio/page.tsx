@@ -5,7 +5,11 @@ import { StudioNav } from "@/components/studio-nav";
 import { StudioProductDeleteButton } from "@/components/studio-product-delete-button";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { productDetailPath, productTypeLabel } from "@/lib/product-types";
+import {
+  courseStudioProductTypeWhere,
+  productDetailPath,
+  productTypeLabel,
+} from "@/lib/product-types";
 import {
   canAccessStudio,
   canCreateSellableProducts,
@@ -44,9 +48,13 @@ export default async function StudioPage() {
   const canCreate = canCreateSellableProducts(session.role);
   const canDelete = canDeleteCourses(session.role);
   const teacherId = canViewAllStudioData(session.role) ? undefined : session.id;
+  // 约搭壳/商城商品不是课程：总览「我的课程」必须与 /studio/courses 同样排除，否则会出现「编辑章节」误入口
   const courses = canManageCourses(session.role)
     ? await prisma.course.findMany({
-        where: teacherId ? { teacherId } : undefined,
+        where: {
+          ...(teacherId ? { teacherId } : {}),
+          ...courseStudioProductTypeWhere("all"),
+        },
         include: { _count: { select: { enrollments: true, orders: true } } },
         orderBy: { updatedAt: "desc" },
       })

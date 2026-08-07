@@ -11,6 +11,10 @@ import { StudioNav } from "@/components/studio-nav";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import {
+  isMeetupProductType,
+  meetupActivityEditPath,
+} from "@/lib/product-types";
+import {
   canDeleteCourses,
   canManageCoupons,
   canManageCourses,
@@ -66,6 +70,14 @@ export default async function EditCoursePage({
     },
   });
   if (!course) notFound();
+
+  // 约搭≠课程：壳商品禁止走 edit-course-form，统一进活动编辑（时间/地点/分档）
+  if (isMeetupProductType(course.productType)) {
+    redirect(meetupActivityEditPath(course.slug, { fromCourseEdit: true }));
+  }
+  if (course.productType === "PRODUCT") {
+    redirect("/studio/shop");
+  }
 
   const showCoupons = canManageCoupons(session.role);
   const [availableBundleCourses, couponRows, productRows] = await Promise.all([

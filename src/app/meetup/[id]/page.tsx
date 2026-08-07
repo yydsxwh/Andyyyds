@@ -5,10 +5,18 @@ import {
 } from "@/components/meetup-detail-view";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { fromMeetupPeopleDb } from "@/lib/meetup";
 import { parseJsonStringArray } from "@/lib/meetup-meta";
 import { ensureMeetupProductCourse } from "@/lib/meetup-product";
+import {
+  parseMeetupServicePhones,
+  sumMeetupPartySize,
+} from "@/lib/meetup-service-contact";
 import { canManageMeetups } from "@/lib/roles";
-import { getOrderFormConfig } from "@/lib/site-settings";
+import {
+  getOrderFormConfig,
+  getPortalConfig,
+} from "@/lib/site-settings";
 
 export const dynamic = "force-dynamic";
 
@@ -77,7 +85,11 @@ export default async function MeetupDetailPage({
       )?.referralCode || ""
     : "";
 
-  const orderForm = await getOrderFormConfig();
+  const [orderForm, portal] = await Promise.all([
+    getOrderFormConfig(),
+    getPortalConfig(),
+  ]);
+  const siteContact = portal.contact;
 
   const data: MeetupDetailData = {
     id: meetup.id,
@@ -90,7 +102,7 @@ export default async function MeetupDetailPage({
     endsAt: meetup.endsAt ? meetup.endsAt.toISOString() : null,
     timezone: meetup.timezone || "Asia/Shanghai",
     place: meetup.place,
-    maxPeople: meetup.maxPeople,
+    maxPeople: fromMeetupPeopleDb(meetup.maxPeople),
     coverUrl: meetup.coverUrl || "",
     tags: parseJsonStringArray(meetup.tagsJson),
     feeIncludes: meetup.feeIncludes || "",
@@ -98,14 +110,25 @@ export default async function MeetupDetailPage({
     autoRefund: Boolean(meetup.autoRefund),
     gallery: parseJsonStringArray(meetup.galleryJson),
     contactUrl: meetup.contactUrl || "",
+    meetingPoint: meetup.meetingPoint || "",
+    destination: meetup.destination || "",
+    highlights: meetup.highlights || "",
+    adminPhone: meetup.adminPhone || "",
+    servicePhones: parseMeetupServicePhones(meetup.servicePhonesJson),
+    wechatService: meetup.wechatService || "",
+    itineraryHtml: meetup.itineraryHtml || "",
+    feeNoteHtml: meetup.feeNoteHtml || "",
+    notesHtml: meetup.notesHtml || "",
     status: meetup.status,
     hostId: meetup.hostId,
     productCourseId: meetup.productCourseId || null,
     slots: meetup.slots.map((s) => ({
       id: s.id,
       name: s.name,
-      maxPeople: s.maxPeople,
-      joinCount: meetup.joins.filter((j) => j.slotId === s.id).length,
+      maxPeople: fromMeetupPeopleDb(s.maxPeople),
+      joinCount: sumMeetupPartySize(
+        meetup.joins.filter((j) => j.slotId === s.id),
+      ),
     })),
     host: {
       id: meetup.host.id,
@@ -116,6 +139,7 @@ export default async function MeetupDetailPage({
       id: j.id,
       userId: j.userId,
       slotId: j.slotId || null,
+      partySize: Math.max(1, Math.floor(Number(j.partySize) || 1)),
       user: {
         id: j.user.id,
         name: j.user.name,
@@ -130,6 +154,11 @@ export default async function MeetupDetailPage({
       currentUserId={session?.id ?? null}
       inviteCode={inviteCode}
       orderForm={orderForm}
+      siteContact={{
+        phone: siteContact?.phone || "",
+        wechat: siteContact?.wechat || "",
+        title: siteContact?.title || "网站联系方式",
+      }}
       canManageAsAdmin={
         session ? canManageMeetups(session.role) : false
       }

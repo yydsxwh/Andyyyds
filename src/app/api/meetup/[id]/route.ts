@@ -9,13 +9,23 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { isMeetupStatus, statusAfterJoinCountChange } from "@/lib/meetup";
+import {
+  fromMeetupPeopleDb,
+  isMeetupStatus,
+  statusAfterJoinCountChange,
+  toMeetupPeopleDb,
+} from "@/lib/meetup";
 import { parseJsonStringArray } from "@/lib/meetup-meta";
 import {
+  meetupDetailDbFields,
   meetupWriteSchema,
   parseMeetupWriteBody,
 } from "@/lib/meetup-payload";
 import { ensureMeetupProductCourse } from "@/lib/meetup-product";
+import {
+  parseMeetupServicePhones,
+  sumMeetupPartySize,
+} from "@/lib/meetup-service-contact";
 import { canManageMeetups } from "@/lib/roles";
 
 const statusOnlySchema = z.object({
@@ -43,8 +53,9 @@ async function loadMeetup(id: string) {
 }
 
 function serialize(row: NonNullable<Awaited<ReturnType<typeof loadMeetup>>>) {
-  const joinCount = row._count.joins;
+  const joinCount = sumMeetupPartySize(row.joins);
   const priceCents = Math.max(0, Math.floor(row.priceCents || 0));
+  const maxPeople = fromMeetupPeopleDb(row.maxPeople);
   return {
     id: row.id,
     title: row.title,
@@ -58,7 +69,7 @@ function serialize(row: NonNullable<Awaited<ReturnType<typeof loadMeetup>>>) {
     place: row.place,
     latitude: row.latitude ?? null,
     longitude: row.longitude ?? null,
-    maxPeople: row.maxPeople,
+    maxPeople,
     coverUrl: row.coverUrl || "",
     tags: parseJsonStringArray(row.tagsJson),
     feeIncludes: row.feeIncludes || "",
@@ -66,15 +77,26 @@ function serialize(row: NonNullable<Awaited<ReturnType<typeof loadMeetup>>>) {
     autoRefund: Boolean(row.autoRefund),
     gallery: parseJsonStringArray(row.galleryJson),
     contactUrl: row.contactUrl || "",
+    meetingPoint: row.meetingPoint || "",
+    destination: row.destination || "",
+    highlights: row.highlights || "",
+    adminPhone: row.adminPhone || "",
+    servicePhones: parseMeetupServicePhones(row.servicePhonesJson),
+    wechatService: row.wechatService || "",
+    itineraryHtml: row.itineraryHtml || "",
+    feeNoteHtml: row.feeNoteHtml || "",
+    notesHtml: row.notesHtml || "",
     status: row.status,
     hostId: row.hostId,
     productCourseId: row.productCourseId || null,
     slots: row.slots.map((s) => ({
       id: s.id,
       name: s.name,
-      maxPeople: s.maxPeople,
+      maxPeople: fromMeetupPeopleDb(s.maxPeople),
       sortOrder: s.sortOrder,
-      joinCount: s._count?.joins ?? row.joins.filter((j) => j.slotId === s.id).length,
+      joinCount: sumMeetupPartySize(
+        row.joins.filter((j) => j.slotId === s.id),
+      ),
     })),
     host: {
       id: row.host.id,
@@ -82,12 +104,13 @@ function serialize(row: NonNullable<Awaited<ReturnType<typeof loadMeetup>>>) {
       avatarUrl: row.host.avatarUrl || "",
     },
     joinCount,
-    spotsLeft: Math.max(row.maxPeople - joinCount, 0),
+    spotsLeft: Math.max(maxPeople - joinCount, 0),
     createdAt: row.createdAt.toISOString(),
     joins: row.joins.map((j) => ({
       id: j.id,
       userId: j.userId,
       slotId: j.slotId || null,
+      partySize: Math.max(1, Math.floor(Number(j.partySize) || 1)),
       createdAt: j.createdAt.toISOString(),
       user: {
         id: j.user.id,
@@ -158,10 +181,14 @@ export async function PATCH(
       }
       let nextStatus = status;
       if (status === "OPEN") {
+        const joins = await prisma.meetupJoin.findMany({
+          where: { meetupId: id },
+          select: { partySize: true },
+        });
         nextStatus = statusAfterJoinCountChange({
           currentStatus: "OPEN",
-          joinCount: existing._count.joins,
-          maxPeople: existing.maxPeople,
+          joinCount: sumMeetupPartySize(joins),
+          maxPeople: fromMeetupPeopleDb(existing.maxPeople),
         });
       }
       await prisma.$transaction(async (tx) => {
@@ -186,13 +213,19 @@ export async function PATCH(
     }
     const data = parsed.data;
 
+    const existingJoins = await prisma.meetupJoin.findMany({
+      where: { meetupId: id },
+      select: { partySize: true },
+    });
+    const occupied = sumMeetupPartySize(existingJoins);
+
     let nextStatus = existing.status;
     if (data.status && isMeetupStatus(data.status)) {
       nextStatus = data.status;
       if (data.status === "OPEN") {
         nextStatus = statusAfterJoinCountChange({
           currentStatus: "OPEN",
-          joinCount: existing._count.joins,
+          joinCount: occupied,
           maxPeople: data.maxPeople,
         });
       }
@@ -213,7 +246,7 @@ export async function PATCH(
           place: data.place,
           latitude: data.latitude,
           longitude: data.longitude,
-          maxPeople: data.maxPeople,
+          maxPeople: toMeetupPeopleDb(data.maxPeople),
           coverUrl: data.coverUrl,
           tagsJson: data.tagsJson,
           feeIncludes: data.feeIncludes,
@@ -221,6 +254,7 @@ export async function PATCH(
           autoRefund: data.autoRefund,
           galleryJson: data.galleryJson,
           contactUrl: data.contactUrl,
+          ...meetupDetailDbFields(data),
           status: nextStatus,
         },
       });
@@ -235,7 +269,7 @@ export async function PATCH(
               where: { id: slot.id },
               data: {
                 name: slot.name,
-                maxPeople: slot.maxPeople,
+                maxPeople: toMeetupPeopleDb(slot.maxPeople),
                 sortOrder: i,
               },
             });
@@ -247,7 +281,7 @@ export async function PATCH(
           data: {
             meetupId: id,
             name: slot.name,
-            maxPeople: slot.maxPeople,
+            maxPeople: toMeetupPeopleDb(slot.maxPeople),
             sortOrder: i,
           },
         });

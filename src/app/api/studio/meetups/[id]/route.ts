@@ -9,13 +9,23 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { isMeetupStatus, statusAfterJoinCountChange } from "@/lib/meetup";
+import {
+  fromMeetupPeopleDb,
+  isMeetupStatus,
+  statusAfterJoinCountChange,
+  toMeetupPeopleDb,
+} from "@/lib/meetup";
 import { parseJsonStringArray } from "@/lib/meetup-meta";
 import {
+  meetupDetailDbFields,
   meetupWriteSchema,
   parseMeetupWriteBody,
 } from "@/lib/meetup-payload";
 import { ensureMeetupProductCourse } from "@/lib/meetup-product";
+import {
+  parseMeetupServicePhones,
+  sumMeetupPartySize,
+} from "@/lib/meetup-service-contact";
 import { canManageMeetups } from "@/lib/roles";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -65,7 +75,7 @@ export async function GET(_req: Request, ctx: Ctx) {
       place: meetup.place,
       latitude: meetup.latitude ?? null,
       longitude: meetup.longitude ?? null,
-      maxPeople: meetup.maxPeople,
+      maxPeople: fromMeetupPeopleDb(meetup.maxPeople),
       coverUrl: meetup.coverUrl || "",
       tags: parseJsonStringArray(meetup.tagsJson),
       feeIncludes: meetup.feeIncludes || "",
@@ -73,6 +83,15 @@ export async function GET(_req: Request, ctx: Ctx) {
       autoRefund: Boolean(meetup.autoRefund),
       gallery: parseJsonStringArray(meetup.galleryJson),
       contactUrl: meetup.contactUrl || "",
+      meetingPoint: meetup.meetingPoint || "",
+      destination: meetup.destination || "",
+      highlights: meetup.highlights || "",
+      adminPhone: meetup.adminPhone || "",
+      servicePhones: parseMeetupServicePhones(meetup.servicePhonesJson),
+      wechatService: meetup.wechatService || "",
+      itineraryHtml: meetup.itineraryHtml || "",
+      feeNoteHtml: meetup.feeNoteHtml || "",
+      notesHtml: meetup.notesHtml || "",
       status: meetup.status,
       hostId: meetup.hostId,
       hostName: meetup.host.name,
@@ -81,7 +100,7 @@ export async function GET(_req: Request, ctx: Ctx) {
       slots: meetup.slots.map((s) => ({
         id: s.id,
         name: s.name,
-        maxPeople: s.maxPeople,
+        maxPeople: fromMeetupPeopleDb(s.maxPeople),
         joinCount: s._count.joins,
         sortOrder: s.sortOrder,
       })),
@@ -127,10 +146,14 @@ export async function PATCH(req: Request, ctx: Ctx) {
       }
       let nextStatus = status;
       if (status === "OPEN") {
+        const joins = await prisma.meetupJoin.findMany({
+          where: { meetupId: id },
+          select: { partySize: true },
+        });
         nextStatus = statusAfterJoinCountChange({
           currentStatus: "OPEN",
-          joinCount: existing._count.joins,
-          maxPeople: existing.maxPeople,
+          joinCount: sumMeetupPartySize(joins),
+          maxPeople: fromMeetupPeopleDb(existing.maxPeople),
         });
       }
       const updated = await prisma.$transaction(async (tx) => {
@@ -151,13 +174,19 @@ export async function PATCH(req: Request, ctx: Ctx) {
     }
     const data = parsed.data;
 
+    const occupiedJoins = await prisma.meetupJoin.findMany({
+      where: { meetupId: id },
+      select: { partySize: true },
+    });
+    const occupied = sumMeetupPartySize(occupiedJoins);
+
     let nextStatus = existing.status;
     if (data.status && isMeetupStatus(data.status)) {
       nextStatus = data.status;
       if (data.status === "OPEN") {
         nextStatus = statusAfterJoinCountChange({
           currentStatus: "OPEN",
-          joinCount: existing._count.joins,
+          joinCount: occupied,
           maxPeople: data.maxPeople,
         });
       }
@@ -178,7 +207,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
           place: data.place,
           latitude: data.latitude,
           longitude: data.longitude,
-          maxPeople: data.maxPeople,
+          maxPeople: toMeetupPeopleDb(data.maxPeople),
           coverUrl: data.coverUrl,
           tagsJson: data.tagsJson,
           feeIncludes: data.feeIncludes,
@@ -186,6 +215,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
           autoRefund: data.autoRefund,
           galleryJson: data.galleryJson,
           contactUrl: data.contactUrl,
+          ...meetupDetailDbFields(data),
           status: nextStatus,
         },
       });
@@ -201,7 +231,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
               where: { id: slot.id },
               data: {
                 name: slot.name,
-                maxPeople: slot.maxPeople,
+                maxPeople: toMeetupPeopleDb(slot.maxPeople),
                 sortOrder: i,
               },
             });
@@ -213,7 +243,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
           data: {
             meetupId: id,
             name: slot.name,
-            maxPeople: slot.maxPeople,
+            maxPeople: toMeetupPeopleDb(slot.maxPeople),
             sortOrder: i,
           },
         });

@@ -11,62 +11,24 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import {
   buildMeetupPlazaWhere,
-  isMeetupCategory,
-  MEETUP_MAX_PEOPLE,
-  MEETUP_MAX_PRICE_CENTS,
-  MEETUP_MIN_PEOPLE,
+  fromMeetupPeopleDb,
   MEETUP_PLAZA_TAKE,
   parseMeetupSort,
   parseOptionalCoord,
   sortMeetupPlazaRows,
-  yuanToMeetupPriceCents,
+  toMeetupPeopleDb,
 } from "@/lib/meetup";
+import { normalizeMeetupTimeZone } from "@/lib/meetup-timezone";
+import { parseJsonStringArray } from "@/lib/meetup-meta";
 import {
-  DEFAULT_MEETUP_TIMEZONE,
-  isValidIanaTimeZone,
-  normalizeMeetupTimeZone,
-  wallClockToUtc,
-} from "@/lib/meetup-timezone";
-import {
-  meetupBlocksToHtml,
-  parseMeetupContentBlocks,
-  sanitizeMeetupContentHtml,
-} from "@/lib/meetup-content";
-import {
-  normalizeMeetupSlotInputs,
-  parseJsonStringArray,
-  stringifyJsonStringArray,
-} from "@/lib/meetup-meta";
+  meetupWriteSchema,
+  parseMeetupWriteBody,
+} from "@/lib/meetup-payload";
 import { ensureMeetupProductCourse } from "@/lib/meetup-product";
-
-const slotSchema = z.object({
-  name: z.string().trim().min(1).max(40),
-  maxPeople: z.number().int().min(1).max(MEETUP_MAX_PEOPLE),
-});
-
-const createSchema = z.object({
-  title: z.string().trim().min(2).max(80),
-  description: z.string().trim().max(2000).optional().default(""),
-  contentHtml: z.string().max(100_000).optional().default(""),
-  contentBlocks: z.array(z.unknown()).max(40).optional(),
-  priceYuan: z.union([z.number(), z.string()]).optional(),
-  category: z.string().trim(),
-  startsAt: z.string().min(1),
-  endsAt: z.string().optional().nullable(),
-  timezone: z.string().trim().max(64).optional(),
-  place: z.string().trim().min(1).max(120),
-  latitude: z.union([z.number(), z.string(), z.null()]).optional(),
-  longitude: z.union([z.number(), z.string(), z.null()]).optional(),
-  maxPeople: z.number().int().min(MEETUP_MIN_PEOPLE).max(MEETUP_MAX_PEOPLE),
-  coverUrl: z.string().trim().max(500).optional().default(""),
-  tags: z.array(z.string()).max(12).optional(),
-  feeIncludes: z.string().trim().max(500).optional().default(""),
-  refundPolicy: z.string().trim().max(500).optional().default(""),
-  autoRefund: z.boolean().optional().default(false),
-  gallery: z.array(z.string()).max(12).optional(),
-  contactUrl: z.string().trim().max(500).optional().default(""),
-  slots: z.array(slotSchema).max(8).optional(),
-});
+import {
+  parseMeetupServicePhones,
+  sumMeetupPartySize,
+} from "@/lib/meetup-service-contact";
 
 function serializeMeetup(row: {
   id: string;
@@ -81,7 +43,7 @@ function serializeMeetup(row: {
   place: string;
   latitude?: number | null;
   longitude?: number | null;
-  maxPeople: number;
+  maxPeople: number | bigint;
   coverUrl: string;
   tagsJson?: string;
   feeIncludes?: string;
@@ -89,6 +51,15 @@ function serializeMeetup(row: {
   autoRefund?: boolean;
   galleryJson?: string;
   contactUrl?: string;
+  meetingPoint?: string;
+  destination?: string;
+  highlights?: string;
+  adminPhone?: string;
+  servicePhonesJson?: string;
+  wechatService?: string;
+  itineraryHtml?: string;
+  feeNoteHtml?: string;
+  notesHtml?: string;
   status: string;
   hostId: string;
   productCourseId?: string | null;
@@ -97,30 +68,33 @@ function serializeMeetup(row: {
   slots?: {
     id: string;
     name: string;
-    maxPeople: number;
+    maxPeople: number | bigint;
     sortOrder: number;
-    joins?: { id: string; userId: string }[];
+    joins?: { id: string; userId: string; partySize?: number | null }[];
     _count?: { joins: number };
   }[];
   joins: {
     id: string;
     userId: string;
     slotId?: string | null;
+    partySize?: number | null;
     createdAt: Date;
     user?: { id: string; name: string; avatarUrl: string };
   }[];
   _count?: { joins: number };
 }) {
-  const joinCount = row._count?.joins ?? row.joins.length;
+  // 余位按占用名额（partySize）计，不是按报名账号数
+  const joinCount = sumMeetupPartySize(row.joins);
   const priceCents = Math.max(0, Math.floor(row.priceCents || 0));
+  const maxPeople = fromMeetupPeopleDb(row.maxPeople);
   const slots = (row.slots || []).map((s) => {
-    const count =
-      s._count?.joins ??
-      row.joins.filter((j) => j.slotId === s.id).length;
+    const count = sumMeetupPartySize(
+      row.joins.filter((j) => j.slotId === s.id),
+    );
     return {
       id: s.id,
       name: s.name,
-      maxPeople: s.maxPeople,
+      maxPeople: fromMeetupPeopleDb(s.maxPeople),
       sortOrder: s.sortOrder,
       joinCount: count,
     };
@@ -138,7 +112,7 @@ function serializeMeetup(row: {
     place: row.place,
     latitude: row.latitude ?? null,
     longitude: row.longitude ?? null,
-    maxPeople: row.maxPeople,
+    maxPeople,
     coverUrl: row.coverUrl || "",
     tags: parseJsonStringArray(row.tagsJson),
     feeIncludes: row.feeIncludes || "",
@@ -146,6 +120,15 @@ function serializeMeetup(row: {
     autoRefund: Boolean(row.autoRefund),
     gallery: parseJsonStringArray(row.galleryJson),
     contactUrl: row.contactUrl || "",
+    meetingPoint: row.meetingPoint || "",
+    destination: row.destination || "",
+    highlights: row.highlights || "",
+    adminPhone: row.adminPhone || "",
+    servicePhones: parseMeetupServicePhones(row.servicePhonesJson),
+    wechatService: row.wechatService || "",
+    itineraryHtml: row.itineraryHtml || "",
+    feeNoteHtml: row.feeNoteHtml || "",
+    notesHtml: row.notesHtml || "",
     status: row.status,
     hostId: row.hostId,
     productCourseId: row.productCourseId || null,
@@ -156,12 +139,13 @@ function serializeMeetup(row: {
       avatarUrl: row.host.avatarUrl || "",
     },
     joinCount,
-    spotsLeft: Math.max(row.maxPeople - joinCount, 0),
+    spotsLeft: Math.max(maxPeople - joinCount, 0),
     createdAt: row.createdAt.toISOString(),
     joins: row.joins.map((j) => ({
       id: j.id,
       userId: j.userId,
       slotId: j.slotId || null,
+      partySize: Math.max(1, Math.floor(Number(j.partySize) || 1)),
       createdAt: j.createdAt.toISOString(),
       user: j.user
         ? {
@@ -210,7 +194,8 @@ export async function GET(req: Request) {
   const sorted = sortMeetupPlazaRows(
     rows.map((row) => ({
       ...row,
-      joinCount: row._count.joins,
+      maxPeople: fromMeetupPeopleDb(row.maxPeople),
+      joinCount: sumMeetupPartySize(row.joins),
     })),
     { sort, userLat, userLng },
   );
@@ -231,11 +216,6 @@ export async function GET(req: Request) {
   });
 }
 
-function isSafeUrl(url: string): boolean {
-  if (!url) return true;
-  return /^https?:\/\//i.test(url) || url.startsWith("/");
-}
-
 export async function POST(req: Request) {
   const session = await getSession();
   if (!session) {
@@ -243,130 +223,50 @@ export async function POST(req: Request) {
   }
 
   try {
-    const body = createSchema.parse(await req.json());
-    if (!isMeetupCategory(body.category)) {
-      return NextResponse.json({ error: "分类无效" }, { status: 400 });
+    const body = meetupWriteSchema.parse(await req.json());
+    const parsed = parseMeetupWriteBody(body);
+    if (!parsed.ok) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
     }
-
-    const timezoneRaw = (body.timezone || DEFAULT_MEETUP_TIMEZONE).trim();
-    if (timezoneRaw && !isValidIanaTimeZone(timezoneRaw)) {
-      return NextResponse.json(
-        { error: "时区无效，请重新选择城市或时区" },
-        { status: 400 },
-      );
-    }
-    const timezone = normalizeMeetupTimeZone(timezoneRaw);
-
-    const startsAt = wallClockToUtc(body.startsAt, timezone);
-    if (!startsAt) {
-      return NextResponse.json({ error: "开始时间无效" }, { status: 400 });
-    }
-    if (startsAt.getTime() < Date.now() - 30 * 60 * 1000) {
-      return NextResponse.json(
-        { error: "开始时间不能早于当前时间" },
-        { status: 400 },
-      );
-    }
-
-    let endsAt: Date | null = null;
-    if (body.endsAt) {
-      endsAt = wallClockToUtc(body.endsAt, timezone);
-      if (!endsAt || endsAt <= startsAt) {
-        return NextResponse.json(
-          { error: "结束时间须晚于开始时间" },
-          { status: 400 },
-        );
-      }
-    }
-
-    const coverUrl = body.coverUrl?.trim() || "";
-    if (coverUrl && !isSafeUrl(coverUrl)) {
-      return NextResponse.json(
-        { error: "封面请填写 http(s) 链接或站内路径" },
-        { status: 400 },
-      );
-    }
-
-    const contactUrl = body.contactUrl?.trim() || "";
-    if (contactUrl && !isSafeUrl(contactUrl)) {
-      return NextResponse.json({ error: "联系链接无效" }, { status: 400 });
-    }
-
-    const gallery = (body.gallery || [])
-      .map((u) => u.trim())
-      .filter((u) => isSafeUrl(u))
-      .slice(0, 12);
-
-    const priceCents = yuanToMeetupPriceCents(body.priceYuan ?? 0);
-    if (priceCents > MEETUP_MAX_PRICE_CENTS) {
-      return NextResponse.json({ error: "报名费过高" }, { status: 400 });
-    }
-
-    const lat = parseOptionalCoord(body.latitude, "lat");
-    const lng = parseOptionalCoord(body.longitude, "lng");
-    if (
-      (body.latitude !== undefined &&
-        body.latitude !== null &&
-        body.latitude !== "" &&
-        lat == null) ||
-      (body.longitude !== undefined &&
-        body.longitude !== null &&
-        body.longitude !== "" &&
-        lng == null)
-    ) {
-      return NextResponse.json(
-        { error: "经纬度格式无效（纬度 -90~90，经度 -180~180）" },
-        { status: 400 },
-      );
-    }
-    const hasCoords = lat != null && lng != null;
-
-    const blocks = body.contentBlocks
-      ? parseMeetupContentBlocks(body.contentBlocks)
-      : null;
-    const contentHtml = sanitizeMeetupContentHtml(
-      blocks && blocks.length > 0
-        ? meetupBlocksToHtml(blocks)
-        : body.contentHtml || "",
-    );
-
-    const slotInputs = normalizeMeetupSlotInputs(body.slots, body.maxPeople);
-    const maxPeople = Math.min(
-      MEETUP_MAX_PEOPLE,
-      Math.max(
-        MEETUP_MIN_PEOPLE,
-        slotInputs.reduce((sum, s) => sum + s.maxPeople, 0),
-      ),
-    );
+    const data = parsed.data;
 
     const meetup = await prisma.$transaction(async (tx) => {
       const created = await tx.meetup.create({
         data: {
-          title: body.title,
-          description: body.description || "",
-          contentHtml,
-          priceCents,
-          category: body.category,
-          startsAt,
-          endsAt,
-          timezone,
-          place: body.place,
-          latitude: hasCoords ? lat : null,
-          longitude: hasCoords ? lng : null,
-          maxPeople,
-          coverUrl,
-          tagsJson: stringifyJsonStringArray(body.tags || []),
-          feeIncludes: body.feeIncludes || "",
-          refundPolicy: body.refundPolicy || "",
-          autoRefund: Boolean(body.autoRefund),
-          galleryJson: stringifyJsonStringArray(gallery),
-          contactUrl,
+          title: data.title,
+          description: data.description,
+          contentHtml: data.contentHtml,
+          priceCents: data.priceCents,
+          category: data.category,
+          startsAt: data.startsAt,
+          endsAt: data.endsAt,
+          timezone: data.timezone,
+          place: data.place,
+          latitude: data.latitude,
+          longitude: data.longitude,
+          maxPeople: toMeetupPeopleDb(data.maxPeople),
+          coverUrl: data.coverUrl,
+          tagsJson: data.tagsJson,
+          feeIncludes: data.feeIncludes,
+          refundPolicy: data.refundPolicy,
+          autoRefund: data.autoRefund,
+          galleryJson: data.galleryJson,
+          contactUrl: data.contactUrl,
+          meetingPoint: data.meetingPoint,
+          destination: data.destination,
+          highlights: data.highlights,
+          adminPhone: data.adminPhone,
+          servicePhonesJson: data.servicePhonesJson,
+          wechatService: data.wechatService,
+          itineraryHtml: data.itineraryHtml,
+          feeNoteHtml: data.feeNoteHtml,
+          notesHtml: data.notesHtml,
           status: "OPEN",
           hostId: session.id,
           slots: {
-            create: slotInputs.map((s, i) => ({
+            create: data.slots.map((s, i) => ({
               name: s.name,
-              maxPeople: s.maxPeople,
+              maxPeople: toMeetupPeopleDb(s.maxPeople),
               sortOrder: i,
             })),
           },
@@ -381,6 +281,7 @@ export async function POST(req: Request) {
           meetupId: created.id,
           userId: session.id,
           slotId: hostSlotId,
+          partySize: 1,
         },
       });
 

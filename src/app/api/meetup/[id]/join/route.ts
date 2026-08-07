@@ -9,13 +9,20 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import {
   canJoinMeetup,
+  fromMeetupPeopleDb,
   isMeetupPaid,
   statusAfterJoinCountChange,
 } from "@/lib/meetup";
 import { ensureMeetupProductCourse } from "@/lib/meetup-product";
+import { sumMeetupPartySize } from "@/lib/meetup-service-contact";
+
+/** 免费报名人数上限；与付费订单 quantity 对齐，避免一次占太多余位 */
+const MEETUP_JOIN_PARTY_MAX = 10;
 
 const joinBodySchema = z.object({
   slotId: z.string().trim().min(1).optional(),
+  /** 本单占用名额；默认 1 */
+  partySize: z.number().int().min(1).max(MEETUP_JOIN_PARTY_MAX).optional(),
 });
 
 async function loadDetail(id: string) {
@@ -46,11 +53,15 @@ export async function POST(
 
   const { id } = await ctx.params;
   let slotId: string | undefined;
+  let partySize = 1;
   try {
     const raw = await req.json().catch(() => ({}));
-    slotId = joinBodySchema.parse(raw).slotId;
+    const parsed = joinBodySchema.parse(raw);
+    slotId = parsed.slotId;
+    partySize = parsed.partySize ?? 1;
   } catch {
     slotId = undefined;
+    partySize = 1;
   }
 
   try {
@@ -58,7 +69,7 @@ export async function POST(
       const meetup = await tx.meetup.findUnique({
         where: { id },
         include: {
-          _count: { select: { joins: true } },
+          joins: { select: { partySize: true, slotId: true } },
           slots: { orderBy: { sortOrder: "asc" } },
         },
       });
@@ -87,12 +98,16 @@ export async function POST(
           productCourseId,
         };
       }
-      if (meetup._count.joins >= meetup.maxPeople) {
-        await tx.meetup.update({
-          where: { id },
-          data: { status: "FULL" },
-        });
-        return { error: "已满员，换一场试试", status: 400 as const };
+      const meetupMaxPeople = fromMeetupPeopleDb(meetup.maxPeople);
+      const occupied = sumMeetupPartySize(meetup.joins);
+      if (occupied + partySize > meetupMaxPeople) {
+        if (occupied >= meetupMaxPeople) {
+          await tx.meetup.update({
+            where: { id },
+            data: { status: "FULL" },
+          });
+        }
+        return { error: "余位不足，请减少人数或换一场", status: 400 as const };
       }
 
       const existing = await tx.meetupJoin.findUnique({
@@ -105,12 +120,12 @@ export async function POST(
       let resolvedSlotId: string | null = slotId || null;
       if (meetup.slots.length > 0) {
         if (!resolvedSlotId) {
-          // 未选档时进第一个有空位的档
+          // 未选档时进第一个有空位的档（按占用名额）
           for (const slot of meetup.slots) {
-            const count = await tx.meetupJoin.count({
-              where: { slotId: slot.id },
-            });
-            if (count < slot.maxPeople) {
+            const count = sumMeetupPartySize(
+              meetup.joins.filter((j) => j.slotId === slot.id),
+            );
+            if (count + partySize <= fromMeetupPeopleDb(slot.maxPeople)) {
               resolvedSlotId = slot.id;
               break;
             }
@@ -123,11 +138,14 @@ export async function POST(
           if (!slot) {
             return { error: "分档不存在", status: 400 as const };
           }
-          const count = await tx.meetupJoin.count({
-            where: { slotId: slot.id },
-          });
-          if (count >= slot.maxPeople) {
-            return { error: `「${slot.name}」已满员`, status: 400 as const };
+          const count = sumMeetupPartySize(
+            meetup.joins.filter((j) => j.slotId === slot.id),
+          );
+          if (count + partySize > fromMeetupPeopleDb(slot.maxPeople)) {
+            return {
+              error: `「${slot.name}」余位不足`,
+              status: 400 as const,
+            };
           }
         }
       } else {
@@ -139,14 +157,15 @@ export async function POST(
           meetupId: id,
           userId: session.id,
           slotId: resolvedSlotId,
+          partySize,
         },
       });
 
-      const joinCount = meetup._count.joins + 1;
+      const joinCount = occupied + partySize;
       const nextStatus = statusAfterJoinCountChange({
         currentStatus: meetup.status,
         joinCount,
-        maxPeople: meetup.maxPeople,
+        maxPeople: meetupMaxPeople,
       });
       if (nextStatus !== meetup.status) {
         await tx.meetup.update({
@@ -193,7 +212,7 @@ export async function DELETE(
     const result = await prisma.$transaction(async (tx) => {
       const meetup = await tx.meetup.findUnique({
         where: { id },
-        include: { _count: { select: { joins: true } } },
+        include: { joins: { select: { partySize: true } } },
       });
       if (!meetup) {
         return { error: "活动不存在", status: 404 as const };
@@ -217,11 +236,15 @@ export async function DELETE(
 
       await tx.meetupJoin.delete({ where: { id: join.id } });
 
-      const joinCount = Math.max(meetup._count.joins - 1, 0);
+      const leaveSize = Math.max(1, Math.floor(Number(join.partySize) || 1));
+      const joinCount = Math.max(
+        sumMeetupPartySize(meetup.joins) - leaveSize,
+        0,
+      );
       const nextStatus = statusAfterJoinCountChange({
         currentStatus: meetup.status,
         joinCount,
-        maxPeople: meetup.maxPeople,
+        maxPeople: fromMeetupPeopleDb(meetup.maxPeople),
       });
       if (nextStatus !== meetup.status) {
         await tx.meetup.update({

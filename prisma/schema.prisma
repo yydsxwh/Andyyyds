@@ -86,7 +86,8 @@ model Meetup {
   /// 可选经度（WGS84）；须与 latitude 成对才参与距离排序
   longitude   Float?
   /// 人数上限（含发起人）；多档时为各档上限之和，便于 FULL 判定
-  maxPeople   Int          @default(4)
+  /// BigInt：业务上限可达 2000 亿，超过 SQLite/Prisma Int（约 21 亿）
+  maxPeople   BigInt       @default(4)
   /// 可选封面图 URL
   coverUrl    String       @default("")
   /// 玩法标签 JSON 字符串数组，如 ["新手友好","开心社交"]
@@ -101,6 +102,24 @@ model Meetup {
   galleryJson String       @default("")
   /// 联系方式外链（无 IM 时群聊/私聊跳转；空则底栏隐藏聊天入口）
   contactUrl  String       @default("")
+  /// 集合地（空则详情回退 place，兼容旧数据）
+  meetingPoint String      @default("")
+  /// 目的地（出行类常用；可空）
+  destination  String      @default("")
+  /// 活动亮点一行文案（如返现/成团说明）
+  highlights   String      @default("")
+  /// 管理员/领队电话（详情「拨打电话」；亦并入咨询弹层）
+  adminPhone   String      @default("")
+  /// 客服电话列表 JSON：[{label,phone}]；空则咨询弹层回退站点「联系我们」
+  servicePhonesJson String  @default("")
+  /// 微信客服：https 链接 / 企微 / 微信号（非链接时前端复制）
+  wechatService   String   @default("")
+  /// 行程安排富文本（内容 Tab）；空则该 Tab 显示占位
+  itineraryHtml   String   @default("")
+  /// 费用说明富文本；空则回退 feeIncludes/refundPolicy
+  feeNoteHtml     String   @default("")
+  /// 注意事项富文本
+  notesHtml       String   @default("")
   /// OPEN | FULL | CLOSED | CANCELLED
   status      String       @default("OPEN")
   hostId      String
@@ -124,8 +143,8 @@ model MeetupSlot {
   meetupId  String
   /// 档位名称，如新手局
   name      String
-  /// 本档人数上限（含发起人若分到本档）
-  maxPeople Int          @default(8)
+  /// 本档人数上限（含发起人若分到本档）；BigInt 同 Meetup.maxPeople，可超 Int 上限
+  maxPeople BigInt       @default(2)
   sortOrder Int          @default(0)
   meetup    Meetup       @relation(fields: [meetupId], references: [id], onDelete: Cascade)
   joins     MeetupJoin[]
@@ -141,6 +160,8 @@ model MeetupJoin {
   userId    String
   /// 所属分档；旧数据可为空（计入活动总人数）
   slotId    String?
+  /// 本单占用名额（含本人）；代多人报名时 >1，用于余位扣减（非「账号数」）
+  partySize Int         @default(1)
   meetup    Meetup      @relation(fields: [meetupId], references: [id], onDelete: Cascade)
   user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   slot      MeetupSlot? @relation(fields: [slotId], references: [id], onDelete: SetNull)

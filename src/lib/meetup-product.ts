@@ -7,8 +7,13 @@
 
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { DEFAULT_COURSE_COVER_URL } from "@/lib/cover-images";
-import { MEETUP_PRODUCT_TYPE, statusAfterJoinCountChange } from "@/lib/meetup";
+import {
+  fromMeetupPeopleDb,
+  MEETUP_PRODUCT_TYPE,
+  statusAfterJoinCountChange,
+} from "@/lib/meetup";
 import { parseMeetupSlotIdFromSpec } from "@/lib/meetup-meta";
+import { sumMeetupPartySize } from "@/lib/meetup-service-contact";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -115,7 +120,7 @@ export async function joinMeetupAfterPurchase(
   const meetup = await db.meetup.findFirst({
     where: { productCourseId: input.productCourseId },
     include: {
-      _count: { select: { joins: true } },
+      joins: { select: { partySize: true } },
       slots: { orderBy: { sortOrder: "asc" }, select: { id: true } },
     },
   });
@@ -129,7 +134,7 @@ export async function joinMeetupAfterPurchase(
   });
   if (existing) return;
 
-  // 最近一笔该壳商品订单上的 specLabel 携带分档 id（下单时写入）
+  // 最近一笔该壳商品订单：specLabel 带分档；quantity 写入占用名额
   const latestOrder = await db.order.findFirst({
     where: {
       userId: input.userId,
@@ -137,7 +142,7 @@ export async function joinMeetupAfterPurchase(
       status: "PAID",
     },
     orderBy: { paidAt: "desc" },
-    select: { specLabel: true },
+    select: { specLabel: true, quantity: true },
   });
   let slotId = parseMeetupSlotIdFromSpec(latestOrder?.specLabel);
   if (slotId) {
@@ -147,20 +152,25 @@ export async function joinMeetupAfterPurchase(
   if (!slotId && meetup.slots[0]) {
     slotId = meetup.slots[0].id;
   }
+  const partySize = Math.max(
+    1,
+    Math.min(10, Math.floor(Number(latestOrder?.quantity) || 1)),
+  );
 
   await db.meetupJoin.create({
     data: {
       meetupId: meetup.id,
       userId: input.userId,
       slotId: slotId || null,
+      partySize,
     },
   });
 
-  const joinCount = meetup._count.joins + 1;
+  const joinCount = sumMeetupPartySize(meetup.joins) + partySize;
   const nextStatus = statusAfterJoinCountChange({
     currentStatus: meetup.status,
     joinCount,
-    maxPeople: meetup.maxPeople,
+    maxPeople: fromMeetupPeopleDb(meetup.maxPeople),
   });
   if (nextStatus !== meetup.status) {
     await db.meetup.update({

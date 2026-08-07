@@ -19,7 +19,11 @@ export default async function LearnHomePage() {
 
   const [enrollmentsRaw, user, earnings] = await Promise.all([
     prisma.enrollment.findMany({
-      where: { userId: session.id },
+      where: {
+        userId: session.id,
+        // 约搭/商城不是网课：学习页只列单课/专栏/资料，活动看约搭报名
+        course: { productType: { in: ["COURSE", "COLUMN", "MATERIAL"] } },
+      },
       include: {
         course: { include: { teacher: true, category: true } },
         progress: true,

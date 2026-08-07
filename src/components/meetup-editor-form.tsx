@@ -7,15 +7,25 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { MeetupContentEditor } from "@/components/meetup-content-editor";
+import { MeetupDatetimePicker } from "@/components/meetup-datetime-picker";
 import { MeetupPlaceMapPicker } from "@/components/meetup-place-map-picker";
 import { MeetupTimezonePicker } from "@/components/meetup-timezone-picker";
 import type { MeetupContentBlock } from "@/lib/meetup-content";
 import {
   MEETUP_CATEGORIES,
+  MEETUP_DEFAULT_SLOT_PEOPLE,
   MEETUP_MAX_PEOPLE,
   MEETUP_MIN_PEOPLE,
+  MEETUP_PEOPLE_SELECT_MAX,
   MEETUP_STATUSES,
+  parseMeetupPeopleInput,
 } from "@/lib/meetup";
+
+/** 下拉 1～100；超过 100 用手输。一次生成避免每次 render map */
+const MEETUP_PEOPLE_SELECT_OPTIONS = Array.from(
+  { length: MEETUP_PEOPLE_SELECT_MAX },
+  (_, i) => i + 1,
+);
 import {
   DEFAULT_MEETUP_TIMEZONE,
   defaultMeetupEndWall,
@@ -44,9 +54,35 @@ async function suggestTimezoneFromCoords(
 export type MeetupEditorSlot = {
   id?: string;
   name: string;
+  /** 最近一次解析成功的人数 */
   maxPeople: number;
+  /**
+   * 输入框原文：编辑中允许空串，避免 type=number+min 删不掉「1」。
+   * 失焦/提交时再 parseMeetupPeopleInput。
+   */
+  maxPeopleText: string;
+  peopleError?: string;
   joinCount?: number;
 };
+
+function slotFromInitial(slot: {
+  id?: string;
+  name: string;
+  maxPeople: number;
+  joinCount?: number;
+}): MeetupEditorSlot {
+  const maxPeople = Math.max(
+    MEETUP_MIN_PEOPLE,
+    Math.min(MEETUP_MAX_PEOPLE, Math.floor(Number(slot.maxPeople) || MEETUP_DEFAULT_SLOT_PEOPLE)),
+  );
+  return {
+    id: slot.id,
+    name: slot.name,
+    maxPeople,
+    maxPeopleText: String(maxPeople),
+    joinCount: slot.joinCount,
+  };
+}
 
 export type MeetupEditorInitial = {
   id?: string;
@@ -69,8 +105,24 @@ export type MeetupEditorInitial = {
   autoRefund?: boolean;
   gallery?: string[];
   contactUrl?: string;
+  meetingPoint?: string;
+  destination?: string;
+  highlights?: string;
+  adminPhone?: string;
+  /** 客服电话：[{label,phone}] */
+  servicePhones?: { label: string; phone: string }[];
+  wechatService?: string;
+  itineraryHtml?: string;
+  feeNoteHtml?: string;
+  notesHtml?: string;
   status?: string;
-  slots?: MeetupEditorSlot[];
+  /** 服务端只给 maxPeople；表单内再生成 maxPeopleText */
+  slots?: {
+    id?: string;
+    name: string;
+    maxPeople: number;
+    joinCount?: number;
+  }[];
 };
 
 type Props = {
@@ -105,7 +157,7 @@ export function MeetupEditorForm({
   const [timezone, setTimezone] = useState(() =>
     normalizeMeetupTimeZone(initial?.timezone || DEFAULT_MEETUP_TIMEZONE),
   );
-  // datetime-local 存的是「活动时区墙钟」，不是浏览器本地时区
+  // 墙钟 YYYY-MM-DDTHH:mm（活动时区），非浏览器本地时区；由自定义选择器写入
   const [startsAt, setStartsAt] = useState(() => {
     if (initial?.startsAt) {
       return utcToWallClock(
@@ -156,13 +208,37 @@ export function MeetupEditorForm({
     (initial?.gallery || []).join("\n"),
   );
   const [contactUrl, setContactUrl] = useState(initial?.contactUrl || "");
+  const [meetingPoint, setMeetingPoint] = useState(initial?.meetingPoint || "");
+  const [destination, setDestination] = useState(initial?.destination || "");
+  const [highlights, setHighlights] = useState(initial?.highlights || "");
+  const [adminPhone, setAdminPhone] = useState(initial?.adminPhone || "");
+  // 每行「标签|电话」，与分档人数输入分离，避免互相干扰
+  const [servicePhonesText, setServicePhonesText] = useState(() =>
+    (initial?.servicePhones || [])
+      .map((p) => `${p.label || "客服"}|${p.phone}`)
+      .join("\n"),
+  );
+  const [wechatService, setWechatService] = useState(
+    initial?.wechatService || "",
+  );
+  const [itineraryHtml, setItineraryHtml] = useState(
+    initial?.itineraryHtml || "",
+  );
+  const [feeNoteHtml, setFeeNoteHtml] = useState(initial?.feeNoteHtml || "");
+  const [notesHtml, setNotesHtml] = useState(initial?.notesHtml || "");
   const [status, setStatus] = useState(initial?.status || "OPEN");
   const [slots, setSlots] = useState<MeetupEditorSlot[]>(
     initial?.slots?.length
-      ? initial.slots
+      ? initial.slots.map((s) => slotFromInitial(s))
       : [
-          { name: "新手局", maxPeople: 8 },
-          { name: "对抗局", maxPeople: 8 },
+          slotFromInitial({
+            name: "新手局",
+            maxPeople: MEETUP_DEFAULT_SLOT_PEOPLE,
+          }),
+          slotFromInitial({
+            name: "对抗局",
+            maxPeople: MEETUP_DEFAULT_SLOT_PEOPLE,
+          }),
         ],
   );
   const [message, setMessage] = useState("");
@@ -174,9 +250,65 @@ export function MeetupEditorForm({
     );
   }
 
+  /** 手输过程只改原文，允许空；不立刻 Number()||1 以免删不掉 */
+  function onSlotPeopleTextChange(index: number, text: string) {
+    updateSlot(index, { maxPeopleText: text, peopleError: undefined });
+  }
+
+  /** 下拉写入：同时更新原文与已解析人数 */
+  function onSlotPeopleSelect(index: number, value: number) {
+    updateSlot(index, {
+      maxPeople: value,
+      maxPeopleText: String(value),
+      peopleError: undefined,
+    });
+  }
+
+  /** 失焦解析；失败保留原文并提示，成功写回 maxPeople */
+  function commitSlotPeople(index: number) {
+    setSlots((prev) =>
+      prev.map((s, i) => {
+        if (i !== index) return s;
+        const parsed = parseMeetupPeopleInput(s.maxPeopleText);
+        if (!parsed.ok) {
+          return { ...s, peopleError: parsed.error };
+        }
+        return {
+          ...s,
+          maxPeople: parsed.value,
+          maxPeopleText: String(parsed.value),
+          peopleError: undefined,
+        };
+      }),
+    );
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setMessage("");
+
+    // 提交前统一解析各档人数；任一手输非法则拦下并标红
+    let peopleInvalid = false;
+    const committedSlots = slots.map((s) => {
+      const parsed = parseMeetupPeopleInput(s.maxPeopleText);
+      if (!parsed.ok) {
+        peopleInvalid = true;
+        return { ...s, peopleError: parsed.error };
+      }
+      return {
+        ...s,
+        maxPeople: parsed.value,
+        maxPeopleText: String(parsed.value),
+        peopleError: undefined,
+      };
+    });
+    if (peopleInvalid) {
+      setSlots(committedSlots);
+      setMessage("请修正分档人数后再保存");
+      return;
+    }
+    setSlots(committedSlots);
+
     setLoading(true);
     try {
       const tags = tagsText
@@ -187,6 +319,20 @@ export function MeetupEditorForm({
         .split(/\n+/)
         .map((t) => t.trim())
         .filter(Boolean);
+      const servicePhones = servicePhonesText
+        .split(/\n+/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) => {
+          const [labelPart, ...rest] = line.split("|");
+          const phone = (rest.length ? rest.join("|") : labelPart || "").trim();
+          const label =
+            rest.length > 0
+              ? (labelPart || "客服").trim()
+              : "客服";
+          return { label: label || "客服", phone };
+        })
+        .filter((p) => p.phone);
 
       const payload: Record<string, unknown> = {
         title,
@@ -205,7 +351,7 @@ export function MeetupEditorForm({
         longitude: longitude.trim() === "" ? null : Number(longitude),
         maxPeople: Math.max(
           MEETUP_MIN_PEOPLE,
-          slots.reduce((n, s) => n + (Number(s.maxPeople) || 0), 0),
+          committedSlots.reduce((n, s) => n + s.maxPeople, 0),
         ),
         coverUrl: coverUrl.trim(),
         tags,
@@ -214,10 +360,19 @@ export function MeetupEditorForm({
         autoRefund,
         gallery,
         contactUrl: contactUrl.trim(),
-        slots: slots.map((s) => ({
+        meetingPoint: meetingPoint.trim(),
+        destination: destination.trim(),
+        highlights: highlights.trim(),
+        adminPhone: adminPhone.trim(),
+        servicePhones,
+        wechatService: wechatService.trim(),
+        itineraryHtml,
+        feeNoteHtml,
+        notesHtml,
+        slots: committedSlots.map((s) => ({
           id: s.id,
           name: s.name.trim(),
-          maxPeople: Number(s.maxPeople) || 4,
+          maxPeople: s.maxPeople,
         })),
       };
       if (showStatus) payload.status = status;
@@ -314,11 +469,9 @@ export function MeetupEditorForm({
           <label className="mb-1.5 block text-sm font-medium">
             开始时间（{meetupTimeZoneLabel(timezone)}）
           </label>
-          <input
-            className="field min-h-12 text-lg"
-            type="datetime-local"
+          <MeetupDatetimePicker
             value={startsAt}
-            onChange={(e) => setStartsAt(e.target.value)}
+            onChange={setStartsAt}
             required
           />
         </div>
@@ -326,11 +479,10 @@ export function MeetupEditorForm({
           <label className="mb-1.5 block text-sm font-medium">
             结束时间（{meetupTimeZoneLabel(timezone)}）
           </label>
-          <input
-            className="field min-h-12 text-lg"
-            type="datetime-local"
+          <MeetupDatetimePicker
             value={endsAt}
-            onChange={(e) => setEndsAt(e.target.value)}
+            onChange={setEndsAt}
+            allowEmpty
           />
         </div>
       </div>
@@ -495,7 +647,10 @@ export function MeetupEditorForm({
               if (slots.length >= 8) return;
               setSlots((prev) => [
                 ...prev,
-                { name: `分档${prev.length + 1}`, maxPeople: 8 },
+                slotFromInitial({
+                  name: `分档${prev.length + 1}`,
+                  maxPeople: MEETUP_DEFAULT_SLOT_PEOPLE,
+                }),
               ]);
             }}
           >
@@ -503,51 +658,94 @@ export function MeetupEditorForm({
           </button>
         </div>
         <ul className="space-y-2">
-          {slots.map((slot, index) => (
-            <li
-              key={slot.id || `new-${index}`}
-              className="flex flex-wrap items-center gap-2 rounded-2xl border border-[var(--line)] p-3"
-            >
-              <input
-                className="field min-h-11 min-w-[8rem] flex-1"
-                value={slot.name}
-                onChange={(e) => updateSlot(index, { name: e.target.value })}
-                required
-                maxLength={40}
-              />
-              <input
-                className="field min-h-11 w-28"
-                type="number"
-                min={1}
-                max={MEETUP_MAX_PEOPLE}
-                value={slot.maxPeople}
-                onChange={(e) =>
-                  updateSlot(index, {
-                    maxPeople: Number(e.target.value) || 1,
-                  })
-                }
-                required
-              />
-              <span className="text-xs text-[var(--muted)]">人</span>
-              {(slot.joinCount || 0) > 0 ? (
-                <span className="text-xs text-[var(--muted)]">
-                  已报 {slot.joinCount}
-                </span>
-              ) : null}
-              {slots.length > 1 && !(slot.joinCount && slot.joinCount > 0) ? (
-                <button
-                  type="button"
-                  className="min-h-11 px-2 text-sm text-[var(--fire)]"
-                  onClick={() =>
-                    setSlots((prev) => prev.filter((_, i) => i !== index))
-                  }
-                >
-                  删除
-                </button>
-              ) : null}
-            </li>
-          ))}
+          {slots.map((slot, index) => {
+            const selectValue =
+              slot.maxPeople >= 1 &&
+              slot.maxPeople <= MEETUP_PEOPLE_SELECT_MAX &&
+              slot.maxPeopleText.trim() === String(slot.maxPeople)
+                ? String(slot.maxPeople)
+                : "";
+            return (
+              <li
+                key={slot.id || `new-${index}`}
+                className="rounded-2xl border border-[var(--line)] p-3"
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    className="field min-h-11 min-w-[8rem] flex-1 basis-full sm:basis-auto"
+                    value={slot.name}
+                    onChange={(e) =>
+                      updateSlot(index, { name: e.target.value })
+                    }
+                    required
+                    maxLength={40}
+                    placeholder="分档名称"
+                  />
+                  {/* text + inputMode：可清空重输；微信内也比 type=number 好删改 */}
+                  <input
+                    className="field min-h-11 w-28"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    value={slot.maxPeopleText}
+                    onChange={(e) =>
+                      onSlotPeopleTextChange(index, e.target.value)
+                    }
+                    onBlur={() => commitSlotPeople(index)}
+                    aria-label={`${slot.name || "分档"}人数`}
+                    aria-invalid={Boolean(slot.peopleError)}
+                  />
+                  <select
+                    className="field min-h-11 w-[5.5rem]"
+                    value={selectValue}
+                    onChange={(e) => {
+                      const n = Number(e.target.value);
+                      if (!Number.isFinite(n)) return;
+                      onSlotPeopleSelect(index, n);
+                    }}
+                    aria-label={`${slot.name || "分档"}人数快捷选择`}
+                  >
+                    <option value="" disabled={selectValue !== ""}>
+                      {selectValue ? "1-100" : "选择"}
+                    </option>
+                    {MEETUP_PEOPLE_SELECT_OPTIONS.map((n) => (
+                      <option key={n} value={String(n)}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-xs text-[var(--muted)]">人</span>
+                  {(slot.joinCount || 0) > 0 ? (
+                    <span className="text-xs text-[var(--muted)]">
+                      已报 {slot.joinCount}
+                    </span>
+                  ) : null}
+                  {slots.length > 1 &&
+                  !(slot.joinCount && slot.joinCount > 0) ? (
+                    <button
+                      type="button"
+                      className="min-h-11 px-2 text-sm text-[var(--fire)]"
+                      onClick={() =>
+                        setSlots((prev) => prev.filter((_, i) => i !== index))
+                      }
+                    >
+                      删除
+                    </button>
+                  ) : null}
+                </div>
+                {slot.peopleError ? (
+                  <p className="mt-1.5 text-xs text-[var(--fire)]">
+                    {slot.peopleError}
+                  </p>
+                ) : null}
+              </li>
+            );
+          })}
         </ul>
+        <p className="mt-1.5 text-xs text-[var(--muted)]">
+          下拉可选 1–{MEETUP_PEOPLE_SELECT_MAX} 人；也可清空后手输，最大{" "}
+          {MEETUP_MAX_PEOPLE.toLocaleString("zh-CN")}
+        </p>
       </div>
 
       <div>
@@ -643,15 +841,126 @@ export function MeetupEditorForm({
         />
       </div>
 
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label className="mb-1.5 block text-sm font-medium">集合地</label>
+          <input
+            className="field min-h-11"
+            value={meetingPoint}
+            onChange={(e) => setMeetingPoint(e.target.value)}
+            placeholder="空则详情用「地点」"
+            maxLength={120}
+          />
+        </div>
+        <div>
+          <label className="mb-1.5 block text-sm font-medium">目的地</label>
+          <input
+            className="field min-h-11"
+            value={destination}
+            onChange={(e) => setDestination(e.target.value)}
+            placeholder="如：广东 惠州"
+            maxLength={120}
+          />
+        </div>
+      </div>
+
       <div>
-        <label className="mb-1.5 block text-sm font-medium">联系链接</label>
+        <label className="mb-1.5 block text-sm font-medium">活动亮点</label>
         <input
           className="field min-h-11"
-          value={contactUrl}
-          onChange={(e) => setContactUrl(e.target.value)}
-          maxLength={500}
+          value={highlights}
+          onChange={(e) => setHighlights(e.target.value)}
+          placeholder="如：转发返现 / 已成团说明"
+          maxLength={200}
         />
       </div>
+
+      <fieldset className="space-y-3 rounded-2xl border border-[var(--line)] p-4">
+        <legend className="px-1 text-sm font-medium">咨询客服（详情底栏）</legend>
+        <p className="text-xs leading-relaxed text-[var(--muted)]">
+          未填时回退站点「联系我们」电话/微信。微信客服可填链接、企微或微信号。
+        </p>
+        <div>
+          <label className="mb-1.5 block text-sm font-medium">管理员电话</label>
+          <input
+            className="field min-h-11"
+            value={adminPhone}
+            onChange={(e) => setAdminPhone(e.target.value)}
+            placeholder="详情「拨打电话」与咨询弹层"
+            inputMode="tel"
+            maxLength={32}
+          />
+        </div>
+        <div>
+          <label className="mb-1.5 block text-sm font-medium">
+            客服电话列表
+          </label>
+          <textarea
+            className="field min-h-24"
+            value={servicePhonesText}
+            onChange={(e) => setServicePhonesText(e.target.value)}
+            placeholder={"每行一条：标签|电话\n小六（客服）|18000000000"}
+          />
+        </div>
+        <div>
+          <label className="mb-1.5 block text-sm font-medium">微信客服</label>
+          <input
+            className="field min-h-11"
+            value={wechatService}
+            onChange={(e) => setWechatService(e.target.value)}
+            placeholder="https://… 或微信号"
+            maxLength={500}
+          />
+        </div>
+        <div>
+          <label className="mb-1.5 block text-sm font-medium">
+            群聊/联系外链（可选）
+          </label>
+          <input
+            className="field min-h-11"
+            value={contactUrl}
+            onChange={(e) => setContactUrl(e.target.value)}
+            maxLength={500}
+          />
+        </div>
+      </fieldset>
+
+      <fieldset className="space-y-3 rounded-2xl border border-[var(--line)] p-4">
+        <legend className="px-1 text-sm font-medium">
+          内容 Tab 分块（可选）
+        </legend>
+        <p className="text-xs text-[var(--muted)]">
+          详情页四个 Tab：活动介绍用上方「本场怎么玩」；此处补行程/费用/注意事项。可写纯文本或简单
+          HTML。
+        </p>
+        <div>
+          <label className="mb-1.5 block text-sm font-medium">行程安排</label>
+          <textarea
+            className="field min-h-28"
+            value={itineraryHtml}
+            onChange={(e) => setItineraryHtml(e.target.value)}
+            placeholder="时间线、集合安排等"
+          />
+        </div>
+        <div>
+          <label className="mb-1.5 block text-sm font-medium">费用说明</label>
+          <textarea
+            className="field min-h-28"
+            value={feeNoteHtml}
+            onChange={(e) => setFeeNoteHtml(e.target.value)}
+            placeholder="空则回退「费用包含 / 退款政策」"
+          />
+        </div>
+        <div>
+          <label className="mb-1.5 block text-sm font-medium">注意事项</label>
+          <textarea
+            className="field min-h-28"
+            value={notesHtml}
+            onChange={(e) => setNotesHtml(e.target.value)}
+            placeholder="装备、保险、取消规则等"
+          />
+        </div>
+      </fieldset>
 
       {message ? (
         <p className="text-sm text-[var(--fire)]">{message}</p>

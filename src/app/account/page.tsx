@@ -86,7 +86,11 @@ export default async function AccountPage() {
     }),
     canManageCourses(session.role)
       ? prisma.course.count({
-          where: teacherScope ? { teacherId: teacherScope } : undefined,
+          // 个人中心「课程数」不含约搭壳/商城，与创作者中心列表口径一致
+          where: {
+            productType: { in: ["COURSE", "COLUMN", "MATERIAL"] },
+            ...(teacherScope ? { teacherId: teacherScope } : {}),
+          },
         })
       : Promise.resolve(0),
     canManageCourses(session.role)

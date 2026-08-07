@@ -5,6 +5,8 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { StudioProductDeleteButton } from "@/components/studio-product-delete-button";
 import {
+  isMeetupProductType,
+  meetupActivityEditPath,
   productDetailPath,
   productTypeLabel,
   type ProductType,
@@ -319,13 +321,17 @@ export function AdminProductsPanel({ initialProducts }: Props) {
                   </button>
                   <Link
                     href={
-                      product.productType === "PRODUCT"
-                        ? "/studio/shop"
-                        : `/studio/courses/${product.id}/edit`
+                      isMeetupProductType(product.productType)
+                        ? meetupActivityEditPath(product.slug)
+                        : product.productType === "PRODUCT"
+                          ? "/studio/shop"
+                          : `/studio/courses/${product.id}/edit`
                     }
                     className="inline-flex min-h-11 items-center rounded-full border border-[var(--line)] bg-white px-3 text-sm font-medium text-[var(--brand)]"
                   >
-                    编辑
+                    {isMeetupProductType(product.productType)
+                      ? "编辑活动"
+                      : "编辑"}
                   </Link>
                   <Link
                     href={productDetailPath(product.slug, product.productType)}

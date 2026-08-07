@@ -3,6 +3,12 @@
  * 分档名额存在 MeetupSlot；旧活动无档时前端虚拟「报名」档，避免强制迁移。
  */
 
+import {
+  MEETUP_DEFAULT_SLOT_PEOPLE,
+  MEETUP_MAX_PEOPLE,
+  MEETUP_MIN_PEOPLE,
+} from "@/lib/meetup";
+
 export const MEETUP_SLOT_SPEC_PREFIX = "meetupSlot:";
 
 export function parseJsonStringArray(raw: string | null | undefined): string[] {
@@ -47,13 +53,28 @@ export function normalizeMeetupSlotInputs(
   fallbackMaxPeople: number,
 ): MeetupSlotInput[] {
   const cleaned = (slots || [])
-    .map((s) => ({
-      name: String(s.name || "").trim().slice(0, 40),
-      maxPeople: Math.max(1, Math.min(50, Math.floor(Number(s.maxPeople) || 0))),
-    }))
+    .map((s) => {
+      const n = Math.floor(Number(s.maxPeople) || 0);
+      return {
+        name: String(s.name || "").trim().slice(0, 40),
+        // 与表单/zod 同一上限，避免后端静默裁到旧的 50
+        maxPeople: Math.max(
+          MEETUP_MIN_PEOPLE,
+          Math.min(MEETUP_MAX_PEOPLE, n > 0 ? n : MEETUP_DEFAULT_SLOT_PEOPLE),
+        ),
+      };
+    })
     .filter((s) => s.name);
   if (cleaned.length === 0) {
-    return [{ name: "报名", maxPeople: fallbackMaxPeople }];
+    return [
+      {
+        name: "报名",
+        maxPeople: Math.max(
+          MEETUP_MIN_PEOPLE,
+          Math.min(MEETUP_MAX_PEOPLE, fallbackMaxPeople || MEETUP_DEFAULT_SLOT_PEOPLE),
+        ),
+      },
+    ];
   }
   return cleaned.slice(0, 8);
 }

@@ -1,12 +1,14 @@
 /**
- * GET/PATCH /api/studio/products —— 站长产品管理（Course 全量）
+ * GET/PATCH /api/studio/products —— 站长产品管理（Course，不含约搭壳）
  *
- * 产品 = Course（单课 / 专栏 / 资料）。站长可批量调展示次序、置顶、精华与上下架。
+ * 产品 = Course（单课 / 专栏 / 资料 / 商城）。站长可批量调展示次序、置顶、精华与上下架。
+ * 约搭壳(MEETUP)走约搭管理，不进本列表，避免按课程逻辑运营活动。
  * 硬删除走既有 /api/studio/courses/[id] DELETE，避免拆两套履约清理逻辑。
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { MEETUP_PRODUCT_TYPE } from "@/lib/meetup";
 import { PRODUCT_PLAZA_ORDER_BY } from "@/lib/product-display-order";
 import { requireAdmin, studioErrorResponse } from "@/lib/studio";
 
@@ -31,6 +33,7 @@ export async function GET() {
   try {
     await requireAdmin();
     const products = await prisma.course.findMany({
+      where: { productType: { not: MEETUP_PRODUCT_TYPE } },
       include: {
         teacher: { select: { id: true, name: true } },
         category: { select: { id: true, name: true } },
@@ -76,10 +79,18 @@ export async function PATCH(req: Request) {
 
     await prisma.$transaction(async (tx) => {
       // 拖拽排序：列表顺序即 sortOrder；置顶仍由 isPinned 单独控制
+      // 跳过约搭壳：活动展示不走课程广场排序
       if (body.orderedIds?.length) {
+        const rows = await tx.course.findMany({
+          where: { id: { in: body.orderedIds } },
+          select: { id: true, productType: true },
+        });
+        const typeById = new Map(rows.map((r) => [r.id, r.productType]));
         for (let i = 0; i < body.orderedIds.length; i += 1) {
+          const id = body.orderedIds[i]!;
+          if (typeById.get(id) === MEETUP_PRODUCT_TYPE) continue;
           await tx.course.update({
-            where: { id: body.orderedIds[i] },
+            where: { id },
             data: { sortOrder: i },
           });
         }
@@ -87,6 +98,13 @@ export async function PATCH(req: Request) {
 
       if (body.items?.length) {
         for (const item of body.items) {
+          const existing = await tx.course.findUnique({
+            where: { id: item.id },
+            select: { productType: true },
+          });
+          if (!existing || existing.productType === MEETUP_PRODUCT_TYPE) {
+            continue;
+          }
           const data: {
             sortOrder?: number;
             isPinned?: boolean;

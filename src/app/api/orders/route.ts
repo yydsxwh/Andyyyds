@@ -15,6 +15,8 @@ import {
   validateCouponForOrder,
 } from "@/lib/coupons";
 import { prisma } from "@/lib/db";
+import { fromMeetupPeopleDb, MEETUP_PRODUCT_TYPE } from "@/lib/meetup";
+import { sumMeetupPartySize } from "@/lib/meetup-service-contact";
 import {
   stringifyStoredAnswers,
   validateOrderFormAnswers,
@@ -55,7 +57,36 @@ export async function POST(req: Request) {
     }
 
     const isShopProduct = course.productType === SHOP_PRODUCT_TYPE;
-    const quantity = body.quantity ?? 1;
+    const isMeetupProduct = course.productType === MEETUP_PRODUCT_TYPE;
+    // 约搭 quantity=占用名额；单账号上限 10，与详情步进器一致
+    const quantity = isMeetupProduct
+      ? Math.min(10, Math.max(1, body.quantity ?? 1))
+      : (body.quantity ?? 1);
+
+    // 约搭：下单前校验余位，避免付款后无法履约
+    if (isMeetupProduct) {
+      const meetup = await prisma.meetup.findFirst({
+        where: { productCourseId: course.id },
+        include: { joins: { select: { partySize: true } } },
+      });
+      if (!meetup || meetup.status === "CANCELLED") {
+        return NextResponse.json({ error: "活动不可报名" }, { status: 400 });
+      }
+      if (meetup.status !== "OPEN") {
+        return NextResponse.json(
+          { error: meetup.status === "FULL" ? "已满员" : "报名已截止" },
+          { status: 400 },
+        );
+      }
+      const occupied = sumMeetupPartySize(meetup.joins);
+      const maxPeople = fromMeetupPeopleDb(meetup.maxPeople);
+      if (occupied + quantity > maxPeople) {
+        return NextResponse.json(
+          { error: "余位不足，请减少人数后再试" },
+          { status: 400 },
+        );
+      }
+    }
 
     // 数字课/资料：已购则直接开通；商城商品允许复购（实体/服务可多次下单）
     if (!isShopProduct) {

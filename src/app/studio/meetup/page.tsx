@@ -6,6 +6,7 @@ import {
 import { StudioNav } from "@/components/studio-nav";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { fromMeetupPeopleDb } from "@/lib/meetup";
 import { canManageMeetups } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
@@ -57,7 +58,7 @@ export default async function StudioMeetupPage() {
     place: m.place,
     startsAt: m.startsAt.toISOString(),
     timezone: m.timezone || "Asia/Shanghai",
-    maxPeople: m.maxPeople,
+    maxPeople: fromMeetupPeopleDb(m.maxPeople),
     joinCount: m._count.joins,
     slotCount: m._count.slots,
     coverUrl: m.coverUrl || "",

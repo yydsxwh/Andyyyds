@@ -3,7 +3,9 @@ import { notFound, redirect } from "next/navigation";
 import { MeetupEditorForm } from "@/components/meetup-editor-form";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { fromMeetupPeopleDb } from "@/lib/meetup";
 import { parseJsonStringArray } from "@/lib/meetup-meta";
+import { parseMeetupServicePhones } from "@/lib/meetup-service-contact";
 import { canManageMeetups } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
@@ -18,8 +20,10 @@ export const metadata = {
  */
 export default async function MeetupEditPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ from?: string }>;
 }) {
   const session = await getSession();
   if (!session) {
@@ -28,6 +32,9 @@ export default async function MeetupEditPage({
   }
 
   const { id } = await params;
+  const query = await searchParams;
+  // 从课程编辑误入时提示：约搭走活动字段，不是章节课时
+  const fromCourseEdit = query.from === "course-edit";
   const meetup = await prisma.meetup.findUnique({
     where: { id },
     include: {
@@ -52,6 +59,11 @@ export default async function MeetupEditPage({
           ← 返回活动详情
         </Link>
         <h1 className="mt-3 text-2xl font-semibold sm:text-3xl">编辑约搭</h1>
+        {fromCourseEdit ? (
+          <p className="mt-2 rounded-2xl border border-[var(--brand)]/25 bg-[var(--brand)]/5 px-4 py-3 text-sm text-[var(--brand-strong)]">
+            约搭是活动不是课程。已为你打开活动编辑（时间、地点、分档报名等），请勿使用课程/章节表单。
+          </p>
+        ) : null}
         <p className="mt-2 text-sm text-[var(--muted)]">
           {isHost
             ? "可改价格、分档、详情与状态；取消请用状态「已取消」。"
@@ -84,11 +96,20 @@ export default async function MeetupEditPage({
           autoRefund: Boolean(meetup.autoRefund),
           gallery: parseJsonStringArray(meetup.galleryJson),
           contactUrl: meetup.contactUrl || "",
+          meetingPoint: meetup.meetingPoint || "",
+          destination: meetup.destination || "",
+          highlights: meetup.highlights || "",
+          adminPhone: meetup.adminPhone || "",
+          servicePhones: parseMeetupServicePhones(meetup.servicePhonesJson),
+          wechatService: meetup.wechatService || "",
+          itineraryHtml: meetup.itineraryHtml || "",
+          feeNoteHtml: meetup.feeNoteHtml || "",
+          notesHtml: meetup.notesHtml || "",
           status: meetup.status,
           slots: meetup.slots.map((s) => ({
             id: s.id,
             name: s.name,
-            maxPeople: s.maxPeople,
+            maxPeople: fromMeetupPeopleDb(s.maxPeople),
             joinCount: s._count.joins,
           })),
         }}

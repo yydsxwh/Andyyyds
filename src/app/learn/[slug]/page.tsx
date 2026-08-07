@@ -3,6 +3,7 @@ import { LearnPlayer } from "@/components/learn-player";
 import { getSession } from "@/lib/auth";
 import { canPreviewAllLessons } from "@/lib/course-access";
 import { prisma } from "@/lib/db";
+import { isMeetupProductType, productDetailPath } from "@/lib/product-types";
 import { decodeRouteSlug } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -36,6 +37,11 @@ export default async function LearnCoursePage({
     },
   });
   if (!course) notFound();
+
+  // 约搭无网课播放：预览链误进 /learn 时回活动详情
+  if (isMeetupProductType(course.productType)) {
+    redirect(productDetailPath(course.slug, course.productType));
+  }
 
   const enrollment = await prisma.enrollment.findUnique({
     where: { userId_courseId: { userId: session.id, courseId: course.id } },

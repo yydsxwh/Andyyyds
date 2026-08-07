@@ -7,6 +7,7 @@ import {
 import { prisma } from "@/lib/db";
 import { PRODUCT_TITLE_MAX } from "@/lib/media";
 import { yuanToCents } from "@/lib/money";
+import { isMeetupProductType } from "@/lib/product-types";
 import { canDeleteCourses, canViewAllStudioData } from "@/lib/roles";
 import { requireCourseStudioUser, studioErrorResponse } from "@/lib/studio";
 import { slugify } from "@/lib/utils";
@@ -157,6 +158,23 @@ export async function PATCH(
     const course = await getOwnedCourse(id, session.id, session.role);
     if (!course) {
       return NextResponse.json({ error: "课程不存在或无权修改" }, { status: 404 });
+    }
+
+    // 约搭壳只能走约搭活动 API（时间/地点/分档），禁止被课程表单改写成单课/章节
+    if (isMeetupProductType(course.productType)) {
+      return NextResponse.json(
+        {
+          error:
+            "约搭是活动不是课程，请到「我的约搭」或活动编辑页修改，勿用课程编辑。",
+        },
+        { status: 400 },
+      );
+    }
+    if (course.productType === "PRODUCT") {
+      return NextResponse.json(
+        { error: "商城商品请到「商城商品」管理，勿用课程编辑。" },
+        { status: 400 },
+      );
     }
 
     const body = patchSchema.parse(await req.json());
@@ -382,6 +400,17 @@ export async function DELETE(
       return NextResponse.json(
         { error: "商品不存在或无权删除" },
         { status: 404 },
+      );
+    }
+
+    // 约搭壳挂着支付履约；删除活动请走约搭管理，避免只删壳导致报名/订单悬空
+    if (isMeetupProductType(course.productType)) {
+      return NextResponse.json(
+        {
+          error:
+            "约搭活动壳不可从课程中心删除，请到「我的约搭」或站长约搭管理处理活动。",
+        },
+        { status: 400 },
       );
     }
 

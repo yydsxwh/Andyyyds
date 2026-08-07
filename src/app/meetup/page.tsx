@@ -6,11 +6,13 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import {
   buildMeetupPlazaWhere,
+  fromMeetupPeopleDb,
   MEETUP_PLAZA_TAKE,
   parseMeetupSort,
   parseOptionalCoord,
   sortMeetupPlazaRows,
 } from "@/lib/meetup";
+import { canManageMeetups } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +37,8 @@ export default async function MeetupPlazaPage({
   const userLat = parseOptionalCoord(params.lat, "lat");
   const userLng = parseOptionalCoord(params.lng, "lng");
   const session = await getSession();
+  // 站长可编辑广场任意卡片；普通用户仅编辑 hostId === 自己的局（未登录不显示）
+  const isMeetupAdmin = session ? canManageMeetups(session.role) : false;
 
   // 与 GET /api/meetup 同一套规则：未取消（含历史）可见；排序见 sort
   const where = buildMeetupPlazaWhere({ category });
@@ -56,6 +60,7 @@ export default async function MeetupPlazaPage({
   const meetups = sortMeetupPlazaRows(
     rows.map((m) => ({
       ...m,
+      maxPeople: fromMeetupPeopleDb(m.maxPeople),
       joinCount: m._count.joins,
     })),
     { sort, userLat, userLng },
@@ -96,6 +101,9 @@ export default async function MeetupPlazaPage({
         {meetups.map((m) => (
           <MeetupCard
             key={m.id}
+            canEdit={
+              isMeetupAdmin || Boolean(session && session.id === m.hostId)
+            }
             meetup={{
               id: m.id,
               title: m.title,
@@ -108,6 +116,7 @@ export default async function MeetupPlazaPage({
               status: m.status,
               joinCount: m.joinCount,
               host: { name: m.host.name },
+              hostId: m.hostId,
               priceCents: m.priceCents,
             }}
           />

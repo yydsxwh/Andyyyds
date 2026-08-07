@@ -5,6 +5,10 @@ import { EditCourseForm } from "@/components/edit-course-form";
 import { StudioNav } from "@/components/studio-nav";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import {
+  isMeetupProductType,
+  meetupActivityEditPath,
+} from "@/lib/product-types";
 import { canDeleteCourses, canManageCourses, canViewAllStudioData } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
@@ -55,6 +59,14 @@ export default async function EditCourseContentPage({
     },
   });
   if (!course) notFound();
+
+  // 约搭无章节课时：禁止进 content 编辑器
+  if (isMeetupProductType(course.productType)) {
+    redirect(meetupActivityEditPath(course.slug, { fromCourseEdit: true }));
+  }
+  if (course.productType === "PRODUCT") {
+    redirect("/studio/shop");
+  }
 
   const [mediaAssets, availableBundleCourses] = await Promise.all([
     prisma.mediaAsset.findMany({

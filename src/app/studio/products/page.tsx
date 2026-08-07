@@ -7,12 +7,14 @@ import { StudioNav } from "@/components/studio-nav";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { PRODUCT_PLAZA_ORDER_BY } from "@/lib/product-display-order";
+import { MEETUP_PRODUCT_TYPE } from "@/lib/meetup";
 import { isAdmin } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
 /**
- * 站长「产品管理」：统一管理可售 Course（单课/专栏/资料）的展示次序、置顶、精华与增删改。
+ * 站长「产品管理」：统一管理可售 Course（单课/专栏/资料/商城）的展示次序、置顶、精华与增删改。
+ * 约搭壳(MEETUP)不是可运营课程商品，排除在外，改活动请走约搭管理。
  * 与创作者中心「课程与资料」分离：此处仅站长，面向全站运营。
  */
 export default async function StudioProductsPage() {
@@ -21,6 +23,8 @@ export default async function StudioProductsPage() {
   if (!isAdmin(session.role)) redirect("/studio");
 
   const rows = await prisma.course.findMany({
+    // 约搭≠课程：产品管理勿列活动壳，避免「编辑」链进课程表单
+    where: { productType: { not: MEETUP_PRODUCT_TYPE } },
     include: {
       teacher: { select: { name: true } },
       category: { select: { name: true } },

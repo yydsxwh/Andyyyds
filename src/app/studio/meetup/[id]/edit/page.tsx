@@ -4,7 +4,9 @@ import { MeetupEditorForm } from "@/components/meetup-editor-form";
 import { StudioNav } from "@/components/studio-nav";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { fromMeetupPeopleDb } from "@/lib/meetup";
 import { parseJsonStringArray } from "@/lib/meetup-meta";
+import { parseMeetupServicePhones } from "@/lib/meetup-service-contact";
 import { canManageMeetups } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
@@ -75,11 +77,20 @@ export default async function StudioMeetupEditPage({
           autoRefund: Boolean(meetup.autoRefund),
           gallery: parseJsonStringArray(meetup.galleryJson),
           contactUrl: meetup.contactUrl || "",
+          meetingPoint: meetup.meetingPoint || "",
+          destination: meetup.destination || "",
+          highlights: meetup.highlights || "",
+          adminPhone: meetup.adminPhone || "",
+          servicePhones: parseMeetupServicePhones(meetup.servicePhonesJson),
+          wechatService: meetup.wechatService || "",
+          itineraryHtml: meetup.itineraryHtml || "",
+          feeNoteHtml: meetup.feeNoteHtml || "",
+          notesHtml: meetup.notesHtml || "",
           status: meetup.status,
           slots: meetup.slots.map((s) => ({
             id: s.id,
             name: s.name,
-            maxPeople: s.maxPeople,
+            maxPeople: fromMeetupPeopleDb(s.maxPeople),
             joinCount: s._count.joins,
           })),
         }}

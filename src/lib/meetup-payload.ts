@@ -6,8 +6,10 @@
 import { z } from "zod";
 import {
   isMeetupCategory,
+  MEETUP_DEFAULT_SLOT_PEOPLE,
   MEETUP_MAX_PEOPLE,
   MEETUP_MAX_PRICE_CENTS,
+  MEETUP_MAX_TOTAL_PEOPLE,
   MEETUP_MIN_PEOPLE,
   parseOptionalCoord,
   yuanToMeetupPriceCents,
@@ -22,6 +24,11 @@ import {
   stringifyJsonStringArray,
 } from "@/lib/meetup-meta";
 import {
+  normalizeWechatService,
+  stringifyMeetupServicePhones,
+  type MeetupServicePhone,
+} from "@/lib/meetup-service-contact";
+import {
   DEFAULT_MEETUP_TIMEZONE,
   isValidIanaTimeZone,
   normalizeMeetupTimeZone,
@@ -32,6 +39,11 @@ export const meetupSlotPayloadSchema = z.object({
   id: z.string().trim().min(1).optional(),
   name: z.string().trim().min(1).max(40),
   maxPeople: z.number().int().min(1).max(MEETUP_MAX_PEOPLE),
+});
+
+const meetupServicePhoneSchema = z.object({
+  label: z.string().trim().max(40).optional().default("客服"),
+  phone: z.string().trim().min(1).max(32),
 });
 
 export const meetupWriteSchema = z.object({
@@ -53,7 +65,7 @@ export const meetupWriteSchema = z.object({
     .number()
     .int()
     .min(MEETUP_MIN_PEOPLE)
-    .max(MEETUP_MAX_PEOPLE)
+    .max(MEETUP_MAX_TOTAL_PEOPLE)
     .optional(),
   coverUrl: z.string().trim().max(500).optional().default(""),
   tags: z.array(z.string()).max(12).optional(),
@@ -62,6 +74,15 @@ export const meetupWriteSchema = z.object({
   autoRefund: z.boolean().optional().default(false),
   gallery: z.array(z.string()).max(12).optional(),
   contactUrl: z.string().trim().max(500).optional().default(""),
+  meetingPoint: z.string().trim().max(120).optional().default(""),
+  destination: z.string().trim().max(120).optional().default(""),
+  highlights: z.string().trim().max(200).optional().default(""),
+  adminPhone: z.string().trim().max(32).optional().default(""),
+  servicePhones: z.array(meetupServicePhoneSchema).max(8).optional(),
+  wechatService: z.string().trim().max(500).optional().default(""),
+  itineraryHtml: z.string().max(100_000).optional().default(""),
+  feeNoteHtml: z.string().max(100_000).optional().default(""),
+  notesHtml: z.string().max(100_000).optional().default(""),
   slots: z.array(meetupSlotPayloadSchema).max(8).optional(),
   status: z.string().trim().optional(),
 });
@@ -93,9 +114,33 @@ export type ParsedMeetupWrite = {
   autoRefund: boolean;
   galleryJson: string;
   contactUrl: string;
+  meetingPoint: string;
+  destination: string;
+  highlights: string;
+  adminPhone: string;
+  servicePhonesJson: string;
+  wechatService: string;
+  itineraryHtml: string;
+  feeNoteHtml: string;
+  notesHtml: string;
   slots: { id?: string; name: string; maxPeople: number }[];
   status?: string;
 };
+
+/** 写入 Prisma Meetup 时的详情扩展字段（与分档/人数逻辑解耦，便于 PATCH 复用） */
+export function meetupDetailDbFields(data: ParsedMeetupWrite) {
+  return {
+    meetingPoint: data.meetingPoint,
+    destination: data.destination,
+    highlights: data.highlights,
+    adminPhone: data.adminPhone,
+    servicePhonesJson: data.servicePhonesJson,
+    wechatService: data.wechatService,
+    itineraryHtml: data.itineraryHtml,
+    feeNoteHtml: data.feeNoteHtml,
+    notesHtml: data.notesHtml,
+  };
+}
 
 export function parseMeetupWriteBody(
   body: MeetupWriteBody,
@@ -140,6 +185,12 @@ export function parseMeetupWriteBody(
     return { ok: false, error: "联系链接无效" };
   }
 
+  const wechatService = normalizeWechatService(body.wechatService || "");
+  // 微信客服填链接时须合法；微信号允许纯文本（前端复制）
+  if (wechatService && /^https?:\/\//i.test(wechatService) && !isSafeUrl(wechatService)) {
+    return { ok: false, error: "微信客服链接无效" };
+  }
+
   const gallery = (body.gallery || [])
     .map((u) => u.trim())
     .filter((u) => isSafeUrl(u))
@@ -158,10 +209,18 @@ export function parseMeetupWriteBody(
       ? meetupBlocksToHtml(blocks)
       : body.contentHtml || "",
   );
+  const itineraryHtml = sanitizeMeetupContentHtml(body.itineraryHtml || "");
+  const feeNoteHtml = sanitizeMeetupContentHtml(body.feeNoteHtml || "");
+  const notesHtml = sanitizeMeetupContentHtml(body.notesHtml || "");
 
-  const fallbackMax =
-    body.maxPeople ||
-    MEETUP_MIN_PEOPLE;
+  const servicePhones: MeetupServicePhone[] = (body.servicePhones || []).map(
+    (p) => ({
+      label: (p.label || "客服").trim() || "客服",
+      phone: p.phone.trim(),
+    }),
+  );
+
+  const fallbackMax = body.maxPeople || MEETUP_DEFAULT_SLOT_PEOPLE;
   const slotInputs = normalizeMeetupSlotInputs(
     (body.slots || []).map((s) => ({
       name: s.name,
@@ -180,8 +239,9 @@ export function parseMeetupWriteBody(
     };
   });
 
+  // 总人数=各档之和；单档已受 MEETUP_MAX_PEOPLE 约束，总和再挡在 TOTAL上限
   const maxPeople = Math.min(
-    MEETUP_MAX_PEOPLE,
+    MEETUP_MAX_TOTAL_PEOPLE,
     Math.max(
       MEETUP_MIN_PEOPLE,
       slotInputs.reduce((sum, s) => sum + s.maxPeople, 0),
@@ -227,6 +287,18 @@ export function parseMeetupWriteBody(
       autoRefund: Boolean(body.autoRefund),
       galleryJson: stringifyJsonStringArray(gallery),
       contactUrl,
+      meetingPoint: (body.meetingPoint || "").trim().slice(0, 120),
+      destination: (body.destination || "").trim().slice(0, 120),
+      highlights: (body.highlights || "").trim().slice(0, 200),
+      adminPhone: (body.adminPhone || "")
+        .trim()
+        .replace(/[^\d+\-()\s]/g, "")
+        .slice(0, 32),
+      servicePhonesJson: stringifyMeetupServicePhones(servicePhones),
+      wechatService,
+      itineraryHtml,
+      feeNoteHtml,
+      notesHtml,
       slots: slotsWithIds,
       status: body.status,
     },
