@@ -283,8 +283,8 @@ export function PortalNavSettings({ value, onChange }: Props) {
 }
 
 /**
- * 首页区块顺序：与门户导航同一套拖拽手柄 + 上下按钮（触控可用，不依赖 hover）。
- * 保存后经典首页按此顺序渲染；「联系我们」由此从硬编码首屏改为可配置位次。
+ * 首页区块顺序 + 显隐：拖拽/箭头改位次，右侧按钮切换前台是否渲染（触控可用，不依赖 hover）。
+ * 显隐与顺序一并保存；隐藏只影响前台，后台列表仍保留该项以便再打开。
  */
 export function HomeSectionOrderEditor({ value, onChange }: Props) {
   const order = normalizeHomeSectionOrder(
@@ -310,91 +310,120 @@ export function HomeSectionOrderEditor({ value, onChange }: Props) {
     onChange({ ...value, homeSectionOrder: next });
   }
 
+  /** 点按钮切换 visible；与排序同一字段，点「保存首页顺序」一并写入 */
+  function toggleSectionVisible(index: number) {
+    const next = order.map((entry, i) =>
+      i === index ? { ...entry, visible: !entry.visible } : entry,
+    );
+    onChange({ ...value, homeSectionOrder: next });
+  }
+
   return (
     <div className="space-y-3">
       <p className="text-sm text-[var(--muted)]">
-        拖拽左侧手柄或点上下箭头，调整经典首页各区块的上下顺序（含「联系我们」）。保存后前台立即按新顺序展示。更多横幅仅在配置了多张横幅时出现。
+        拖拽左侧手柄或点上下箭头调整顺序；点「显示/隐藏」控制该区块是否出现在前台（手机微信内同样可点）。保存后立即生效。更多横幅仅在配置了多张横幅时出现。
       </p>
-      {order.map((sectionId, index) => (
-        <div
-          key={sectionId}
-          onDragOver={(e) => {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = "move";
-            setDragOverIndex(index);
-          }}
-          onDragLeave={(e) => {
-            if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-              setDragOverIndex((current) =>
-                current === index ? null : current,
-              );
-            }
-          }}
-          onDrop={(e) => {
-            e.preventDefault();
-            setDragOverIndex(null);
-            const raw = e.dataTransfer.getData(HOME_SECTION_DND_MIME);
-            const from = Number.parseInt(raw, 10);
-            if (Number.isFinite(from)) moveSection(from, index);
-          }}
-          className={`flex items-center gap-2 rounded-2xl border bg-white/50 p-3 ${
-            dragOverIndex === index
-              ? "border-[var(--brand)] ring-1 ring-[var(--brand)]"
-              : "border-[var(--line)]"
-          }`}
-        >
-          <button
-            type="button"
-            draggable
-            className="flex h-11 w-11 shrink-0 cursor-grab items-center justify-center rounded-xl border border-[var(--line)] bg-white/80 text-[var(--muted)] touch-manipulation active:cursor-grabbing"
-            aria-label={`拖拽调整「${HOME_SECTION_LABELS[sectionId]}」顺序`}
-            title="按住拖动调整顺序"
-            onDragStart={(e) => {
-              e.dataTransfer.setData(HOME_SECTION_DND_MIME, String(index));
-              e.dataTransfer.effectAllowed = "move";
+      {order.map((entry, index) => {
+        const sectionId = entry.id;
+        const label = HOME_SECTION_LABELS[sectionId];
+        const isVisible = entry.visible !== false;
+        return (
+          <div
+            key={sectionId}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+              setDragOverIndex(index);
             }}
-            onDragEnd={() => setDragOverIndex(null)}
+            onDragLeave={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                setDragOverIndex((current) =>
+                  current === index ? null : current,
+                );
+              }
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOverIndex(null);
+              const raw = e.dataTransfer.getData(HOME_SECTION_DND_MIME);
+              const from = Number.parseInt(raw, 10);
+              if (Number.isFinite(from)) moveSection(from, index);
+            }}
+            className={`flex flex-wrap items-center gap-2 rounded-2xl border bg-white/50 p-3 sm:flex-nowrap ${
+              dragOverIndex === index
+                ? "border-[var(--brand)] ring-1 ring-[var(--brand)]"
+                : "border-[var(--line)]"
+            } ${isVisible ? "" : "opacity-60"}`}
           >
-            <span aria-hidden className="select-none text-base leading-none">
-              ⋮⋮
-            </span>
-          </button>
-          <div className="min-w-0 flex-1">
-            <div className="font-medium text-[var(--ink)]">
-              {HOME_SECTION_LABELS[sectionId]}
-            </div>
-            <div className="text-xs text-[var(--muted)]">
-              {sectionId === "contact"
-                ? "内容在下方「联系我们」分区编辑"
-                : sectionId === "banners"
-                  ? "网站装扮里配置多张横幅后显示"
-                  : "经典首页区块"}
-            </div>
-          </div>
-          <div className="flex shrink-0 items-center gap-1">
             <button
               type="button"
-              className="btn btn-secondary min-h-11 min-w-11 touch-manipulation px-2.5 py-2 text-sm disabled:opacity-40"
-              disabled={index === 0}
-              aria-label={`上移「${HOME_SECTION_LABELS[sectionId]}」`}
-              title="上移"
-              onClick={() => moveSection(index, index - 1)}
+              draggable
+              className="flex h-11 w-11 shrink-0 cursor-grab items-center justify-center rounded-xl border border-[var(--line)] bg-white/80 text-[var(--muted)] touch-manipulation active:cursor-grabbing"
+              aria-label={`拖拽调整「${label}」顺序`}
+              title="按住拖动调整顺序"
+              onDragStart={(e) => {
+                e.dataTransfer.setData(HOME_SECTION_DND_MIME, String(index));
+                e.dataTransfer.effectAllowed = "move";
+              }}
+              onDragEnd={() => setDragOverIndex(null)}
             >
-              ↑
+              <span aria-hidden className="select-none text-base leading-none">
+                ⋮⋮
+              </span>
             </button>
-            <button
-              type="button"
-              className="btn btn-secondary min-h-11 min-w-11 touch-manipulation px-2.5 py-2 text-sm disabled:opacity-40"
-              disabled={index === order.length - 1}
-              aria-label={`下移「${HOME_SECTION_LABELS[sectionId]}」`}
-              title="下移"
-              onClick={() => moveSection(index, index + 1)}
-            >
-              ↓
-            </button>
+            <div className="min-w-0 flex-1 basis-[min(100%,12rem)]">
+              <div className="font-medium text-[var(--ink)]">{label}</div>
+              <div className="text-xs text-[var(--muted)]">
+                {sectionId === "contact"
+                  ? "内容在下方「联系我们」分区编辑"
+                  : sectionId === "banners"
+                    ? "网站装扮里配置多张横幅后显示"
+                    : "经典首页区块"}
+                {!isVisible ? " · 前台已隐藏" : ""}
+              </div>
+            </div>
+            <div className="flex shrink-0 flex-wrap items-center gap-1">
+              {/* 明显可点的显隐按钮：aria-pressed 表示当前是否显示，微信内触控区域 ≥44px */}
+              <button
+                type="button"
+                className={`btn min-h-11 touch-manipulation px-3 py-2 text-sm ${
+                  isVisible
+                    ? "btn-primary"
+                    : "btn-secondary text-[var(--muted)]"
+                }`}
+                aria-pressed={isVisible}
+                aria-label={
+                  isVisible ? `隐藏「${label}」（当前显示中）` : `显示「${label}」（当前已隐藏）`
+                }
+                title={isVisible ? "点击后前台隐藏该区块" : "点击后前台显示该区块"}
+                onClick={() => toggleSectionVisible(index)}
+              >
+                {isVisible ? "显示" : "隐藏"}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary min-h-11 min-w-11 touch-manipulation px-2.5 py-2 text-sm disabled:opacity-40"
+                disabled={index === 0}
+                aria-label={`上移「${label}」`}
+                title="上移"
+                onClick={() => moveSection(index, index - 1)}
+              >
+                ↑
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary min-h-11 min-w-11 touch-manipulation px-2.5 py-2 text-sm disabled:opacity-40"
+                disabled={index === order.length - 1}
+                aria-label={`下移「${label}」`}
+                title="下移"
+                onClick={() => moveSection(index, index + 1)}
+              >
+                ↓
+              </button>
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -548,7 +577,7 @@ export function PortalSettings({ value, onChange }: Props) {
       <div>
         <h2 className="text-lg font-semibold">门户导航与介绍页</h2>
         <p className="mt-1 text-sm text-[var(--muted)]">
-          控制前台顶部菜单显示与顺序、首页区块顺序，以及「公司介绍」「个人介绍」文案。拖拽左侧手柄可调整排版顺序；保存后立即生效。
+          控制前台顶部菜单显示与顺序、首页区块顺序与显隐，以及「公司介绍」「个人介绍」文案。拖拽左侧手柄可调整排版顺序；保存后立即生效。
         </p>
       </div>
       <PortalNavSettings value={value} onChange={onChange} />

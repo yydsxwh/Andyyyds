@@ -5,7 +5,6 @@ import { CoursesSubnav } from "@/components/courses-subnav";
 import { StudioNav } from "@/components/studio-nav";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { isProductType } from "@/lib/product-types";
 import { canCreateSellableProducts, canManageCourses } from "@/lib/roles";
 import { getStudioNavConfig, getUiCopy } from "@/lib/site-settings";
 import { studioNavLabel } from "@/lib/studio-nav-config";
@@ -31,11 +30,14 @@ export default async function StudioCoursesComposePage({
     .split(",")
     .map((x) => x.trim())
     .filter(Boolean);
-  // 支持 ?type=MATERIAL 从「创建资料」入口直接预选；商城 PRODUCT 走 /studio/shop，不进组课表单
+  // 支持 ?type=MATERIAL / ?type=MEETUP 预选；MEETUP 仅作入口，仍不走组课 API
   const typeParam = (params.type || "").toUpperCase();
   const initialProductType =
-    isProductType(typeParam) && typeParam !== "PRODUCT"
-      ? (typeParam as "COURSE" | "COLUMN" | "MATERIAL")
+    typeParam === "COURSE" ||
+    typeParam === "COLUMN" ||
+    typeParam === "MATERIAL" ||
+    typeParam === "MEETUP"
+      ? typeParam
       : undefined;
 
   const [assets, bundleCourses, uiCopy, studioNav] = await Promise.all([
@@ -64,7 +66,7 @@ export default async function StudioCoursesComposePage({
   const composeLabel = studioNavLabel(
     studioNav.courses,
     "compose",
-    "创建课程/资料",
+    "创建产品",
   );
   const preselectMaterial = initialProductType === "MATERIAL";
 
@@ -77,7 +79,7 @@ export default async function StudioCoursesComposePage({
         </h1>
         <p className="mt-2 text-sm text-[var(--muted)]">
           先选产品类型：单课/资料用素材组课；专栏是套餐，选择多门单课打包售卖。
-          资料会出现在前台「资料广场」。
+          资料会出现在前台「资料广场」。活动走约搭创建（可设价格、分档报名），不进「我的课程」。
           {assets.length === 0 ? (
             <>
               {" "}

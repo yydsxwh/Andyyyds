@@ -3,7 +3,11 @@ import { MeetupCard } from "@/components/meetup-card";
 import { NavPageTemplateShell } from "@/components/nav-page-template-shell";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { isMeetupCategory, MEETUP_CATEGORIES } from "@/lib/meetup";
+import {
+  buildMeetupPlazaWhere,
+  MEETUP_CATEGORIES,
+  MEETUP_PLAZA_TAKE,
+} from "@/lib/meetup";
 import { typoRoleClass, typoRoleStyle } from "@/lib/site-typography";
 
 export const dynamic = "force-dynamic";
@@ -22,18 +26,8 @@ export default async function MeetupPlazaPage({
   const category = params.category?.trim() || "";
   const session = await getSession();
 
-  const where: {
-    category?: string;
-    status: { not: string };
-    startsAt: { gte: Date };
-  } = {
-    status: { not: "CANCELLED" },
-    // 广场默认只展示近期与未来局，减少过期噪音
-    startsAt: { gte: new Date(Date.now() - 2 * 60 * 60 * 1000) },
-  };
-  if (category && isMeetupCategory(category)) {
-    where.category = category;
-  }
+  // 与 GET /api/meetup 同一套规则：未取消的约搭（含满员/已截止）在广场可见
+  const where = buildMeetupPlazaWhere({ category });
 
   const meetups = await prisma.meetup.findMany({
     where,
@@ -41,8 +35,9 @@ export default async function MeetupPlazaPage({
       host: { select: { id: true, name: true, avatarUrl: true } },
       _count: { select: { joins: true } },
     },
-    orderBy: [{ startsAt: "asc" }, { createdAt: "desc" }],
-    take: 100,
+    // 近期开场优先，方便手机端先看到仍相关的局
+    orderBy: [{ startsAt: "desc" }, { createdAt: "desc" }],
+    take: MEETUP_PLAZA_TAKE,
   });
 
   return (
@@ -121,7 +116,8 @@ export default async function MeetupPlazaPage({
 
       {meetups.length === 0 ? (
         <div className="surface rounded-[28px] px-6 py-16 text-center">
-          <p className="text-[var(--muted)]">暂无进行中的约搭</p>
+          {/* 文案与查询一致：这里是「近期未取消」为空，不是「进行中」过滤为空 */}
+          <p className="text-[var(--muted)]">暂无约搭活动</p>
           <p className="mt-2 text-sm text-[var(--muted)]">
             当第一个发起人，喊上搭子一起出门
           </p>

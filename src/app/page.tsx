@@ -10,8 +10,11 @@ import { prisma } from "@/lib/db";
 import {
   DEFAULT_HOME_SECTION_ORDER,
   DEFAULT_PORTAL_CONTACT,
+  isHomeContactSectionVisible,
   normalizeHomeSectionOrder,
   shouldShowContactBeforeDiyContent,
+  visibleHomeSectionIds,
+  type HomeSectionEntry,
   type HomeSectionId,
   type PortalContact,
   type PortalNavLink,
@@ -220,16 +223,17 @@ function ClassicHomeByOrder({
   modules,
   courses,
 }: {
-  order: HomeSectionId[];
+  order: HomeSectionEntry[];
   contact: PortalContact;
   decorate: DecorateConfig;
   modules: PortalNavLink[];
   courses: CourseCardRow[];
 }) {
-  // 按 CMS 保存的顺序渲染；联系我们不再硬编码嵌在主视觉里
+  // 按 CMS 顺序渲染，并跳过 visible===false 的区块（隐藏后仍保留后台位次）
+  const sectionIds: HomeSectionId[] = visibleHomeSectionIds(order);
   return (
     <div>
-      {order.map((sectionId) => {
+      {sectionIds.map((sectionId) => {
         switch (sectionId) {
           case "contact":
             return <ContactSection key="contact" contact={contact} />;
@@ -279,7 +283,10 @@ export default async function HomePage() {
   // 仅「已设为默认」且含模块的首页 DIY 才接管；否则用系统经典首页（介绍文案等）
   const diyHome = getDefaultTemplate(pageTemplates, "home");
   if (shouldUseDiyLayout(diyHome)) {
-    const contactBefore = shouldShowContactBeforeDiyContent(homeSectionOrder);
+    // DIY 首页也尊重「首页区块顺序」里联系我们的显隐与相对主视觉前后
+    const showContact = isHomeContactSectionVisible(homeSectionOrder);
+    const contactBefore =
+      showContact && shouldShowContactBeforeDiyContent(homeSectionOrder);
     return (
       <div className="space-y-4 py-4 sm:py-6">
         {contactBefore ? (
@@ -288,7 +295,7 @@ export default async function HomePage() {
           </div>
         ) : null}
         <PageModulesView template={diyHome!} />
-        {!contactBefore ? (
+        {showContact && !contactBefore ? (
           <div className="container">
             <ContactUsPanel contact={contact} variant="hero" />
           </div>

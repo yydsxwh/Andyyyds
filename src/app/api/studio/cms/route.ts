@@ -151,10 +151,17 @@ const patchSchema = z.object({
           note: z.string().max(2000).optional(),
         })
         .optional(),
-      // 首页区块拖拽顺序；缺省时服务端沿用库内或默认（联系我们置顶）
+      // 首页区块顺序 + 显隐；兼容旧客户端只传 id 字符串数组
       homeSectionOrder: z
         .array(
-          z.enum(["contact", "hero", "banners", "portal", "courses"]),
+          z.union([
+            z.enum(["contact", "hero", "banners", "portal", "courses"]),
+            z.object({
+              id: z.enum(["contact", "hero", "banners", "portal", "courses"]),
+              // 缺省视为显示，与 normalizeHomeSectionOrder 旧配置兼容策略一致
+              visible: z.boolean().optional(),
+            }),
+          ]),
         )
         .max(HOME_SECTION_IDS.length)
         .optional(),

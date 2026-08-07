@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PRODUCT_TITLE_MAX } from "@/lib/media";
 import { isValidYuanInput } from "@/lib/money";
@@ -10,6 +11,11 @@ import { formatPrice } from "@/lib/utils";
 
 /** 超过该像素才算拖拽框选，避免误当成点击 */
 const MARQUEE_THRESHOLD_PX = 6;
+
+/** 创作者侧约搭创建页：与组课/章节隔离，复用前台发起流程 */
+const MEETUP_CREATE_HREF = "/meetup/new";
+/** 创建后活动出现在「我的约搭」，不进「我的课程」 */
+const MEETUP_MINE_HREF = "/studio/meetup/mine";
 
 type Asset = {
   id: string;
@@ -27,14 +33,18 @@ type BundleCourseOption = {
   coverUrl: string;
 };
 
-type ProductTypeChoice = "COURSE" | "COLUMN" | "MATERIAL";
+/**
+ * 创建产品页可选类型。
+ * MEETUP（活动）只作入口：不走素材组课/专栏打包，跳转约搭创建表单。
+ */
+type ProductTypeChoice = "COURSE" | "COLUMN" | "MATERIAL" | "MEETUP";
 
 type Props = {
   assets: Asset[];
   /** 名下单课，供创建专栏套餐时勾选 */
   bundleCourses?: BundleCourseOption[];
   initialSelectedIds: string[];
-  /** 深链预选类型：如从「创建资料」入口带 ?type=MATERIAL */
+  /** 深链预选类型：如从「创建资料」入口带 ?type=MATERIAL；活动为 ?type=MEETUP */
   initialProductType?: ProductTypeChoice;
   copy: ComposeUiCopy;
 };
@@ -48,7 +58,13 @@ const DRAG_MIME = "application/x-yyds-compose-asset";
 function normalizeProductType(
   value: ProductTypeChoice | undefined,
 ): ProductTypeChoice {
-  if (value === "COLUMN" || value === "MATERIAL") return value;
+  if (
+    value === "COLUMN" ||
+    value === "MATERIAL" ||
+    value === "MEETUP"
+  ) {
+    return value;
+  }
   return "COURSE";
 }
 
@@ -77,6 +93,8 @@ export function ComposeProductForm({
   const [groupByCategory, setGroupByCategory] = useState(true);
   const [publish, setPublish] = useState(true);
   const isColumn = productType === "COLUMN";
+  // 活动≠课程：选中后只展示约搭入口，禁止进入素材/章节组课步骤
+  const isMeetup = productType === "MEETUP";
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [dragOverSelected, setDragOverSelected] = useState(false);
@@ -133,6 +151,13 @@ export function ComposeProductForm({
     setProductType(next);
     setError("");
     setStep(1);
+    if (next === "MEETUP") {
+      // 活动走独立 Meetup 模型，清空组课选择避免误提交 compose API
+      setSelected([]);
+      setChecked([]);
+      setSelectedCourseIds([]);
+      return;
+    }
     if (next === "COLUMN") {
       setSelected([]);
       setChecked([]);
@@ -508,16 +533,50 @@ export function ComposeProductForm({
           >
             资料
           </button>
+          <button
+            type="button"
+            className={`btn min-h-10 px-3 text-sm ${isMeetup ? "btn-primary" : "btn-secondary"}`}
+            onClick={() => setProductTypeAndReset("MEETUP")}
+          >
+            活动
+          </button>
         </div>
         <p className="text-xs leading-relaxed text-[var(--muted)]">
-          {isColumn
-            ? "专栏是套餐：选择多门已创建的单课打包售卖；买专栏后开通所含每门单课。"
-            : productType === "MATERIAL"
-              ? "资料：用素材打包，出现在资料广场。"
-              : "单课：用素材组成一门独立可售课程。"}
+          {isMeetup
+            ? "活动：约搭活动（可设价格、分档报名、图文详情等），不是课程/章节；创建后出现在「我的约搭」，不进「我的课程」。"
+            : isColumn
+              ? "专栏是套餐：选择多门已创建的单课打包售卖；买专栏后开通所含每门单课。"
+              : productType === "MATERIAL"
+                ? "资料：用素材打包，出现在资料广场。"
+                : "单课：用素材组成一门独立可售课程。"}
         </p>
       </div>
 
+      {isMeetup ? (
+        <div className="surface space-y-4 rounded-[28px] p-5 sm:p-6">
+          <h2 className="text-lg font-semibold">创建约搭活动</h2>
+          <p className="text-sm leading-relaxed text-[var(--muted)]">
+            约搭是线下/线上组队活动：可配置封面、报名费、分档名额与图文详情。
+            与单课/专栏/资料不同，不会走素材组课或章节逻辑。
+          </p>
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            <Link
+              href={MEETUP_CREATE_HREF}
+              className="btn btn-accent inline-flex min-h-11 items-center justify-center"
+            >
+              去创建约搭活动
+            </Link>
+            <Link
+              href={MEETUP_MINE_HREF}
+              className="btn btn-secondary inline-flex min-h-11 items-center justify-center"
+            >
+              查看我的约搭
+            </Link>
+          </div>
+        </div>
+      ) : null}
+
+      {!isMeetup ? (
       <div className="flex flex-wrap items-center gap-3 text-sm">
         <StepPill
           active={step === 1}
@@ -528,8 +587,9 @@ export function ComposeProductForm({
         <span className="text-[var(--muted)]">→</span>
         <StepPill active={step === 2} done={false} n={2} label="填写产品信息" />
       </div>
+      ) : null}
 
-      {step === 1 && isColumn ? (
+      {!isMeetup && step === 1 && isColumn ? (
         <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
           <div className="surface space-y-4 rounded-[28px] p-6">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -629,7 +689,7 @@ export function ComposeProductForm({
         </div>
       ) : null}
 
-      {step === 1 && !isColumn ? (
+      {!isMeetup && step === 1 && !isColumn ? (
         <div className="space-y-4">
           <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
             <div className="surface space-y-4 rounded-[28px] p-6">
@@ -859,7 +919,7 @@ export function ComposeProductForm({
             </button>
           </div>
         </div>
-      ) : (
+      ) : !isMeetup ? (
         <form onSubmit={onSubmit} className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
           <div className="surface space-y-4 rounded-[28px] p-6">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1032,7 +1092,7 @@ export function ComposeProductForm({
             </div>
           </div>
         </form>
-      )}
+      ) : null}
     </div>
   );
 }

@@ -5,12 +5,12 @@ export async function CoursesSubnav({
   current,
   canCreate = true,
 }: {
-  current: "list" | "materials" | "compose";
-  /** 老师不可见「创建课程/资料」（无 canCreateSellableProducts） */
+  current: "list" | "materials" | "compose" | "meetup-mine";
+  /** 老师不可见「创建产品」（无 canCreateSellableProducts） */
   canCreate?: boolean;
 }) {
   const nav = await getStudioNavConfig();
-  // 老师可看列表与「我的资料」，但不能进 compose 创建可售产品
+  // 老师可看课程/资料/约搭列表，但不能进 compose 创建可售产品
   const links = canCreate
     ? nav.courses
     : nav.courses.filter((link) => link.key !== "compose");

@@ -10,10 +10,12 @@ import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import {
+  buildMeetupPlazaWhere,
   isMeetupCategory,
   MEETUP_MAX_PEOPLE,
   MEETUP_MAX_PRICE_CENTS,
   MEETUP_MIN_PEOPLE,
+  MEETUP_PLAZA_TAKE,
   yuanToMeetupPriceCents,
 } from "@/lib/meetup";
 import {
@@ -169,27 +171,16 @@ const meetupInclude = {
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const category = searchParams.get("category")?.trim() || "";
+  // past=1：不做时间裁剪（管理/调试用）；默认与前台广场同规则
   const includePast = searchParams.get("past") === "1";
 
-  const where: {
-    category?: string;
-    status?: { not: string };
-    startsAt?: { gte: Date };
-  } = {
-    status: { not: "CANCELLED" },
-  };
-  if (category && isMeetupCategory(category)) {
-    where.category = category;
-  }
-  if (!includePast) {
-    where.startsAt = { gte: new Date(Date.now() - 2 * 60 * 60 * 1000) };
-  }
+  const where = buildMeetupPlazaWhere({ category, includePast });
 
   const rows = await prisma.meetup.findMany({
     where,
     include: meetupInclude,
-    orderBy: [{ startsAt: "asc" }, { createdAt: "desc" }],
-    take: 100,
+    orderBy: [{ startsAt: "desc" }, { createdAt: "desc" }],
+    take: MEETUP_PLAZA_TAKE,
   });
 
   return NextResponse.json({ meetups: rows.map(serializeMeetup) });

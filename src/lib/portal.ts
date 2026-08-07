@@ -64,6 +64,17 @@ export type HomeSectionId =
   | "portal"
   | "courses";
 
+/** 单个首页区块：顺序 + 是否前台可见（CMS「首页区块顺序」） */
+export type HomeSectionEntry = {
+  id: HomeSectionId;
+  /**
+   * 是否在前台渲染该区块。
+   * 与位次解耦：隐藏后仍保留排序，重新显示时不必重排。
+   * 旧库仅存 id 字符串、无 visible 时视为 true，避免升级后区块突然消失。
+   */
+  visible: boolean;
+};
+
 export const HOME_SECTION_IDS: HomeSectionId[] = [
   "contact",
   "hero",
@@ -72,14 +83,9 @@ export const HOME_SECTION_IDS: HomeSectionId[] = [
   "courses",
 ];
 
-/** 无序配置时的默认：联系我们 → 主视觉 → 横幅 → 门户入口 → 热门课程 */
-export const DEFAULT_HOME_SECTION_ORDER: HomeSectionId[] = [
-  "contact",
-  "hero",
-  "banners",
-  "portal",
-  "courses",
-];
+/** 无序配置时的默认：联系我们 → 主视觉 → 横幅 → 门户入口 → 热门课程（全部显示） */
+export const DEFAULT_HOME_SECTION_ORDER: HomeSectionEntry[] =
+  HOME_SECTION_IDS.map((id) => ({ id, visible: true }));
 
 export const HOME_SECTION_LABELS: Record<HomeSectionId, string> = {
   contact: "联系我们",
@@ -95,10 +101,11 @@ export type PortalConfig = {
   person: PortalAboutPage;
   contact: PortalContact;
   /**
-   * 经典首页区块上下顺序（内容管理可拖拽）。
-   * DIY 首页仅用其中 contact 相对其它区块的前后：contact 排在 hero 之前则在 DIY 模块上方，否则下方。
+   * 经典首页区块上下顺序与显示开关（内容管理可拖拽 / 点按钮显隐）。
+   * DIY 首页仅用其中 contact 相对其它区块的前后：contact 排在 hero 之前则在 DIY 模块上方，否则下方；
+   * contact.visible === false 时 DIY 也不渲染联系我们。
    */
-  homeSectionOrder: HomeSectionId[];
+  homeSectionOrder: HomeSectionEntry[];
 };
 
 export const DEFAULT_PORTAL_CONTACT: PortalContact = {
@@ -132,7 +139,7 @@ export const DEFAULT_PORTAL: PortalConfig = {
     { key: "games", label: "游戏中心", href: "/games", comingSoon: true },
   ],
   contact: structuredClone(DEFAULT_PORTAL_CONTACT),
-  homeSectionOrder: [...DEFAULT_HOME_SECTION_ORDER],
+  homeSectionOrder: structuredClone(DEFAULT_HOME_SECTION_ORDER),
   company: {
     title: "公司介绍",
     subtitle: "把内容、服务与数字化能力，做成可持续经营的产品。",
@@ -280,48 +287,85 @@ function normalizeContact(
 
 const HOME_SECTION_ID_SET = new Set<string>(HOME_SECTION_IDS);
 
+/** 从原始项解析区块 id（兼容旧字符串与新 { id, visible }） */
+function parseHomeSectionId(item: unknown): HomeSectionId | null {
+  if (typeof item === "string") {
+    const id = item.trim() as HomeSectionId;
+    return HOME_SECTION_ID_SET.has(id) ? id : null;
+  }
+  if (item && typeof item === "object" && "id" in item) {
+    const id = String((item as { id?: unknown }).id || "").trim() as HomeSectionId;
+    return HOME_SECTION_ID_SET.has(id) ? id : null;
+  }
+  return null;
+}
+
 /**
- * 合并首页区块顺序：保留已保存顺序，过滤未知 id，缺项按默认顺序补到末尾。
- * 旧库无该字段时返回完整默认，避免联系我们从「首屏上方」突然消失到末尾。
+ * 合并首页区块顺序与显隐：保留已保存顺序/visible，过滤未知 id，缺项按默认补到末尾（默认显示）。
+ * 旧库无该字段、或仍是 id 字符串数组时：全部 visible=true，避免升级后区块突然消失。
  */
-export function normalizeHomeSectionOrder(
-  raw: unknown,
-): HomeSectionId[] {
+export function normalizeHomeSectionOrder(raw: unknown): HomeSectionEntry[] {
   if (!Array.isArray(raw) || raw.length === 0) {
-    return [...DEFAULT_HOME_SECTION_ORDER];
+    return structuredClone(DEFAULT_HOME_SECTION_ORDER);
   }
 
   const seen = new Set<HomeSectionId>();
-  const ordered: HomeSectionId[] = [];
+  const ordered: HomeSectionEntry[] = [];
 
   for (const item of raw) {
-    const id = String(item || "").trim() as HomeSectionId;
-    if (!HOME_SECTION_ID_SET.has(id) || seen.has(id)) continue;
+    const id = parseHomeSectionId(item);
+    if (!id || seen.has(id)) continue;
     seen.add(id);
-    ordered.push(id);
+    // 仅显式 false 才隐藏；缺省 / true / 旧字符串项一律显示
+    const visible =
+      item &&
+      typeof item === "object" &&
+      "visible" in item &&
+      (item as { visible?: unknown }).visible === false
+        ? false
+        : true;
+    ordered.push({ id, visible });
   }
 
-  for (const id of DEFAULT_HOME_SECTION_ORDER) {
-    if (seen.has(id)) continue;
-    ordered.push(id);
+  for (const fallback of DEFAULT_HOME_SECTION_ORDER) {
+    if (seen.has(fallback.id)) continue;
+    ordered.push({ ...fallback });
   }
 
   return ordered;
 }
 
+/** 仅返回仍在前台展示的区块 id（按顺序）；供经典首页渲染跳过隐藏项 */
+export function visibleHomeSectionIds(
+  order: HomeSectionEntry[] | unknown,
+): HomeSectionId[] {
+  return normalizeHomeSectionOrder(order)
+    .filter((entry) => entry.visible !== false)
+    .map((entry) => entry.id);
+}
+
 /**
  * DIY 首页时：contact 若排在 hero 之前（或未配置 hero），则放在 DIY 模块上方，否则下方。
  * 用 hero 作锚点，与经典首页「联系我们相对主视觉」的语义一致。
+ * 不负责 visible：调用方应先判断 contact 是否显示。
  */
 export function shouldShowContactBeforeDiyContent(
-  order: HomeSectionId[],
+  order: HomeSectionEntry[] | HomeSectionId[] | unknown,
 ): boolean {
   const normalized = normalizeHomeSectionOrder(order);
-  const contactIndex = normalized.indexOf("contact");
-  const heroIndex = normalized.indexOf("hero");
+  const contactIndex = normalized.findIndex((e) => e.id === "contact");
+  const heroIndex = normalized.findIndex((e) => e.id === "hero");
   if (contactIndex < 0) return true;
   if (heroIndex < 0) return true;
   return contactIndex < heroIndex;
+}
+
+/** 首页区块顺序里「联系我们」是否允许前台出现（区块级开关，独立于 contact.enabled 字段内容） */
+export function isHomeContactSectionVisible(
+  order: HomeSectionEntry[] | unknown,
+): boolean {
+  const entry = normalizeHomeSectionOrder(order).find((e) => e.id === "contact");
+  return entry ? entry.visible !== false : true;
 }
 
 /** 是否已填写至少一项可展示的联系方式 */

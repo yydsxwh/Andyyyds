@@ -290,8 +290,12 @@ export function CmsPanel({ initial }: Props) {
       ? portal.homeSectionOrder
       : DEFAULT_HOME_SECTION_ORDER,
   );
+  const homeVisibleCount = homeOrder.filter((e) => e.visible !== false).length;
   const homeOrderSummary = homeOrder
-    .map((id) => HOME_SECTION_LABELS[id])
+    .map((entry) => {
+      const label = HOME_SECTION_LABELS[entry.id];
+      return entry.visible !== false ? label : `${label}(隐)`;
+    })
     .join(" → ");
 
   function SectionSaveButton({ section }: { section: CmsSectionId }) {
@@ -332,7 +336,7 @@ export function CmsPanel({ initial }: Props) {
       <CmsSection
         id="portal-home-order"
         title="首页区块顺序"
-        summary={`拖拽排序 · ${homeOrderSummary}`}
+        summary={`显示 ${homeVisibleCount}/${homeOrder.length} · ${homeOrderSummary}`}
         open={openSections.has("portal-home-order")}
         onToggle={toggleSection}
       >

@@ -8,7 +8,7 @@
  * - topBase：创作者中心（概览/素材/课程/分销/营销；订单查看仅站长可见）
  * - topAdmin：站长管理（用户/商家/产品/装修/内容/系统设置），不出现在创作者中心 Tab
  *   「装修」含网站装扮与页面模板；页面模板不再单独占顶栏 Tab，走装修子导航
- * - courses：课程中心子导航
+ * - courses：产品中心子导航（创建 / 我的课程 / 我的约搭 / 我的资料）
  *
  * 可见性（见 src/lib/roles.ts）：
  * - 站长：创作者中心看 topBase；站长管理看 topAdmin
@@ -17,6 +17,8 @@
  *
  * 「资料」与单课/专栏同属 Course.productType，创建入口在 compose（类型选「资料」），
  * 列表可按类型筛；子导航「我的资料」只是快捷筛选页，避免用户找不到入口。
+ *
+ * 「我的约搭」管 Meetup 活动（发起人视角），勿与 productType=MEETUP 壳商品混进课程列表。
  */
 
 export type StudioNavLink = {
@@ -31,7 +33,7 @@ export type StudioNavConfig = {
   topBase: StudioNavLink[];
   /** 站长管理顶部导航（仅 ADMIN；与创作者中心分离） */
   topAdmin: StudioNavLink[];
-  /** 课程中心子导航（含资料快捷入口） */
+  /** 产品中心子导航（创建 / 课程 / 约搭 / 资料） */
   courses: StudioNavLink[];
 };
 
@@ -76,7 +78,7 @@ export const DEFAULT_STUDIO_NAV: StudioNavConfig = {
     { key: "products", label: "产品管理", href: "/studio/products" },
     // 商城商品（productType=PRODUCT）：与课程/资料组课入口隔离
     { key: "shop", label: "商城商品", href: "/studio/shop" },
-    // 约搭活动（Meetup）：全站增删改，与课程/商城并列
+    // 约搭活动（Meetup）：全站增删改，与课程/商城并列；创作者侧另有「我的约搭」
     { key: "meetup", label: "约搭管理", href: "/studio/meetup" },
     // 顶栏只保留「装修」；网站装扮 / 页面模板在 DecorateSubnav 切换
     { key: "decorate", label: "装修", href: "/studio/decorate" },
@@ -84,10 +86,12 @@ export const DEFAULT_STUDIO_NAV: StudioNavConfig = {
     { key: "wechat-mp", label: "公众号宣传", href: "/studio/wechat-mp" },
     { key: "settings", label: "系统设置", href: "/studio/settings" },
   ],
+  // 默认：创建在左；约搭与课程/资料平行（活动语义，不进课程列表）
   courses: [
-    { key: "list", label: "课程与资料", href: "/studio/courses" },
+    { key: "compose", label: "创建产品", href: "/studio/courses/compose" },
+    { key: "list", label: "我的课程", href: "/studio/courses" },
+    { key: "meetup-mine", label: "我的约搭", href: "/studio/meetup/mine" },
     { key: "materials", label: "我的资料", href: "/studio/materials" },
-    { key: "compose", label: "创建课程/资料", href: "/studio/courses/compose" },
   ],
 };
 
@@ -170,7 +174,64 @@ function migrateStoredSections(parsed: Partial<StudioNavConfig>): {
     }
   }
 
-  return { topBase, topAdmin, courses: coursesRaw };
+  return {
+    topBase,
+    topAdmin,
+    // 产品中心子菜单：补「我的约搭」、旧序把创建挪到课程前
+    courses: migrateCoursesStoredOrder(coursesRaw, DEFAULT_STUDIO_NAV.courses),
+  };
+}
+
+/**
+ * 旧 studioNavJson 常缺 meetup-mine，且把 compose 排在 list 后。
+ * 缺新项时按默认相对位置插入；仅在「补约搭入口」那次尽量把创建挪到我的课程前。
+ * 已含 meetup-mine 的配置视为运营已可排序，完整尊重其顺序。
+ */
+function migrateCoursesStoredOrder(
+  stored: Partial<StudioNavLink>[],
+  defaults: StudioNavLink[],
+): Partial<StudioNavLink>[] {
+  const defaultKeys = defaults.map((d) => d.key);
+  const defaultIndex = new Map(defaultKeys.map((k, i) => [k, i]));
+
+  const byKey = new Map<string, Partial<StudioNavLink>>();
+  const order: string[] = [];
+  for (const item of stored) {
+    const key = String(item.key || "");
+    if (!key || !defaultIndex.has(key) || byKey.has(key)) continue;
+    byKey.set(key, item);
+    order.push(key);
+  }
+
+  const hadMeetupMine = order.includes("meetup-mine");
+
+  for (const key of defaultKeys) {
+    if (order.includes(key)) continue;
+    const defIdx = defaultIndex.get(key)!;
+    let insertAt = order.length;
+    for (let i = 0; i < order.length; i += 1) {
+      const existingDefIdx = defaultIndex.get(order[i]!)!;
+      if (existingDefIdx > defIdx) {
+        insertAt = i;
+        break;
+      }
+    }
+    order.splice(insertAt, 0, key);
+    byKey.set(key, { key });
+  }
+
+  // 旧数据补约搭时顺带纠正「我的课程 → 创建产品」；已自定义过（含约搭项）则不强制
+  if (!hadMeetupMine) {
+    const composeIdx = order.indexOf("compose");
+    const listIdx = order.indexOf("list");
+    if (composeIdx >= 0 && listIdx >= 0 && composeIdx > listIdx) {
+      order.splice(composeIdx, 1);
+      const newListIdx = order.indexOf("list");
+      order.splice(newListIdx, 0, "compose");
+    }
+  }
+
+  return order.map((key) => byKey.get(key) || { key });
 }
 
 function mergeSection(

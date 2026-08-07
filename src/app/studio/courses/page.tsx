@@ -46,18 +46,28 @@ export default async function StudioCoursesPage({
 
   const params = await searchParams;
   const typeParam = (params.type || "").toUpperCase();
-  const activeFilter: "all" | ProductType = isProductType(typeParam)
-    ? typeParam
-    : "all";
+  // 仅单课/专栏/资料可筛；MEETUP/PRODUCT 有独立入口，勿经 ?type= 回流本列表
+  const activeFilter: "all" | ProductType =
+    isProductType(typeParam) &&
+    (typeParam === "COURSE" ||
+      typeParam === "COLUMN" ||
+      typeParam === "MATERIAL")
+      ? typeParam
+      : "all";
 
   const canCreate = canCreateSellableProducts(session.role);
   const canDelete = canDeleteCourses(session.role);
   const teacherId = canViewAllStudioData(session.role) ? undefined : session.id;
+  // 约搭壳(MEETUP)/商城(PRODUCT)不是课程：勿混进「我的课程」以免出现「编辑章节」等误操作
+  const courseListTypes =
+    activeFilter === "all"
+      ? (["COURSE", "COLUMN", "MATERIAL"] as const)
+      : ([activeFilter] as const);
   const [courses, studioNav] = await Promise.all([
     prisma.course.findMany({
       where: {
         ...(teacherId ? { teacherId } : {}),
-        ...(activeFilter === "all" ? {} : { productType: activeFilter }),
+        productType: { in: [...courseListTypes] },
       },
       include: { _count: { select: { enrollments: true } } },
       orderBy: { updatedAt: "desc" },
@@ -68,7 +78,7 @@ export default async function StudioCoursesPage({
   const composeLabel = studioNavLabel(
     studioNav.courses,
     "compose",
-    "创建课程/资料",
+    "创建产品",
   );
   const composeHref = studioNavHref(
     studioNav.courses,

@@ -61,6 +61,47 @@ export function canJoinMeetup(status: string): boolean {
   return status === "OPEN";
 }
 
+/**
+ * 广场列表时间窗口：默认只藏「太久以前」的局，避免噪音；
+ * 绝不能用「开场后 2 小时」这种过短窗口——会把仍在招募/刚开场的局误藏
+ *（生产曾出现「一起打瓦啊」OPEN 却因 startsAt 刚过而不显示）。
+ */
+export const MEETUP_PLAZA_PAST_MS = 30 * 24 * 60 * 60 * 1000;
+
+/** 广场列表条数上限 */
+export const MEETUP_PLAZA_TAKE = 100;
+
+/**
+ * 前台约搭广场 / API 列表共用 where：未取消 + 近 30 天起（含未来）。
+ * 招募中 / 满员 / 已截止均展示；已取消隐藏。includePast=true 时不做时间裁剪。
+ */
+export function buildMeetupPlazaWhere(input?: {
+  category?: string;
+  includePast?: boolean;
+  now?: Date;
+}): {
+  category?: string;
+  status: { not: string };
+  startsAt?: { gte: Date };
+} {
+  const where: {
+    category?: string;
+    status: { not: string };
+    startsAt?: { gte: Date };
+  } = {
+    status: { not: "CANCELLED" },
+  };
+  const category = input?.category?.trim() || "";
+  if (category && isMeetupCategory(category)) {
+    where.category = category;
+  }
+  if (!input?.includePast) {
+    const now = input?.now ?? new Date();
+    where.startsAt = { gte: new Date(now.getTime() - MEETUP_PLAZA_PAST_MS) };
+  }
+  return where;
+}
+
 /** 发起人可操作的状态流转目标 */
 export const HOST_STATUS_ACTIONS = [
   { key: "CLOSED" as const, label: "截止报名" },
