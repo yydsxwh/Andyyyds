@@ -157,12 +157,15 @@ export function StudioMeetupPanel({ initialMeetups }: Props) {
             className="surface flex flex-col gap-3 rounded-2xl p-4 sm:flex-row sm:items-center"
           >
             {m.coverUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={m.coverUrl}
-                alt=""
-                className="h-20 w-28 shrink-0 rounded-xl object-cover"
-              />
+              <div className="flex h-20 w-28 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[var(--bg-deep)]/50">
+                {/* 完整显示封面，避免 object-cover 裁掉人物头部等 */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={m.coverUrl}
+                  alt=""
+                  className="max-h-full max-w-full object-contain"
+                />
+              </div>
             ) : (
               <div className="flex h-20 w-28 shrink-0 items-center justify-center rounded-xl bg-[var(--brand)]/10 text-xs text-[var(--brand)]">
                 {meetupCategoryLabel(m.category)}

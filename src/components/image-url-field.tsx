@@ -213,12 +213,13 @@ export function ImageUrlField({
       />
 
       {value ? (
-        <div className="overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--bg-deep)]/40">
+        <div className="flex aspect-[16/9] max-h-48 w-full items-center justify-center overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--bg-deep)]/40">
+          {/* 预览与前台一致：整图适应，不裁切 */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={value}
             alt=""
-            className="aspect-[16/9] max-h-48 w-full object-cover"
+            className="max-h-full max-w-full object-contain"
           />
         </div>
       ) : (

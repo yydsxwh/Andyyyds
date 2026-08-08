@@ -598,12 +598,15 @@ export function MeetupDetailView({
 
       {/* 大封面 */}
       {meetup.coverUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={meetup.coverUrl}
-          alt=""
-          className="aspect-[4/3] w-full object-cover sm:aspect-[16/9]"
-        />
+        <div className="flex aspect-[4/3] w-full items-center justify-center bg-[var(--bg-deep)]/40 sm:aspect-[16/9]">
+          {/* 详情大封面：contain 保证整图可见，比例随框自适应 */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={meetup.coverUrl}
+            alt=""
+            className="max-h-full max-w-full object-contain"
+          />
+        </div>
       ) : (
         <div className="flex aspect-[4/3] items-end bg-gradient-to-br from-emerald-200 via-sky-100 to-white px-5 pb-6 sm:aspect-[16/9]">
           <span className="chip chip-idle !min-h-0 px-3 py-1 text-xs font-medium !text-emerald-700">

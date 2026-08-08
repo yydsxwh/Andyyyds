@@ -74,12 +74,15 @@ export function MeetupCard({ meetup, canEdit = false }: Props) {
     <article className="surface-soft tilt-card group overflow-hidden">
       <Link href={`/meetup/${meetup.id}`} className="block">
         {meetup.coverUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={meetup.coverUrl}
-            alt=""
-            className="aspect-[16/9] w-full object-cover"
-          />
+          <div className="flex aspect-[16/9] w-full items-center justify-center bg-[var(--bg-deep)]/40">
+            {/* 完整适应框内，竖图/横图都不裁切主体 */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={meetup.coverUrl}
+              alt=""
+              className="max-h-full max-w-full object-contain"
+            />
+          </div>
         ) : (
           <div className="flex aspect-[16/9] items-end bg-gradient-to-br from-[var(--brand)]/15 via-[var(--fire)]/10 to-transparent px-5 pb-4">
             <span className="chip chip-idle !min-h-0 px-3 py-1 text-xs font-medium !text-[var(--brand)]">
