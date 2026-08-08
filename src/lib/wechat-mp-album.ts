@@ -206,19 +206,29 @@ export async function syncAlbumFromSourceUrl(
   });
   const byKey = new Map(localArticles.map((a) => [a.wechatUrlKey, a.id]));
 
+  const existing = await prisma.wechatMpAlbum.findUnique({
+    where: { albumId: parsed.albumId },
+    select: { title: true },
+  });
+  const fromWechat = (title || "").trim() || "未命名合集";
+  const prevTitle = (existing?.title || "").trim();
+  // 站长已命名过的合集，刷新时保留本地标题，避免被微信空标题盖回「未命名合集」
+  const nextTitle =
+    prevTitle && prevTitle !== "未命名合集" ? prevTitle : fromWechat;
+
   const album = await prisma.wechatMpAlbum.upsert({
     where: { albumId: parsed.albumId },
     create: {
       albumId: parsed.albumId,
       biz: parsed.biz,
-      title: title || "未命名合集",
+      title: nextTitle.slice(0, 200),
       coverUrl,
       sourceUrl: parsed.sourceUrl,
       syncedAt: new Date(),
     },
     update: {
       biz: parsed.biz,
-      title: title || "未命名合集",
+      title: nextTitle.slice(0, 200),
       coverUrl,
       sourceUrl: parsed.sourceUrl,
       syncedAt: new Date(),
@@ -276,6 +286,22 @@ export async function refreshAlbumByLocalId(localId: string) {
   const album = await prisma.wechatMpAlbum.findUnique({ where: { id: localId } });
   if (!album) throw new Error("合集不存在");
   return syncAlbumFromSourceUrl(album.sourceUrl || "");
+}
+
+/** 站长自定义合集展示名（刷新同步不会覆盖非默认名） */
+export async function renameAlbumByLocalId(localId: string, title: string) {
+  const next = title.trim().slice(0, 200);
+  if (!next) throw new Error("请填写合集名称");
+  const album = await prisma.wechatMpAlbum.findUnique({
+    where: { id: localId },
+    select: { id: true },
+  });
+  if (!album) throw new Error("合集不存在");
+  return prisma.wechatMpAlbum.update({
+    where: { id: localId },
+    data: { title: next },
+    select: { id: true, title: true },
+  });
 }
 
 export async function deleteAlbumByLocalId(localId: string) {

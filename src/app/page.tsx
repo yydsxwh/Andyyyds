@@ -3,6 +3,10 @@ import { ConfigurableLink } from "@/components/configurable-link";
 import { ContactUsPanel } from "@/components/contact-us-panel";
 import { CourseCard } from "@/components/course-card";
 import {
+  MeetupCard,
+  type MeetupCardData,
+} from "@/components/meetup-card";
+import {
   PageModulesView,
   shouldUseDiyLayout,
 } from "@/components/page-modules-view";
@@ -14,6 +18,11 @@ import {
   resolveHeroImage,
 } from "@/lib/decorate";
 import { prisma } from "@/lib/db";
+import {
+  buildMeetupPlazaWhere,
+  fromMeetupPeopleDb,
+  sortMeetupPlazaRows,
+} from "@/lib/meetup";
 import {
   DEFAULT_HOME_SECTION_ORDER,
   DEFAULT_PORTAL_CONTACT,
@@ -40,6 +49,9 @@ import type { Category, Course, User } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
+/** 首页热门约搭展示条数（与热门课程区密度接近） */
+const HOME_MEETUP_TAKE = 8;
+
 type CourseCardRow = Course & {
   teacher: User;
   category: Category | null;
@@ -48,7 +60,8 @@ type CourseCardRow = Course & {
 function ContactSection({ contact }: { contact: PortalContact }) {
   return (
     <section className="pt-4 sm:pt-6">
-      <div className="container">
+      {/* 不用居中 container 的视觉「中间条」，改为贴左内边距，卡片更靠左 */}
+      <div className="w-full max-w-6xl px-3 sm:px-5 lg:px-8">
         <ContactUsPanel contact={contact} variant="hero" />
       </div>
     </section>
@@ -236,8 +249,9 @@ function PortalEntranceSection({ modules }: { modules: PortalNavLink[] }) {
 }
 
 function HotCoursesSection({ courses }: { courses: CourseCardRow[] }) {
+  if (!courses.length) return null;
   return (
-    <section className="pb-20">
+    <section className="pb-16 sm:pb-20">
       <div className="container">
         <div className="mb-8 flex items-end justify-between gap-4">
           <div>
@@ -272,18 +286,58 @@ function HotCoursesSection({ courses }: { courses: CourseCardRow[] }) {
   );
 }
 
+function HotMeetupsSection({ meetups }: { meetups: MeetupCardData[] }) {
+  if (!meetups.length) return null;
+  return (
+    <section className="pb-20">
+      <div className="container">
+        <div className="mb-8 flex items-end justify-between gap-4">
+          <div>
+            <h2
+              className={`font-semibold ${typoRoleClass("sectionTitle")}`}
+              style={typoRoleStyle("sectionTitle")}
+            >
+              热门约搭
+            </h2>
+            <p
+              className={`mt-2 text-[var(--muted)] ${typoRoleClass("sectionDesc")}`}
+              style={typoRoleStyle("sectionDesc")}
+            >
+              找人一起出门：活动报名、组队集合，支持免费或收费
+            </p>
+          </div>
+          <Link
+            href="/meetup"
+            className={`text-[var(--brand)] ${typoRoleClass("sectionDesc")}`}
+            style={typoRoleStyle("sectionDesc")}
+          >
+            查看全部
+          </Link>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {meetups.map((meetup) => (
+            <MeetupCard key={meetup.id} meetup={meetup} />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function ClassicHomeByOrder({
   order,
   contact,
   decorate,
   modules,
   courses,
+  meetups,
 }: {
   order: HomeSectionEntry[];
   contact: PortalContact;
   decorate: DecorateConfig;
   modules: PortalNavLink[];
   courses: CourseCardRow[];
+  meetups: MeetupCardData[];
 }) {
   // 按 CMS 顺序渲染，并跳过 visible===false 的区块（隐藏后仍保留后台位次）
   const sectionIds: HomeSectionId[] = visibleHomeSectionIds(order);
@@ -301,6 +355,8 @@ function ClassicHomeByOrder({
             return <PortalEntranceSection key="portal" modules={modules} />;
           case "courses":
             return <HotCoursesSection key="courses" courses={courses} />;
+          case "meetup":
+            return <HotMeetupsSection key="meetup" meetups={meetups} />;
           default: {
             const _exhaustive: never = sectionId;
             return _exhaustive;
@@ -311,29 +367,69 @@ function ClassicHomeByOrder({
   );
 }
 
+/** 首页热门约搭：与广场同一可见规则，综合排序后取前几条 */
+async function loadHomeMeetups(): Promise<MeetupCardData[]> {
+  const rows = await prisma.meetup.findMany({
+    where: buildMeetupPlazaWhere(),
+    include: {
+      host: { select: { id: true, name: true, avatarUrl: true } },
+      _count: { select: { joins: true } },
+    },
+    orderBy: [{ startsAt: "desc" }, { createdAt: "desc" }],
+    take: 40,
+  });
+  const ranked = sortMeetupPlazaRows(
+    rows.map((m) => ({
+      ...m,
+      maxPeople: fromMeetupPeopleDb(m.maxPeople),
+      joinCount: m._count.joins,
+    })),
+    { sort: "score" },
+  );
+  return ranked.slice(0, HOME_MEETUP_TAKE).map((m) => ({
+    id: m.id,
+    title: m.title,
+    category: m.category,
+    startsAt: m.startsAt,
+    timezone: m.timezone,
+    place: m.place,
+    maxPeople: m.maxPeople,
+    coverUrl: m.coverUrl || undefined,
+    status: m.status,
+    joinCount: m.joinCount,
+    host: { name: m.host.name },
+    hostId: m.hostId,
+    priceCents: m.priceCents,
+  }));
+}
+
 export default async function HomePage() {
-  const [coursesRaw, decorate, portal, pageTemplates] = await Promise.all([
-    prisma.course.findMany({
-      where: {
-        status: "PUBLISHED",
-        // 首页热门只展示课程广场产品，资料另有广场入口
-        productType: { in: ["COURSE", "COLUMN"] },
-      },
-      include: { teacher: true, category: true },
-      orderBy: PRODUCT_PLAZA_ORDER_BY,
-      // 加宽内容区后首页可多展示几门热门课
-      take: 12,
-    }),
-    getDecorateConfig(),
-    getPortalConfig(),
-    getPageTemplatesConfig(),
-  ]);
+  const [coursesRaw, meetups, decorate, portal, pageTemplates] =
+    await Promise.all([
+      prisma.course.findMany({
+        where: {
+          status: "PUBLISHED",
+          // 热门课程区：课程/专栏；约搭活动走独立「热门约搭」区块
+          productType: { in: ["COURSE", "COLUMN"] },
+        },
+        include: { teacher: true, category: true },
+        orderBy: PRODUCT_PLAZA_ORDER_BY,
+        take: 12,
+      }),
+      loadHomeMeetups(),
+      getDecorateConfig(),
+      getPortalConfig(),
+      getPageTemplatesConfig(),
+    ]);
 
   const contact = portal.contact || DEFAULT_PORTAL_CONTACT;
   const homeSectionOrder = normalizeHomeSectionOrder(
     portal.homeSectionOrder?.length
       ? portal.homeSectionOrder
       : DEFAULT_HOME_SECTION_ORDER,
+  );
+  const showMeetupSection = visibleHomeSectionIds(homeSectionOrder).includes(
+    "meetup",
   );
 
   // 仅「已设为默认」且含模块的首页 DIY 才接管；否则用系统经典首页（介绍文案等）
@@ -346,13 +442,15 @@ export default async function HomePage() {
     return (
       <div className="space-y-4 py-4 sm:py-6">
         {contactBefore ? (
-          <div className="container">
+          <div className="w-full max-w-6xl px-3 sm:px-5 lg:px-8">
             <ContactUsPanel contact={contact} variant="hero" />
           </div>
         ) : null}
         <PageModulesView template={diyHome!} />
+        {/* DIY 模块未内置约搭：区块开启时在 DIY 内容后补热门约搭 */}
+        {showMeetupSection ? <HotMeetupsSection meetups={meetups} /> : null}
         {showContact && !contactBefore ? (
-          <div className="container">
+          <div className="w-full max-w-6xl px-3 sm:px-5 lg:px-8">
             <ContactUsPanel contact={contact} variant="hero" />
           </div>
         ) : null}
@@ -373,6 +471,7 @@ export default async function HomePage() {
       decorate={decorate}
       modules={modules}
       courses={courses}
+      meetups={meetups}
     />
   );
 }

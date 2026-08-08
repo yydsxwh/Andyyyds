@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { getLocalArticleById } from "@/lib/wechat-mp-content";
+import {
+  contentKindLabel,
+  getLocalArticleById,
+} from "@/lib/wechat-mp-content";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +41,15 @@ export default async function CompanyArticlePage({ params }: Props) {
               {article.title || "无标题"}
             </h1>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[var(--muted)]">
+              <span
+                className={
+                  article.contentKind === "newspic"
+                    ? "rounded-full bg-sky-100 px-2 py-0.5 text-xs text-sky-800"
+                    : "rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700"
+                }
+              >
+                {contentKindLabel(article.contentKind)}
+              </span>
               {article.author ? <span>{article.author}</span> : null}
               {article.publishedAt ? (
                 <span>

@@ -67,7 +67,8 @@ export type HomeSectionId =
   | "hero"
   | "banners"
   | "portal"
-  | "courses";
+  | "courses"
+  | "meetup";
 
 /** 单个首页区块：顺序 + 是否前台可见（CMS「首页区块顺序」） */
 export type HomeSectionEntry = {
@@ -86,9 +87,10 @@ export const HOME_SECTION_IDS: HomeSectionId[] = [
   "banners",
   "portal",
   "courses",
+  "meetup",
 ];
 
-/** 无序配置时的默认：联系我们 → 主视觉 → 横幅 → 门户入口 → 热门课程（全部显示） */
+/** 无序配置时的默认：联系我们 → 主视觉 → 横幅 → 门户入口 → 热门课程 → 热门约搭 */
 export const DEFAULT_HOME_SECTION_ORDER: HomeSectionEntry[] =
   HOME_SECTION_IDS.map((id) => ({ id, visible: true }));
 
@@ -98,6 +100,7 @@ export const HOME_SECTION_LABELS: Record<HomeSectionId, string> = {
   banners: "更多横幅",
   portal: "门户入口",
   courses: "热门课程",
+  meetup: "热门约搭",
 };
 
 export type PortalConfig = {

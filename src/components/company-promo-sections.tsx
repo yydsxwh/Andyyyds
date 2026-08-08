@@ -14,6 +14,10 @@ export type PromoArticleCard = {
   digest: string;
   thumbUrl: string;
   publishedAt: Date | null;
+  isPinned?: boolean;
+  isFeatured?: boolean;
+  /** news=文章，newspic=贴图 */
+  contentKind?: "news" | "newspic" | string;
 };
 
 export type ArticlePagination = {
@@ -93,27 +97,61 @@ export function CompanyPromoSections({
           </div>
           {articles.length ? (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
-              {articles.map((article) => (
+              {articles.map((article) => {
+                const isPic = article.contentKind === "newspic";
+                return (
                 <Link
                   key={article.id}
                   href={`/about/company/articles/${article.id}`}
                   className="surface overflow-hidden rounded-[20px] transition hover:-translate-y-0.5"
                 >
-                  {article.thumbUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={article.thumbUrl}
-                      alt=""
-                      className="aspect-[16/10] w-full object-cover"
-                    />
-                  ) : (
-                    <div className="flex aspect-[16/10] items-center justify-center bg-[var(--bg-deep)] text-sm text-[var(--muted)]">
-                      图文
-                    </div>
-                  )}
+                  <div className="relative aspect-[16/10] w-full bg-[var(--bg-deep)]">
+                    {article.thumbUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={article.thumbUrl}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-sm text-[var(--muted)]">
+                        {isPic ? "贴图" : "文章"}
+                      </div>
+                    )}
+                    <span
+                      className={
+                        isPic
+                          ? "absolute left-2 top-2 rounded-full bg-sky-600/95 px-2 py-0.5 text-xs text-white"
+                          : "absolute left-2 top-2 rounded-full bg-slate-700/90 px-2 py-0.5 text-xs text-white"
+                      }
+                    >
+                      {isPic ? "贴图" : "文章"}
+                    </span>
+                  </div>
                   <div className="p-3 sm:p-3.5">
-                    <div className="line-clamp-2 text-base font-medium leading-snug sm:text-lg">
-                      {article.title || "无标题"}
+                    <div className="flex flex-wrap items-start gap-1.5">
+                      <span
+                        className={
+                          isPic
+                            ? "shrink-0 rounded-full bg-sky-100 px-2 py-0.5 text-xs text-sky-800"
+                            : "shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700"
+                        }
+                      >
+                        {isPic ? "贴图" : "文章"}
+                      </span>
+                      {article.isPinned ? (
+                        <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
+                          置顶
+                        </span>
+                      ) : null}
+                      {article.isFeatured ? (
+                        <span className="shrink-0 rounded-full bg-rose-100 px-2 py-0.5 text-xs text-rose-800">
+                          精华
+                        </span>
+                      ) : null}
+                      <div className="line-clamp-2 min-w-0 flex-1 text-base font-medium leading-snug sm:text-lg">
+                        {article.title || "无标题"}
+                      </div>
                     </div>
                     {article.digest ? (
                       <p className="mt-1 line-clamp-2 text-sm leading-6 text-[var(--muted)] sm:text-[15px]">
@@ -127,7 +165,8 @@ export function CompanyPromoSections({
                     ) : null}
                   </div>
                 </Link>
-              ))}
+              );
+              })}
             </div>
           ) : (
             <p className="rounded-2xl border border-dashed border-[var(--line)] px-4 py-8 text-center text-sm text-[var(--muted)]">

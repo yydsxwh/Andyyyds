@@ -4,11 +4,12 @@ import { CompanyPromoSections } from "@/components/company-promo-sections";
 import { NavPageTemplateShell } from "@/components/nav-page-template-shell";
 import { prisma } from "@/lib/db";
 import { getPortalConfig } from "@/lib/site-settings";
+import { wechatMpArticleOrderBy } from "@/lib/wechat-mp-content";
 
 export const dynamic = "force-dynamic";
 
-/** 公司介绍「最新图文」每页条数 */
-const ARTICLES_PAGE_SIZE = 12;
+/** 公司介绍「最新图文」每页条数（宽屏约 6 列 × 4 行，比原先多两行） */
+const ARTICLES_PAGE_SIZE = 24;
 
 export async function generateMetadata(): Promise<Metadata> {
   const portal = await getPortalConfig();
@@ -42,7 +43,8 @@ export default async function CompanyAboutPage({ searchParams }: Props) {
 
   const articles = await prisma.wechatMpArticle.findMany({
     where: { isDeleted: false },
-    orderBy: [{ publishedAt: "desc" }, { syncedAt: "desc" }],
+    // 与后台一致：置顶 → 手动排序 → 发布时间
+    orderBy: wechatMpArticleOrderBy,
     skip,
     take: ARTICLES_PAGE_SIZE,
   });
@@ -64,6 +66,9 @@ export default async function CompanyAboutPage({ searchParams }: Props) {
             digest: a.digest,
             thumbUrl: a.thumbUrl,
             publishedAt: a.publishedAt,
+            isPinned: a.isPinned,
+            isFeatured: a.isFeatured,
+            contentKind: a.contentKind || "news",
           }))}
           articlePagination={{
             page,
