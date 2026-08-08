@@ -85,6 +85,27 @@ export async function isWechatOAuthConfigured() {
   return Boolean(await getWechatOAuthConfig());
 }
 
+/**
+ * 开放平台「网站应用」扫码登录凭证（与公众号分开）。
+ * 须在微信开放平台创建网站应用并配置授权回调域后，填 AppID/Secret 才生效。
+ */
+export async function getWechatWebOAuthConfig(): Promise<{
+  appId: string;
+  appSecret: string;
+} | null> {
+  const settings = await getSiteSettings();
+  const appId =
+    settings.wechatWebAppId || process.env.WECHAT_WEB_APP_ID || "";
+  const appSecret =
+    settings.wechatWebAppSecret || process.env.WECHAT_WEB_APP_SECRET || "";
+  if (!appId || !appSecret) return null;
+  return { appId, appSecret };
+}
+
+export async function isWechatWebOAuthConfigured() {
+  return Boolean(await getWechatWebOAuthConfig());
+}
+
 function nonceStr(len = 32) {
   return crypto.randomBytes(len).toString("hex").slice(0, len);
 }
@@ -293,11 +314,25 @@ export async function createH5Payment(input: {
   return { mwebUrl: data.h5_url, notifyUrl };
 }
 
-/** 用网页授权 code 换 openid / access_token（需要 AppSecret） */
-export async function exchangeWechatOAuthCode(code: string) {
-  const oauth = await getWechatOAuthConfig();
+/**
+ * 用 OAuth code 换 openid / access_token。
+ * channel=oa 用公众号凭证；channel=web 用开放平台网站应用凭证（扫码登录）。
+ * 两套 openid 不同，勿混用。
+ */
+export async function exchangeWechatOAuthCode(
+  code: string,
+  channel: "oa" | "web" = "oa",
+) {
+  const oauth =
+    channel === "web"
+      ? await getWechatWebOAuthConfig()
+      : await getWechatOAuthConfig();
   if (!oauth) {
-    throw new Error("未配置微信 AppSecret，无法完成网页授权");
+    throw new Error(
+      channel === "web"
+        ? "未配置开放平台网站应用 AppSecret，无法完成扫码登录"
+        : "未配置微信 AppSecret，无法完成网页授权",
+    );
   }
   const url = new URL("https://api.weixin.qq.com/sns/oauth2/access_token");
   url.searchParams.set("appid", oauth.appId);
@@ -308,7 +343,7 @@ export async function exchangeWechatOAuthCode(code: string) {
   const data = (await res.json()) as {
     access_token?: string;
     openid?: string;
-    /** 公众号已绑定开放平台时才有 */
+    /** 应用已绑定开放平台账号时才有，用于跨公众号/网站应用识别同一人 */
     unionid?: string;
     scope?: string;
     errcode?: number;

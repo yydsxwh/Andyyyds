@@ -73,6 +73,8 @@ export async function GET(req: Request) {
     returnUrl,
     userId: session?.id,
     purpose,
+    // 公众号网页授权渠道；与开放平台扫码（channel=web）分开换 token / 存 openid
+    channel: "oa",
     requestedRole: requestedRole || undefined,
     referralCode: referralCode || undefined,
     forceUserInfo,

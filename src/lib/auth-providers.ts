@@ -94,35 +94,45 @@ async function resolveReferrerId(referralCode?: string) {
   return inviter?.id;
 }
 
+/** oa=公众号 openid（JSAPI）；web=网站应用扫码 openid（勿写入 wechatOpenId） */
+export type WechatIdentityChannel = "oa" | "web";
+
 /** 仅查找微信身份对应用户，不建号、不写会话（用于静默登录分流） */
 export async function findUserByWechatIdentity(input: {
   openid: string;
   unionid?: string;
+  /** 默认 oa：按公众号 openid 查；web 按网站应用 openid 查；均再按 unionid 兜底 */
+  channel?: WechatIdentityChannel;
 }) {
   const openid = input.openid.trim();
   if (!openid) return null;
   const unionid = (input.unionid || "").trim();
-  return (
-    (await prisma.user.findFirst({
-      where: { wechatOpenId: openid },
-    })) ||
-    (unionid
-      ? await prisma.user.findFirst({ where: { wechatUnionId: unionid } })
-      : null)
-  );
+  const channel = input.channel || "oa";
+  // 先按本渠道 openid，再按 unionid（公众号与网站应用绑同一开放平台时可合并账号）
+  const byOpenId =
+    channel === "web"
+      ? await prisma.user.findFirst({ where: { wechatWebOpenId: openid } })
+      : await prisma.user.findFirst({ where: { wechatOpenId: openid } });
+  if (byOpenId) return byOpenId;
+  if (!unionid) return null;
+  return prisma.user.findFirst({ where: { wechatUnionId: unionid } });
 }
 
 /**
- * 按 openid（优先）或 unionid 查找用户；没有则按注册身份自动建号并写会话。
+ * 按本渠道 openid（优先）或 unionid 查找用户；没有则按注册身份自动建号并写会话。
  * 已登录用户走「绑定」时应调用 bindWechatToUser，而不是本函数。
+ *
+ * 为何分开存：网站应用 openid ≠ 公众号 openid；若把扫码 openid 写入 wechatOpenId，
+ * 微信内 JSAPI 支付会用错 openid 失败。
  */
 export async function findOrCreateUserByWechat(input: {
   openid: string;
   unionid?: string;
+  channel?: WechatIdentityChannel;
   referralCode?: string;
   /** 仅新建账号时生效；已有账号直接登录 */
   requestedRole?: string;
-  /** snsapi_userinfo 授权后的微信昵称 */
+  /** snsapi_userinfo / snsapi_login 授权后的微信昵称 */
   nickname?: string;
   /** 微信头像 URL（可直接存；展示时按外链使用） */
   headimgurl?: string;
@@ -130,16 +140,11 @@ export async function findOrCreateUserByWechat(input: {
   const openid = input.openid.trim();
   if (!openid) throw new Error("缺少微信 openid");
   const unionid = (input.unionid || "").trim();
+  const channel = input.channel || "oa";
   const nickname = (input.nickname || "").trim().slice(0, 40);
   const headimgurl = (input.headimgurl || "").trim();
 
-  let user =
-    (await prisma.user.findFirst({
-      where: { wechatOpenId: openid },
-    })) ||
-    (unionid
-      ? await prisma.user.findFirst({ where: { wechatUnionId: unionid } })
-      : null);
+  let user = await findUserByWechatIdentity({ openid, unionid, channel });
 
   let isNewUser = false;
   if (!user) {
@@ -153,7 +158,10 @@ export async function findOrCreateUserByWechat(input: {
         email: wechatPlaceholderEmail(openid),
         passwordHash: await unusablePasswordHash(),
         passwordSet: false,
-        wechatOpenId: openid,
+        // 扫码建号只写 wechatWebOpenId，保留 wechatOpenId 给公众号/JSAPI
+        ...(channel === "web"
+          ? { wechatWebOpenId: openid }
+          : { wechatOpenId: openid }),
         wechatUnionId: unionid,
         referralCode: makeReferralCode(),
         referredById: await resolveReferrerId(input.referralCode),
@@ -161,14 +169,19 @@ export async function findOrCreateUserByWechat(input: {
       },
     });
   } else {
-    // 补写 openid / unionid；授权到资料时同步昵称与头像
+    // 补写本渠道 openid / unionid；授权到资料时同步昵称与头像
     const patch: {
       wechatOpenId?: string;
+      wechatWebOpenId?: string;
       wechatUnionId?: string;
       name?: string;
       avatarUrl?: string;
     } = {};
-    if (!user.wechatOpenId && openid) patch.wechatOpenId = openid;
+    if (channel === "web") {
+      if (user.wechatWebOpenId !== openid) patch.wechatWebOpenId = openid;
+    } else if (!user.wechatOpenId && openid) {
+      patch.wechatOpenId = openid;
+    }
     if (unionid && user.wechatUnionId !== unionid) patch.wechatUnionId = unionid;
     if (nickname) patch.name = nickname;
     if (headimgurl) patch.avatarUrl = headimgurl;
@@ -181,25 +194,33 @@ export async function findOrCreateUserByWechat(input: {
   return { userId: user.id, isNewUser, result: { ...result, isNewUser } };
 }
 
-/** 已登录用户绑定微信（支付 / 账号关联）；若 openid 已被他人占用则报错 */
+/**
+ * 已登录用户绑定微信（支付 / 账号关联）；若 openid 已被他人占用则报错。
+ * channel=oa 写公众号 openid（JSAPI）；channel=web 写网站应用 openid。
+ */
 export async function bindWechatToUser(input: {
   userId: string;
   openid: string;
   unionid?: string;
+  channel?: WechatIdentityChannel;
   nickname?: string;
   headimgurl?: string;
 }) {
   const openid = input.openid.trim();
   const unionid = (input.unionid || "").trim();
+  const channel = input.channel || "oa";
   if (!openid) throw new Error("缺少微信 openid");
 
-  const occupied = await prisma.user.findFirst({
-    where: {
-      wechatOpenId: openid,
-      NOT: { id: input.userId },
-    },
-    select: { id: true },
-  });
+  const occupied =
+    channel === "web"
+      ? await prisma.user.findFirst({
+          where: { wechatWebOpenId: openid, NOT: { id: input.userId } },
+          select: { id: true },
+        })
+      : await prisma.user.findFirst({
+          where: { wechatOpenId: openid, NOT: { id: input.userId } },
+          select: { id: true },
+        });
   if (occupied) {
     throw new Error("该微信已绑定其他账号，请先用微信登录原账号或联系站长");
   }
@@ -210,7 +231,9 @@ export async function bindWechatToUser(input: {
   await prisma.user.update({
     where: { id: input.userId },
     data: {
-      wechatOpenId: openid,
+      ...(channel === "web"
+        ? { wechatWebOpenId: openid }
+        : { wechatOpenId: openid }),
       ...(unionid ? { wechatUnionId: unionid } : {}),
       ...(nickname ? { name: nickname } : {}),
       ...(headimgurl ? { avatarUrl: headimgurl } : {}),

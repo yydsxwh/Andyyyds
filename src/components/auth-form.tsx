@@ -1,12 +1,14 @@
 "use client";
 
 /**
- * 登录 / 注册统一表单：邮箱 | 手机号 | 微信。
+ * 登录 / 注册统一表单：微信 | 手机号 | 邮箱。
  *
- * - 邮箱：原有密码流程
+ * - 微信内：公众号网页授权（/api/auth/wechat）
+ * - 站外浏览器：开放平台网站应用扫码（/api/auth/wechat/qr）
  * - 手机号：短信验证码；注册可带身份申请与可选密码
- * - 微信：公众号网页授权；首次授权即注册，再次即登录（须微信内打开）
+ * - 邮箱：原有密码流程
  *
+ * 国内用户默认落在微信 Tab；微信未配置时回退手机/邮箱，避免空白页。
  * 注册页三种方式均可选「我是…」身份；代理/商家/老师待站长审核。
  */
 
@@ -21,6 +23,7 @@ import {
 import { REFERRAL_STORAGE_KEY } from "@/lib/invite";
 import { PENDING_REVIEW_MESSAGE } from "@/lib/role-applications";
 import { normalizeReferralCode } from "@/lib/referral-code";
+import { preferWechatFromClient } from "@/lib/auth-channel-preference";
 import { isWeChatBrowser } from "@/lib/wechat-env";
 
 type AuthChannel = "email" | "phone" | "wechat";
@@ -28,12 +31,20 @@ type AuthChannel = "email" | "phone" | "wechat";
 type Props = {
   mode: "login" | "register";
   defaultReferralCode?: string;
+  /**
+   * 服务端按 Accept-Language 给出的首屏默认。
+   * 为何需要：避免国内用户先水合出「邮箱」再跳到微信。
+   */
+  preferWechatDefault?: boolean;
 };
 
 type MethodsState = {
   email: boolean;
   phone: boolean;
+  /** 公众号网页授权（微信内） */
   wechat: boolean;
+  /** 开放平台网站应用扫码（PC/站外浏览器） */
+  wechatQr: boolean;
   smsTestMode: boolean;
 };
 
@@ -44,13 +55,40 @@ function safeNextPath(raw: string | null): string | null {
   return raw;
 }
 
-export function AuthForm({ mode, defaultReferralCode = "" }: Props) {
+/**
+ * 是否把默认 Tab 定在微信。
+ * 微信内无公众号配置时授权按钮不可用 → 回退；
+ * PC 扫码未就绪仍默认可进微信 Tab（展示现有说明，勿空白）。
+ */
+function shouldDefaultToWechat(
+  inWeChat: boolean,
+  methods: Pick<MethodsState, "wechat" | "wechatQr">,
+): boolean {
+  if (inWeChat) return methods.wechat;
+  return true;
+}
+
+/** 微信不可用时的回退：手机优先，再邮箱 */
+function fallbackChannel(methods: Pick<MethodsState, "phone" | "email">): AuthChannel {
+  if (methods.phone) return "phone";
+  return "email";
+}
+
+export function AuthForm({
+  mode,
+  defaultReferralCode = "",
+  preferWechatDefault = true,
+}: Props) {
   const router = useRouter();
-  const [channel, setChannel] = useState<AuthChannel>("email");
+  // 国内站默认微信；海外语言首屏邮箱（客户端时区还会再校正）
+  const [channel, setChannel] = useState<AuthChannel>(
+    preferWechatDefault ? "wechat" : "email",
+  );
   const [methods, setMethods] = useState<MethodsState>({
     email: true,
     phone: true,
     wechat: true,
+    wechatQr: false,
     smsTestMode: false,
   });
   const [error, setError] = useState("");
@@ -65,7 +103,8 @@ export function AuthForm({ mode, defaultReferralCode = "" }: Props) {
   const [resolvedRef, setResolvedRef] = useState(defaultReferralCode);
 
   useEffect(() => {
-    setInWeChat(isWeChatBrowser());
+    const inWx = isWeChatBrowser();
+    setInWeChat(inWx);
     try {
       const params = new URLSearchParams(window.location.search);
       const fromUrl = normalizeReferralCode(
@@ -91,20 +130,37 @@ export function AuthForm({ mode, defaultReferralCode = "" }: Props) {
       .then((r) => r.json())
       .then((data) => {
         if (cancelled) return;
-        setMethods({
+        const nextMethods: MethodsState = {
           email: data.email !== false,
           phone: Boolean(data.phone),
           wechat: Boolean(data.wechat),
+          wechatQr: Boolean(data.wechatQr),
           smsTestMode: Boolean(data.smsTestMode),
-        });
+        };
+        setMethods(nextMethods);
+
+        // 以客户端时区/语言/微信内为准校正首屏；微信内未配置公众号则回退
+        const wantWechat = preferWechatFromClient({ inWeChat: inWx });
+        if (wantWechat && shouldDefaultToWechat(inWx, nextMethods)) {
+          setChannel("wechat");
+        } else if (wantWechat) {
+          setChannel(fallbackChannel(nextMethods));
+        } else {
+          setChannel("email");
+        }
       })
       .catch(() => {
         /* 探测失败时仍展示入口，提交时再报错 */
+        if (cancelled) return;
+        if (preferWechatFromClient({ inWeChat: inWx })) {
+          // methods 未知时保持微信 Tab（有引导文案），勿空白
+          setChannel("wechat");
+        }
       });
     return () => {
       cancelled = true;
     };
-  }, [defaultReferralCode]);
+  }, [defaultReferralCode, preferWechatDefault]);
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -228,19 +284,7 @@ export function AuthForm({ mode, defaultReferralCode = "" }: Props) {
     finishAuth(data);
   }
 
-  function startWechat() {
-    setError("");
-    if (!inWeChat) {
-      setError("请在微信内打开本站后使用微信登录 / 注册");
-      return;
-    }
-    if (!methods.wechat) {
-      setError(
-        "微信登录未配置。请站长在系统设置填写公众号 AppID / AppSecret，并配置网页授权域名",
-      );
-      return;
-    }
-    // 微信资料在首次授权时已写入；登录成功回业务页/首页，不再进个人中心改头像昵称
+  function buildWechatLoginParams() {
     const nextPath =
       safeNextPath(
         new URLSearchParams(window.location.search).get("next"),
@@ -255,14 +299,50 @@ export function AuthForm({ mode, defaultReferralCode = "" }: Props) {
         params.set("referralCode", resolvedRef);
       }
     }
-    window.location.href = `/api/auth/wechat?${params.toString()}`;
+    return params;
   }
 
-  const tabs: { id: AuthChannel; label: string; show: boolean }[] = [
-    { id: "email", label: "邮箱", show: methods.email },
-    { id: "phone", label: "手机号", show: true },
-    { id: "wechat", label: "微信", show: true },
-  ];
+  /** 微信内：公众号网页授权（拿公众号 openid，便于后续 JSAPI） */
+  function startWechatOa() {
+    setError("");
+    if (!inWeChat) {
+      setError("请在微信内打开本站后使用「微信授权登录」");
+      return;
+    }
+    if (!methods.wechat) {
+      setError(
+        "微信登录未配置。请站长在系统设置填写公众号 AppID / AppSecret，并配置网页授权域名",
+      );
+      return;
+    }
+    window.location.href = `/api/auth/wechat?${buildWechatLoginParams().toString()}`;
+  }
+
+  /** 站外浏览器：跳转开放平台扫码页（微信扫一扫） */
+  function startWechatQr() {
+    setError("");
+    if (inWeChat) {
+      // 微信内扫码页体验差且拿不到公众号 openid，引导走公众号授权
+      setError("当前已在微信内，请直接使用下方「微信授权登录」");
+      return;
+    }
+    if (!methods.wechatQr) {
+      setError(
+        "微信扫码登录未配置。请站长在系统设置填写开放平台「网站应用」AppID / AppSecret，并配置授权回调域",
+      );
+      return;
+    }
+    window.location.href = `/api/auth/wechat/qr?${buildWechatLoginParams().toString()}`;
+  }
+
+  // Tab 顺序：微信 → 手机号 → 邮箱（国内主路径在左，拇指区优先）
+  const visibleTabs = (
+    [
+      { id: "wechat" as const, label: "微信", show: true },
+      { id: "phone" as const, label: "手机号", show: true },
+      { id: "email" as const, label: "邮箱", show: methods.email },
+    ] as const
+  ).filter((tab) => tab.show);
 
   return (
     <div className="surface mx-auto w-full max-w-md space-y-4 rounded-[28px] p-5 sm:p-8">
@@ -272,18 +352,20 @@ export function AuthForm({ mode, defaultReferralCode = "" }: Props) {
         </h1>
         <p className="mt-2 text-sm text-[var(--muted)]">
           {mode === "login"
-            ? "可用邮箱、手机号或微信登录。"
-            : "可用邮箱、手机号或微信注册。普通用户即用；加盟代理 / 入驻商家 / 老师需站长审核。"}
+            ? "可用微信、手机号或邮箱登录。"
+            : "可用微信、手机号或邮箱注册。普通用户即用；加盟代理 / 入驻商家 / 老师需站长审核。"}
         </p>
       </div>
 
       {/* 大触控分区，保证手机微信内拇指可点 */}
       <div
-        className="grid grid-cols-3 gap-2 rounded-2xl bg-[var(--bg-deep)]/50 p-1"
+        className={`grid gap-2 rounded-2xl bg-[var(--bg-deep)]/50 p-1 ${
+          visibleTabs.length <= 2 ? "grid-cols-2" : "grid-cols-3"
+        }`}
         role="tablist"
         aria-label="登录方式"
       >
-        {tabs.map((tab) => (
+        {visibleTabs.map((tab) => (
           <button
             key={tab.id}
             type="button"
@@ -354,11 +436,6 @@ export function AuthForm({ mode, defaultReferralCode = "" }: Props) {
                 ? "邮箱登录"
                 : "邮箱注册"}
           </button>
-          {mode === "login" ? (
-            <p className="text-center text-sm text-[var(--muted)]">
-              演示账号：student@yyds.local / 123456
-            </p>
-          ) : null}
         </form>
       ) : null}
 
@@ -466,35 +543,52 @@ export function AuthForm({ mode, defaultReferralCode = "" }: Props) {
               ) : null}
             </>
           ) : null}
-          {!inWeChat ? (
-            <p className="rounded-2xl border border-[var(--line)] bg-white/70 px-3 py-3 text-sm leading-6 text-[var(--muted)]">
-              微信登录 / 注册需在
-              <span className="text-[var(--ink)]">微信内置浏览器</span>
-              中打开本站。请用微信扫一扫打开站点，或从公众号菜单进入后再点下方按钮。
-              <br />
-              （电脑浏览器暂不支持网页授权登录；开放平台扫码登录未接入。）
-            </p>
-          ) : (
+          {inWeChat ? (
             <p className="text-sm text-[var(--muted)]">
               {mode === "login"
-                ? "将跳转微信授权昵称与头像。已有账号直接登录；首次授权将自动注册为学员。"
-                : "将跳转微信授权昵称与头像。首次授权按上方所选身份创建账号；若该微信已注册则直接登录。"}
+                ? "将跳转微信授权。已有账号直接登录；首次授权将自动注册为学员。"
+                : "将跳转微信授权。首次授权按上方所选身份创建账号；若该微信已注册则直接登录。"}
+            </p>
+          ) : (
+            <p className="rounded-2xl border border-[var(--line)] bg-white/70 px-3 py-3 text-sm leading-6 text-[var(--muted)]">
+              电脑或手机浏览器可使用
+              <span className="text-[var(--ink)]">微信扫码登录</span>
+              ：点击后将打开微信官方扫码页，用手机微信扫一扫即可。
+              <br />
+              若已在微信内打开本站，请改用「微信授权登录」。
             </p>
           )}
-          {!methods.wechat ? (
+          {!inWeChat && !methods.wechatQr ? (
             <p className="text-sm text-amber-800">
-              尚未配置微信 AppSecret，请联系站长在系统设置中填写。
+              尚未配置开放平台网站应用，扫码登录暂不可用。请站长在系统设置填写网站应用
+              AppID / AppSecret。
+            </p>
+          ) : null}
+          {inWeChat && !methods.wechat ? (
+            <p className="text-sm text-amber-800">
+              尚未配置公众号 AppSecret，请联系站长在系统设置中填写。
             </p>
           ) : null}
           {error ? <p className="text-sm text-red-700">{error}</p> : null}
-          <button
-            type="button"
-            className="btn btn-primary w-full min-h-12"
-            disabled={loading || !methods.wechat}
-            onClick={startWechat}
-          >
-            {mode === "login" ? "微信登录" : "微信注册 / 登录"}
-          </button>
+          {inWeChat ? (
+            <button
+              type="button"
+              className="btn btn-primary w-full min-h-12"
+              disabled={loading || !methods.wechat}
+              onClick={startWechatOa}
+            >
+              {mode === "login" ? "微信授权登录" : "微信授权注册 / 登录"}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-primary w-full min-h-12"
+              disabled={loading || !methods.wechatQr}
+              onClick={startWechatQr}
+            >
+              {mode === "login" ? "微信扫码登录" : "微信扫码注册 / 登录"}
+            </button>
+          )}
         </div>
       ) : null}
     </div>

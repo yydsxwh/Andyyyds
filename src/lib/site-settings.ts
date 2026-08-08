@@ -28,6 +28,8 @@ export type SiteSettingsRow = {
   alipayEnabled: boolean;
   wechatAppId: string;
   wechatAppSecret: string;
+  wechatWebAppId: string;
+  wechatWebAppSecret: string;
   wechatMchId: string;
   wechatApiV3Key: string;
   wechatMchSerialNo: string;
@@ -159,6 +161,10 @@ export function publicSiteSettings(row: SiteSettingsRow) {
     wechatAppSecret: row.wechatAppSecret
       ? maskSecret(row.wechatAppSecret)
       : "",
+    wechatWebAppId: row.wechatWebAppId,
+    wechatWebAppSecret: row.wechatWebAppSecret
+      ? maskSecret(row.wechatWebAppSecret)
+      : "",
     wechatMchId: row.wechatMchId,
     wechatApiV3Key: maskSecret(row.wechatApiV3Key),
     wechatMchSerialNo: row.wechatMchSerialNo,
@@ -173,6 +179,11 @@ export function publicSiteSettings(row: SiteSettingsRow) {
     wechatOauthConfigured: Boolean(
       row.wechatAppId &&
         (row.wechatAppSecret || process.env.WECHAT_APP_SECRET),
+    ),
+    // 开放平台网站应用扫码登录（PC/站外浏览器）是否已配齐
+    wechatWebOauthConfigured: Boolean(
+      (row.wechatWebAppId || process.env.WECHAT_WEB_APP_ID) &&
+        (row.wechatWebAppSecret || process.env.WECHAT_WEB_APP_SECRET),
     ),
     alipayAppId: row.alipayAppId,
     alipayPrivateKey: row.alipayPrivateKey ? maskSecret(row.alipayPrivateKey, 8) : "",

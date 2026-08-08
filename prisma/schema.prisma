@@ -30,7 +30,9 @@ model User {
   roleReviewedById String?
   /// 微信公众号网页授权 openid（登录 / JSAPI 支付，同一 AppID 下）
   wechatOpenId String             @default("")
-  /// 开放平台 unionid（公众号已绑开放平台时 OAuth 可能返回；跨应用识别同一微信用户）
+  /// 开放平台「网站应用」扫码登录 openid（与公众号 openid 不同，勿混用以免 JSAPI 失败）
+  wechatWebOpenId String          @default("")
+  /// 开放平台 unionid（公众号/网站应用绑同一开放平台时才有；跨应用识别同一微信用户）
   wechatUnionId String            @default("")
   referralCode String             @unique
   referredById String?
@@ -57,6 +59,7 @@ model User {
   @@index([roleApplicationStatus])
   @@index([phone])
   @@index([wechatOpenId])
+  @@index([wechatWebOpenId])
   @@index([wechatUnionId])
 }
 
@@ -234,6 +237,10 @@ model SiteSettings {
   wechatAppId         String @default("")
   /// 公众号/服务号 AppSecret（网页授权换 openid，JSAPI 支付需要）
   wechatAppSecret     String @default("")
+  /// 开放平台「网站应用」AppID（PC/浏览器微信扫码登录，与公众号 AppID 分开）
+  wechatWebAppId      String @default("")
+  /// 开放平台「网站应用」AppSecret（扫码登录用；可与环境变量 WECHAT_WEB_APP_SECRET 二选一）
+  wechatWebAppSecret  String @default("")
   wechatMchId         String @default("")
   wechatApiV3Key      String @default("")
   wechatMchSerialNo   String @default("")

@@ -15,12 +15,15 @@ export type PublicSettings = {
   alipayEnabled: boolean;
   wechatAppId: string;
   wechatAppSecret: string;
+  wechatWebAppId: string;
+  wechatWebAppSecret: string;
   wechatMchId: string;
   wechatApiV3Key: string;
   wechatMchSerialNo: string;
   wechatMchPrivateKey: string;
   wechatConfigured: boolean;
   wechatOauthConfigured?: boolean;
+  wechatWebOauthConfigured?: boolean;
   alipayAppId: string;
   alipayPrivateKey: string;
   alipayPublicKey: string;
@@ -85,6 +88,7 @@ type SettingsSectionId =
   | "site"
   | "commission"
   | "wechat-mp"
+  | "wechat-web"
   | "wechat"
   | "sms"
   | "alipay"
@@ -155,7 +159,10 @@ export function SiteSettingsPanel({ initial }: Props) {
   const [form, setForm] = useState(() => ({
     ...initial,
     wechatAppSecret: initial.wechatAppSecret || "",
+    wechatWebAppId: initial.wechatWebAppId || "",
+    wechatWebAppSecret: initial.wechatWebAppSecret || "",
     wechatOauthConfigured: Boolean(initial.wechatOauthConfigured),
+    wechatWebOauthConfigured: Boolean(initial.wechatWebOauthConfigured),
     ossRegion: initial.ossRegion || "oss-cn-hongkong",
     ossBucket: initial.ossBucket || "yydsxwh-course-media",
     ossPrefix: initial.ossPrefix || "uploads",
@@ -244,6 +251,11 @@ export function SiteSettingsPanel({ initial }: Props) {
           wechatAppId: form.wechatAppId,
           wechatAppSecret: form.wechatAppSecret,
         };
+      case "wechat-web":
+        return {
+          wechatWebAppId: form.wechatWebAppId,
+          wechatWebAppSecret: form.wechatWebAppSecret,
+        };
       case "wechat":
         return {
           wechatEnabled: form.wechatEnabled,
@@ -300,6 +312,7 @@ export function SiteSettingsPanel({ initial }: Props) {
     site: "站点基础已保存",
     commission: "分成与抽成已保存",
     "wechat-mp": "微信公众号接口已保存",
+    "wechat-web": "微信扫码登录已保存",
     wechat: "微信支付已保存",
     sms: "短信登录已保存",
     alipay: "支付宝支付已保存",
@@ -643,6 +656,60 @@ export function SiteSettingsPanel({ initial }: Props) {
           </a>
         </div>
         {sectionSaveBar("wechat-mp")}
+      </SettingsSection>
+
+      {/*
+        开放平台网站应用：PC/站外浏览器「微信扫码登录」。
+        与公众号 AppID 不同；openid 也分开存，避免污染 JSAPI 用的公众号 openid。
+      */}
+      <SettingsSection
+        id="wechat-web"
+        title="微信扫码登录（开放平台）"
+        summary={
+          form.wechatWebOauthConfigured
+            ? "网站应用 AppID / AppSecret 已配置 · 扫码登录可用"
+            : form.wechatWebAppId?.trim()
+              ? "已填 AppID · 请补全 AppSecret"
+              : "未配置"
+        }
+        open={openSections.has("wechat-web")}
+        onToggle={toggleSection}
+      >
+        <p className="rounded-2xl bg-[var(--bg-deep)]/60 px-3 py-2 text-xs leading-5 text-[var(--muted)]">
+          用于电脑与普通手机浏览器的「微信扫码登录」。请到
+          <span className="text-[var(--ink)]">微信开放平台</span>
+          → 管理中心 → 网站应用，创建应用并完成开发者资质认证后，填写下方凭证。授权回调域填{" "}
+          <code className="text-[var(--ink)]">www.yydsxwh.com</code>
+          （不要带 https:// 与路径）。建议把本站公众号也绑定到同一开放平台账号，以便拿到
+          unionid，扫码与微信内登录自动合并为同一用户。
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field
+            label="网站应用 AppID"
+            hint="开放平台「网站应用」的 AppID，不是公众号 AppID"
+          >
+            <input
+              className={inputClass}
+              value={form.wechatWebAppId}
+              onChange={(e) => set("wechatWebAppId", e.target.value)}
+              placeholder="wx..."
+              autoComplete="off"
+            />
+          </Field>
+          <Field
+            label="网站应用 AppSecret"
+            hint="已保存会打码，不改请留原样。勿泄露"
+          >
+            <input
+              className={inputClass}
+              value={form.wechatWebAppSecret}
+              onChange={(e) => set("wechatWebAppSecret", e.target.value)}
+              placeholder="填写后电脑端可微信扫码登录"
+              autoComplete="off"
+            />
+          </Field>
+        </div>
+        {sectionSaveBar("wechat-web")}
       </SettingsSection>
 
       <SettingsSection

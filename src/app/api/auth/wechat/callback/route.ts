@@ -1,10 +1,12 @@
 /**
  * GET /api/auth/wechat/callback
  *
- * 微信 OAuth 回调：
- * - purpose=login：先静默拿 openid；老用户直接登录回站；新用户再跳一次
- *   snsapi_userinfo 申请头像昵称后建号（只打扰一次）。
- * - purpose=bind：写入当前用户 openid（JSAPI 支付）
+ * 微信 OAuth 回调（公众号网页授权 + 开放平台扫码共用）：
+ * - channel=oa + purpose=login：先静默拿公众号 openid；老用户直接登录；
+ *   新用户再跳一次 snsapi_userinfo 申请头像昵称后建号。
+ * - channel=web + purpose=login：网站应用扫码；用网站应用凭证换 token，
+ *   openid 写入 wechatWebOpenId；有 unionid 则与公众号用户合并。
+ * - purpose=bind：写入当前用户对应渠道的 openid（oa 供 JSAPI）
  */
 
 import { NextResponse } from "next/server";
@@ -24,6 +26,7 @@ import {
   safeReturnUrl,
   signWechatOAuthState,
   verifyWechatOAuthState,
+  type WechatOAuthChannel,
 } from "@/lib/wechat-oauth-state";
 
 function withQuery(path: string, params: Record<string, string>) {
@@ -42,6 +45,7 @@ export async function GET(req: Request) {
   const state = stateToken ? await verifyWechatOAuthState(stateToken) : null;
   const returnUrl = safeReturnUrl(state?.returnUrl, "/");
   const purpose = state?.purpose || "bind";
+  const channel: WechatOAuthChannel = state?.channel || "oa";
 
   if (!code) {
     return NextResponse.redirect(
@@ -50,7 +54,8 @@ export async function GET(req: Request) {
   }
 
   try {
-    const token = await exchangeWechatOAuthCode(code);
+    // 必须用发起授权时的同一套 AppID/Secret 换 code，否则会失败
+    const token = await exchangeWechatOAuthCode(code, channel);
     if (!token.openid) {
       throw new Error("未取得微信 openid");
     }
@@ -58,8 +63,12 @@ export async function GET(req: Request) {
     let nickname = "";
     let headimgurl = "";
     const scope = token.scope || "";
+    // 扫码 snsapi_login 与公众号 snsapi_userinfo 均可拉昵称头像
     const hasUserInfoScope =
-      scope.includes("snsapi_userinfo") || Boolean(state?.forceUserInfo);
+      channel === "web" ||
+      scope.includes("snsapi_userinfo") ||
+      scope.includes("snsapi_login") ||
+      Boolean(state?.forceUserInfo);
 
     if (token.accessToken && hasUserInfoScope) {
       try {
@@ -78,13 +87,15 @@ export async function GET(req: Request) {
       const existing = await findUserByWechatIdentity({
         openid: token.openid,
         unionid: token.unionid,
+        channel,
       });
 
-      // 老用户：静默登录即可，不再弹头像昵称授权，也不强制去个人中心
-      if (existing && !state?.forceUserInfo) {
+      // 公众号老用户：静默登录即可，不再弹头像昵称授权
+      if (existing && channel === "oa" && !state?.forceUserInfo) {
         const { result } = await findOrCreateUserByWechat({
           openid: token.openid,
           unionid: token.unionid,
+          channel,
         });
         const flags: Record<string, string> = { wechat_login: "ok" };
         if (result.pendingReview) flags.pending = "1";
@@ -94,13 +105,14 @@ export async function GET(req: Request) {
         return NextResponse.redirect(`${siteUrl}${dest}`);
       }
 
-      // 新用户且尚未做 userinfo：再跳微信申请头像昵称（仅此一次）
-      if (!existing && !hasUserInfoScope) {
+      // 公众号新用户且尚未做 userinfo：再跳微信申请头像昵称（仅此一次）
+      if (!existing && channel === "oa" && !hasUserInfoScope) {
         const oauth = await getWechatOAuthConfig();
         if (!oauth) throw new Error("微信登录未配置");
         const nextState = await signWechatOAuthState({
           returnUrl,
           purpose: "login",
+          channel: "oa",
           requestedRole: state?.requestedRole,
           referralCode: state?.referralCode,
           forceUserInfo: true,
@@ -123,6 +135,7 @@ export async function GET(req: Request) {
       const { isNewUser, result } = await findOrCreateUserByWechat({
         openid: token.openid,
         unionid: token.unionid,
+        channel,
         referralCode: state?.referralCode,
         requestedRole: state?.requestedRole,
         nickname,
@@ -131,7 +144,6 @@ export async function GET(req: Request) {
       const flags: Record<string, string> = { wechat_login: "ok" };
       if (isNewUser) flags.wechat_new = "1";
       if (result.pendingReview) flags.pending = "1";
-      // 新用户资料已从微信写入；回首页（或业务 returnUrl），勿再逼去个人中心改头像昵称
       const dest = result.pendingReview
         ? withQuery("/account", { ...flags, pending: "1" })
         : withQuery(returnUrl, flags);
@@ -148,6 +160,7 @@ export async function GET(req: Request) {
       userId,
       openid: token.openid,
       unionid: token.unionid,
+      channel,
       nickname,
       headimgurl,
     });
