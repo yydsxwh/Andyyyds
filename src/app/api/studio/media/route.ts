@@ -76,13 +76,16 @@ export async function POST(req: Request) {
       durationSec: form.get("durationSec") || 0,
     });
 
+    let categoryFolder = "uncategorized";
     if (parsed.categoryId) {
       const category = await prisma.mediaCategory.findFirst({
         where: { id: parsed.categoryId, ownerId: session.id },
+        select: { id: true, name: true },
       });
       if (!category) {
         return NextResponse.json({ error: "分类不存在" }, { status: 400 });
       }
+      categoryFolder = category.name || "uncategorized";
     }
 
     let fileUrl = "";
@@ -110,6 +113,9 @@ export async function POST(req: Request) {
       }
       mediaKind = classifyMediaKind(mimeType, fileName);
 
+      // 存储路径：{媒体类型}/{分类名|uncategorized}，与素材中心分类对齐
+      const storageSubPath = `${mediaKind.toLowerCase()}/${categoryFolder}`;
+
       const buffer = Buffer.from(await file.arrayBuffer());
       try {
         const stored = await storeUpload({
@@ -120,6 +126,7 @@ export async function POST(req: Request) {
           title: parsed.name,
           // 视频走点播分流；其它类型走 OSS/本地，避免误传点播
           kind: mediaKind === "VIDEO" ? "video" : "file",
+          subPath: mediaKind === "VIDEO" ? undefined : storageSubPath,
         });
         fileUrl = stored.fileUrl;
         sizeBytes = file.size;

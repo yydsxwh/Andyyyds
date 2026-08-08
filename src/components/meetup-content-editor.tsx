@@ -1,10 +1,11 @@
 "use client";
 
 /**
- * 约搭详情块编辑：文本 / 图片 URL / 视频 URL。
- * 输出 contentBlocks 给创建接口拼 HTML；微信内用链接即可，避免依赖复杂上传。
+ * 约搭详情块编辑：文本 / 图片（可上传）/ 视频 URL。
+ * 输出 contentBlocks 给创建接口拼 HTML。
  */
 
+import { ImageUrlField } from "@/components/image-url-field";
 import type { MeetupContentBlock } from "@/lib/meetup-content";
 
 type Props = {
@@ -58,7 +59,7 @@ export function MeetupContentEditor({ blocks, onChange }: Props) {
         </button>
       </div>
       <p className="text-xs text-[var(--muted)]">
-        图片/视频填 http(s) 或站内路径；视频也可填 B 站等可嵌入链接。手机可点可填。
+        图片可上传相册；视频填 http(s) 或可嵌入链接。手机微信内同样可点。
       </p>
 
       {blocks.length === 0 ? (
@@ -102,18 +103,16 @@ export function MeetupContentEditor({ blocks, onChange }: Props) {
             ) : null}
             {block.type === "image" ? (
               <div className="space-y-2">
-                <input
-                  className="field min-h-11"
+                <ImageUrlField
+                  label="图片"
                   value={block.url}
-                  onChange={(e) =>
+                  onChange={(url) =>
                     update(index, {
                       type: "image",
-                      url: e.target.value,
+                      url,
                       caption: block.caption,
                     })
                   }
-                  placeholder="图片链接 https://… 或 /uploads/…"
-                  maxLength={500}
                 />
                 <input
                   className="field min-h-11"

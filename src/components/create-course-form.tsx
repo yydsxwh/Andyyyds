@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CoverImagePicker } from "@/components/cover-image-picker";
+import { ImageUrlField } from "@/components/image-url-field";
 import { DEFAULT_COURSE_COVER_URL } from "@/lib/cover-images";
 
 export function CreateCourseForm() {
@@ -57,16 +57,14 @@ export function CreateCourseForm() {
         placeholder="价格（元，可到分）"
         defaultValue={99}
       />
-      <div>
-        <input
-          className="field"
-          name="coverUrl"
-          placeholder="封面图 URL（可选）"
-          value={coverUrl}
-          onChange={(e) => setCoverUrl(e.target.value)}
-        />
-        <CoverImagePicker value={coverUrl} onChange={setCoverUrl} />
-      </div>
+      <ImageUrlField
+        label="封面图"
+        value={coverUrl}
+        onChange={setCoverUrl}
+        showPresets
+      />
+      {/* 随表单提交；实际值由 state 写入 payload */}
+      <input type="hidden" name="coverUrl" value={coverUrl} />
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" name="publish" value="1" defaultChecked />
         立即发布

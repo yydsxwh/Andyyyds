@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { SiteHeaderNav, type HeaderNavLink } from "@/components/site-header-nav";
+import { SiteHomeClock } from "@/components/site-home-clock";
 import { UserAvatar } from "@/components/user-avatar";
 import { getSession } from "@/lib/auth";
 import { DEFAULT_LOGO_URL } from "@/lib/decorate";
@@ -106,6 +107,8 @@ export async function SiteHeader() {
         </div>
 
         <div className="flex shrink-0 items-center justify-end gap-1.5 sm:gap-3 lg:gap-4">
+          {/* 仅首页：动态时钟 + 时区 + 惜时警示 */}
+          <SiteHomeClock />
           <SiteHeaderNav links={links} variant="mobile" />
           {session ? (
             <>

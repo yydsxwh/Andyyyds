@@ -28,6 +28,10 @@ type Props = {
   onClose: () => void;
   onSelect: (asset: PickerMediaAsset) => void;
   onClear?: () => void;
+  /** 仅展示某类素材；封面选图时传 IMAGE */
+  mediaKind?: MediaKind | "all";
+  title?: string;
+  description?: string;
 };
 
 function formatDuration(sec: number) {
@@ -44,6 +48,9 @@ export function MediaAssetPickerModal({
   onClose,
   onSelect,
   onClear,
+  mediaKind = "all",
+  title = "从素材中心选择",
+  description = "选择视频素材绑定到当前课时，可随时重新选择",
 }: Props) {
   const [assets, setAssets] = useState<PickerMediaAsset[]>(initialAssets);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -61,8 +68,12 @@ export function MediaAssetPickerModal({
     setQuery("");
     if (initialAssets.length > 0) setAssets(initialAssets);
 
+    const mediaQuery =
+      mediaKind && mediaKind !== "all"
+        ? `?type=${encodeURIComponent(mediaKind)}`
+        : "";
     Promise.all([
-      fetch("/api/studio/media").then(async (res) => {
+      fetch(`/api/studio/media${mediaQuery}`).then(async (res) => {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "加载素材失败");
         return (data.assets || []) as PickerMediaAsset[];
@@ -91,7 +102,7 @@ export function MediaAssetPickerModal({
     };
     // Only refetch when the modal opens; initialAssets is a seed for first paint.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- open-gated load
-  }, [open]);
+  }, [open, mediaKind]);
 
   useEffect(() => {
     if (!open) return;
@@ -137,11 +148,9 @@ export function MediaAssetPickerModal({
         <div className="flex items-start justify-between gap-3 border-b border-[var(--line)] px-5 py-4">
           <div>
             <h2 id="media-picker-title" className="text-lg font-semibold">
-              从素材中心选择
+              {title}
             </h2>
-            <p className="mt-1 text-xs text-[var(--muted)]">
-              选择视频素材绑定到当前课时，可随时重新选择
-            </p>
+            <p className="mt-1 text-xs text-[var(--muted)]">{description}</p>
           </div>
           <button
             type="button"
@@ -232,6 +241,14 @@ export function MediaAssetPickerModal({
                   }`}
                   onClick={() => onSelect(asset)}
                 >
+                  {asset.type === "IMAGE" ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={asset.fileUrl}
+                      alt=""
+                      className="h-14 w-14 shrink-0 rounded-xl object-cover"
+                    />
+                  ) : null}
                   <span className="min-w-0 flex-1">
                     <span className="flex flex-wrap items-center gap-2">
                       <span className="break-words font-medium leading-snug">

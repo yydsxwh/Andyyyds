@@ -15,7 +15,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { useRouter } from "next/navigation";
-import { CoverImagePicker } from "@/components/cover-image-picker";
+import { ImageUrlField } from "@/components/image-url-field";
 import {
   postSave,
   SaveFeedback,
@@ -523,19 +523,10 @@ function PropsEditor({
             className="space-y-2 rounded-xl border border-[var(--line)] p-3"
           >
             <div className="text-xs font-medium">幻灯 {index + 1}</div>
-            <input
-              className={inputClass}
-              placeholder="图片 URL"
+            <ImageUrlField
+              label="幻灯图片"
               value={slide.url}
-              onChange={(e) => {
-                const slides = [...p.slides];
-                slides[index] = { ...slide, url: e.target.value };
-                patchProps({ slides });
-              }}
-            />
-            <CoverImagePicker
-              value={slide.url}
-              title="选用封面图"
+              showPresets
               onChange={(url) => {
                 const slides = [...p.slides];
                 slides[index] = { ...slide, url };
@@ -588,15 +579,12 @@ function PropsEditor({
     const p = module.props as ImageModuleProps;
     return (
       <div className="space-y-3">
-        <label className="block text-sm">
-          <span className="text-[var(--muted)]">图片 URL</span>
-          <input
-            className={`${inputClass} mt-1`}
-            value={p.url}
-            onChange={(e) => patchProps({ url: e.target.value })}
-          />
-        </label>
-        <CoverImagePicker value={p.url} onChange={(url) => patchProps({ url })} />
+        <ImageUrlField
+          label="图片"
+          value={p.url}
+          onChange={(url) => patchProps({ url })}
+          showPresets
+        />
         <label className="block text-sm">
           <span className="text-[var(--muted)]">跳转链接</span>
           <input
@@ -779,17 +767,11 @@ function PropsEditor({
             placeholder="https://..."
           />
         </label>
-        <label className="block text-sm">
-          <span className="text-[var(--muted)]">封面图 URL</span>
-          <input
-            className={`${inputClass} mt-1`}
-            value={p.poster}
-            onChange={(e) => patchProps({ poster: e.target.value })}
-          />
-        </label>
-        <CoverImagePicker
+        <ImageUrlField
+          label="封面图"
           value={p.poster}
           onChange={(url) => patchProps({ poster: url })}
+          showPresets
         />
       </div>
     );
@@ -929,17 +911,11 @@ function PropsEditor({
             onChange={(e) => patchProps({ leftHtml: e.target.value })}
           />
         </label>
-        <label className="block text-sm">
-          <span className="text-[var(--muted)]">右侧图片</span>
-          <input
-            className={`${inputClass} mt-1`}
-            value={p.rightImage}
-            onChange={(e) => patchProps({ rightImage: e.target.value })}
-          />
-        </label>
-        <CoverImagePicker
+        <ImageUrlField
+          label="右侧图片"
           value={p.rightImage}
           onChange={(url) => patchProps({ rightImage: url })}
+          showPresets
         />
         <label className="block text-sm">
           <span className="text-[var(--muted)]">右侧链接</span>
@@ -1125,17 +1101,11 @@ function PropsEditor({
             onChange={(e) => patchProps({ href: e.target.value })}
           />
         </label>
-        <label className="block text-sm">
-          <span className="text-[var(--muted)]">图片</span>
-          <input
-            className={`${inputClass} mt-1`}
-            value={p.imageUrl}
-            onChange={(e) => patchProps({ imageUrl: e.target.value })}
-          />
-        </label>
-        <CoverImagePicker
+        <ImageUrlField
+          label="图片"
           value={p.imageUrl}
           onChange={(url) => patchProps({ imageUrl: url })}
+          showPresets
         />
       </div>
     );
@@ -1362,25 +1332,17 @@ function PropsEditor({
           </select>
         </label>
         {p.images.map((img, index) => (
-          <div key={img.id} className="space-y-2">
-            <input
-              className={inputClass}
-              value={img.url}
-              onChange={(e) => {
-                const images = [...p.images];
-                images[index] = { ...img, url: e.target.value };
-                patchProps({ images });
-              }}
-            />
-            <CoverImagePicker
-              value={img.url}
-              onChange={(url) => {
-                const images = [...p.images];
-                images[index] = { ...img, url };
-                patchProps({ images });
-              }}
-            />
-          </div>
+          <ImageUrlField
+            key={img.id}
+            label={`图片 ${index + 1}`}
+            value={img.url}
+            showPresets
+            onChange={(url) => {
+              const images = [...p.images];
+              images[index] = { ...img, url };
+              patchProps({ images });
+            }}
+          />
         ))}
         <button
           type="button"
@@ -1813,23 +1775,12 @@ export function PageTemplateEditor({ initial }: Props) {
 
       {showCoverPicker || showBgPicker ? (
         <div className="surface rounded-[24px] p-4 sm:p-5">
-          <div className="mb-2 text-sm font-medium">
-            {showCoverPicker ? "模板封面（列表预览）" : "页面背景图"}
-          </div>
-          <input
-            className={`${inputClass} mb-3`}
-            placeholder="图片 URL 或从下方选用"
-            value={showCoverPicker ? template.coverUrl : template.backgroundUrl}
-            onChange={(e) =>
-              setTemplate((cur) =>
-                showCoverPicker
-                  ? { ...cur, coverUrl: e.target.value }
-                  : { ...cur, backgroundUrl: e.target.value },
-              )
+          <ImageUrlField
+            label={showCoverPicker ? "模板封面（列表预览）" : "页面背景图"}
+            value={
+              showCoverPicker ? template.coverUrl : template.backgroundUrl
             }
-          />
-          <CoverImagePicker
-            value={showCoverPicker ? template.coverUrl : template.backgroundUrl}
+            showPresets
             onChange={(url) =>
               setTemplate((cur) =>
                 showCoverPicker

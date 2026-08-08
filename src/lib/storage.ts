@@ -364,18 +364,41 @@ async function ossRequest(input: {
   return { ok: res.ok, status: res.status, text };
 }
 
+/** 规范化存储子路径（媒体类型/分类），防路径穿越 */
+function safeStorageSubPath(raw?: string): string {
+  if (!raw?.trim()) return "";
+  return raw
+    .trim()
+    .replace(/\\/g, "/")
+    .split("/")
+    .map((seg) => seg.replace(/[^\w.\u4e00-\u9fa5-]+/g, "_").slice(0, 40))
+    .filter((seg) => seg && seg !== "." && seg !== "..")
+    .join("/");
+}
+
 async function putLocal(input: {
   ownerId: string;
   fileName: string;
   buffer: Buffer;
+  /** 如 image/封面图 → public/uploads/{owner}/image/封面图/ */
+  subPath?: string;
 }): Promise<StoredObject> {
   const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const storedName = `${stamp}-${safeFileName(input.fileName)}`;
-  const dir = path.join(process.cwd(), "public", "uploads", input.ownerId);
+  const sub = safeStorageSubPath(input.subPath);
+  const dir = path.join(
+    process.cwd(),
+    "public",
+    "uploads",
+    input.ownerId,
+    ...(sub ? sub.split("/") : []),
+  );
   await mkdir(dir, { recursive: true });
   await writeFile(path.join(dir, storedName), input.buffer);
-  const fileUrl = `/uploads/${input.ownerId}/${storedName}`;
-  return { fileUrl, storageKey: fileUrl, provider: "LOCAL" };
+  const rel = sub
+    ? `/uploads/${input.ownerId}/${sub}/${storedName}`
+    : `/uploads/${input.ownerId}/${storedName}`;
+  return { fileUrl: rel, storageKey: rel, provider: "LOCAL" };
 }
 
 async function putOss(input: {
@@ -383,11 +406,16 @@ async function putOss(input: {
   fileName: string;
   buffer: Buffer;
   mimeType: string;
+  /** 如 image/未分类 → uploads/{owner}/image/未分类/ */
+  subPath?: string;
 }): Promise<StoredObject> {
   const settings = await getSiteSettings();
   const creds = getOssCreds(settings);
   const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const objectKey = `${creds.prefix}/${input.ownerId}/${stamp}-${safeFileName(input.fileName)}`;
+  const sub = safeStorageSubPath(input.subPath);
+  const objectKey = sub
+    ? `${creds.prefix}/${input.ownerId}/${sub}/${stamp}-${safeFileName(input.fileName)}`
+    : `${creds.prefix}/${input.ownerId}/${stamp}-${safeFileName(input.fileName)}`;
   const host = ossEndpointHost({
     ossEndpoint: creds.endpoint,
     ossRegion: creds.region,
@@ -435,6 +463,11 @@ export async function storeUpload(input: {
   mimeType: string;
   title?: string;
   kind?: "video" | "file";
+  /**
+   * 对象键子目录：按媒体类型/素材分类分桶（如 image/风景），
+   * 便于在 OSS/本地 uploads 里按分类查找。
+   */
+  subPath?: string;
 }): Promise<StoredObject> {
   const settings = await getSiteSettings();
   const kind =

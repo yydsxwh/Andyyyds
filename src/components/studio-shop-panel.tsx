@@ -3,6 +3,10 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import {
+  ImageGalleryField,
+  ImageUrlField,
+} from "@/components/image-url-field";
 import type { ShopSpecsConfig } from "@/lib/shop";
 import { formatPrice } from "@/lib/utils";
 
@@ -290,26 +294,18 @@ export function StudioShopPanel({ initialProducts, categories }: Props) {
               />
             </label>
           </div>
-          <label className="block text-sm">
-            <span className="text-[var(--muted)]">封面图 URL</span>
-            <input
-              className="field mt-1 w-full"
-              value={form.coverUrl}
-              onChange={(e) => setForm({ ...form, coverUrl: e.target.value })}
-              placeholder="可与图库首图相同"
-            />
-          </label>
-          <label className="block text-sm">
-            <span className="text-[var(--muted)]">多图 URL（每行一张）</span>
-            <textarea
-              className="field mt-1 w-full"
-              rows={3}
-              value={form.galleryText}
-              onChange={(e) =>
-                setForm({ ...form, galleryText: e.target.value })
-              }
-            />
-          </label>
+          <ImageUrlField
+            label="封面图"
+            value={form.coverUrl}
+            onChange={(coverUrl) => setForm({ ...form, coverUrl })}
+            showPresets
+            hint="可上传；不填时可用图集首图。"
+          />
+          <ImageGalleryField
+            label="商品图集"
+            valueText={form.galleryText}
+            onChangeText={(galleryText) => setForm({ ...form, galleryText })}
+          />
           <label className="block text-sm">
             <span className="text-[var(--muted)]">
               规格（每行：规格名:值1,值2）

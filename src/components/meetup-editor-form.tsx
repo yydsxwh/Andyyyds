@@ -10,6 +10,10 @@ import { MeetupContentEditor } from "@/components/meetup-content-editor";
 import { MeetupDatetimePicker } from "@/components/meetup-datetime-picker";
 import { MeetupPlaceMapPicker } from "@/components/meetup-place-map-picker";
 import { MeetupTimezonePicker } from "@/components/meetup-timezone-picker";
+import {
+  ImageGalleryField,
+  ImageUrlField,
+} from "@/components/image-url-field";
 import type { MeetupContentBlock } from "@/lib/meetup-content";
 import {
   MEETUP_CATEGORIES,
@@ -130,8 +134,11 @@ type Props = {
   /** create 用 /api/meetup 或 /api/studio/meetups；edit 用 studio/[id] */
   apiPath: string;
   initial?: MeetupEditorInitial;
-  /** 成功后跳转 */
-  successHref?: (id: string) => string;
+  /**
+   * 成功后跳转路径（须为字符串，不可传函数：本组件为 Client，服务端页不能传函数 props）。
+   * 可用 `{id}` 占位，保存后替换为约搭 id。
+   */
+  successHref?: string;
   submitLabel?: string;
   showStatus?: boolean;
 };
@@ -389,7 +396,8 @@ export function MeetupEditorForm({
       }
       const id = data.id || data.meetup?.id || initial?.id;
       if (id && successHref) {
-        router.push(successHref(id));
+        // 服务端只能传字符串；`{id}` 在此替换，避免把函数当 Client props
+        router.push(successHref.replaceAll("{id}", String(id)));
       } else {
         router.refresh();
         setMessage("已保存");
@@ -821,25 +829,20 @@ export function MeetupEditorForm({
         />
       </div>
 
-      <div>
-        <label className="mb-1.5 block text-sm font-medium">图集链接</label>
-        <textarea
-          className="field min-h-24"
-          value={galleryText}
-          onChange={(e) => setGalleryText(e.target.value)}
-          placeholder={"每行一个 URL"}
-        />
-      </div>
+      <ImageUrlField
+        label="封面图"
+        value={coverUrl}
+        onChange={setCoverUrl}
+        showPresets
+        hint="建议横图。本地上传会进素材中心（按分类存储）；也可从素材中心选用或点推荐封面。"
+      />
 
-      <div>
-        <label className="mb-1.5 block text-sm font-medium">封面图</label>
-        <input
-          className="field min-h-11"
-          value={coverUrl}
-          onChange={(e) => setCoverUrl(e.target.value)}
-          maxLength={500}
-        />
-      </div>
+      <ImageGalleryField
+        label="活动图集"
+        valueText={galleryText}
+        onChangeText={setGalleryText}
+        hint="详情页轮播用。本地上传自动入库素材中心；可从素材中心追加。"
+      />
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>

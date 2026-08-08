@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CoverImagePicker } from "@/components/cover-image-picker";
+import { ImageUrlField } from "@/components/image-url-field";
 import {
   MediaAssetPickerModal,
   type PickerMediaAsset,
@@ -633,16 +633,13 @@ export function EditCourseForm({
           </label>
         </div>
 
-        <div className="block text-sm">
-          <span className="text-[var(--muted)]">封面图 URL</span>
-          <input
-            className={`${inputClass} mt-1`}
-            value={coverUrl}
-            onChange={(e) => setCoverUrl(e.target.value)}
-            placeholder="/covers/... 或 https://..."
-          />
-          <CoverImagePicker value={coverUrl} onChange={setCoverUrl} />
-        </div>
+        <ImageUrlField
+          label="封面图"
+          value={coverUrl}
+          onChange={setCoverUrl}
+          showPresets
+          hint="可上传图片，或选用推荐封面。"
+        />
 
         <label className="flex items-center gap-2 text-sm">
           <input
