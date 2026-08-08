@@ -659,29 +659,32 @@ export async function purgeFalseImageMaterialArticles(): Promise<number> {
 }
 
 /**
- * 群发数据补漏时若公开页被微信验证码拦截，会留下无正文的 datacube_* 壳。
- * 若同标题已有正文完整的 freepublish 篇，删掉空壳，避免列表「重」且点进去空白。
+ * 仅清理「同一公开链」上的空壳重复：同标题不同 mid 是两次发表（如 4/8 原创与后来重发），绝不能按标题删。
  */
 export async function purgeEmptyDuplicateTitleStubs(): Promise<number> {
   const rows = await prisma.wechatMpArticle.findMany({
     where: { isDeleted: false },
     select: {
       id: true,
-      title: true,
       articleId: true,
+      wechatUrlKey: true,
       contentHtml: true,
     },
   });
-  const richTitles = new Set(
+
+  const richKeys = new Set(
     rows
-      .filter((r) => (r.contentHtml || "").trim().length >= THIN_BODY_CHARS)
-      .map((r) => r.title.trim())
-      .filter(Boolean),
+      .filter(
+        (r) =>
+          r.wechatUrlKey &&
+          (r.contentHtml || "").trim().length >= THIN_BODY_CHARS,
+      )
+      .map((r) => r.wechatUrlKey),
   );
+
   const stubIds = rows
     .filter((r) => {
-      const title = r.title.trim();
-      if (!title || !richTitles.has(title)) return false;
+      if (!r.wechatUrlKey || !richKeys.has(r.wechatUrlKey)) return false;
       if ((r.contentHtml || "").trim().length >= THIN_BODY_CHARS) return false;
       return (
         r.articleId.startsWith("datacube_") ||
@@ -689,6 +692,7 @@ export async function purgeEmptyDuplicateTitleStubs(): Promise<number> {
       );
     })
     .map((r) => r.id);
+
   if (!stubIds.length) return 0;
   const deleted = await prisma.wechatMpArticle.deleteMany({
     where: { id: { in: stubIds } },
@@ -1228,29 +1232,7 @@ async function ingestDatacubeRow(input: {
   }
 
   const finalTitle = scraped.title || title || "未命名图文";
-  const finalHtml = (scraped.contentHtml || "").trim();
-  // 公开页抓不到正文时：若同标题已有完整 freepublish 篇，不再造空壳（防重复空白）
-  if (finalHtml.length < THIN_BODY_CHARS && !existing) {
-    const richSameTitle = await prisma.wechatMpArticle.findFirst({
-      where: {
-        isDeleted: false,
-        title: finalTitle,
-        NOT: {
-          OR: [
-            { articleId: { startsWith: "datacube_" } },
-            { articleId: { startsWith: "mass_" } },
-          ],
-        },
-      },
-      select: { contentHtml: true },
-    });
-    if (
-      richSameTitle &&
-      (richSameTitle.contentHtml || "").trim().length >= THIN_BODY_CHARS
-    ) {
-      return false;
-    }
-  }
+  // 注意：同标题不同 mid/链 是两篇推文（例如 4/8 原创与 8/8 重发），不得因同标题跳过入库
 
   const msgidIndex = msgid.includes("_")
     ? Number.parseInt(msgid.split("_").pop() || "0", 10)
