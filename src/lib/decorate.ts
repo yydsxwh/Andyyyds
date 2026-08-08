@@ -23,10 +23,33 @@ export type DecorateBanner = {
   id: string;
   url: string;
   alt: string;
+  /**
+   * 点击跳转地址（站内路径或 https）。
+   * 空则前台不可点，兼容旧库无此字段的配置。
+   */
+  href?: string;
+  /**
+   * 是否新标签打开。
+   * 未配置时：首页主图（banners[0]）默认 true；其它横幅默认 true（投放链常见外链）。
+   */
+  openInNewTab?: boolean;
+};
+
+/** 首页主视觉区 CTA 按钮（站长可改文案与跳转） */
+export type DecorateCta = {
+  label: string;
+  href: string;
+  /** 未配置时同页打开，保持原先 Link 行为 */
+  openInNewTab?: boolean;
 };
 
 export type DecorateConfig = {
   logoUrl: string;
+  /**
+   * 首页品牌 Logo 点击地址；空则不可点（顶栏 Logo 仍回首页，不受此字段影响）。
+   */
+  logoHref?: string;
+  logoOpenInNewTab?: boolean;
   /** 浏览器标题 / 安装提示等处显示的网站名称 */
   siteName: string;
   brandName: string;
@@ -36,6 +59,10 @@ export type DecorateConfig = {
   /** 首页右侧主视觉；若 banners 非空则优先用 banners[0] */
   heroImageUrl: string;
   banners: DecorateBanner[];
+  /** 主视觉主按钮（默认「进入知识付费」） */
+  heroPrimaryCta: DecorateCta;
+  /** 主视觉次按钮（默认「了解公司」） */
+  heroSecondaryCta: DecorateCta;
   /** 一键主题包 id（仅记录来源；实际生效看 palette/background） */
   themePackId: string;
   /** 配色方案 id → CSS 变量 */
@@ -55,8 +82,22 @@ export const DEFAULT_LOGO_URL = "/brand/logo.png";
 /** 首页主视觉：本地 public/covers，与课程封面图库一致 */
 const DEFAULT_HERO_IMAGE = DEFAULT_SITE_HERO_URL;
 
+export const DEFAULT_HERO_PRIMARY_CTA: DecorateCta = {
+  label: "进入知识付费",
+  href: "/courses",
+  openInNewTab: false,
+};
+
+export const DEFAULT_HERO_SECONDARY_CTA: DecorateCta = {
+  label: "了解公司",
+  href: "/about/company",
+  openInNewTab: false,
+};
+
 export const DEFAULT_DECORATE: DecorateConfig = {
   logoUrl: DEFAULT_LOGO_URL,
+  logoHref: "",
+  logoOpenInNewTab: false,
   siteName: "歪歪艾斯",
   brandName: "歪歪艾斯",
   showBrandText: false,
@@ -69,8 +110,12 @@ export const DEFAULT_DECORATE: DecorateConfig = {
       id: "default-hero",
       url: DEFAULT_HERO_IMAGE,
       alt: "学员在线学习",
+      href: "",
+      openInNewTab: true,
     },
   ],
+  heroPrimaryCta: { ...DEFAULT_HERO_PRIMARY_CTA },
+  heroSecondaryCta: { ...DEFAULT_HERO_SECONDARY_CTA },
   themePackId: DEFAULT_THEME_PACK_ID,
   paletteId: DEFAULT_PALETTE_ID,
   backgroundId: DEFAULT_BACKGROUND_ID,
@@ -83,12 +128,49 @@ function newId() {
   return `img_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function normalizeOptionalHref(raw: unknown): string {
+  return String(raw ?? "")
+    .trim()
+    .slice(0, 800);
+}
+
+function normalizeCta(
+  raw: Partial<DecorateCta> | undefined,
+  fallback: DecorateCta,
+): DecorateCta {
+  const label =
+    String(raw?.label ?? fallback.label)
+      .trim()
+      .slice(0, 40) || fallback.label;
+  const href =
+    String(raw?.href ?? fallback.href)
+      .trim()
+      .slice(0, 800) || fallback.href;
+  return {
+    label,
+    href,
+    openInNewTab:
+      typeof raw?.openInNewTab === "boolean"
+        ? raw.openInNewTab
+        : Boolean(fallback.openInNewTab),
+  };
+}
+
 export function newBanner(partial?: Partial<DecorateBanner>): DecorateBanner {
   return {
     id: partial?.id || newId(),
     url: (partial?.url || "").trim(),
     alt: (partial?.alt || "").trim(),
+    href: normalizeOptionalHref(partial?.href),
+    // 横幅默认可新标签；站长可在后台关掉
+    openInNewTab:
+      typeof partial?.openInNewTab === "boolean" ? partial.openInNewTab : true,
   };
+}
+
+/** 横幅/主图：未显式配置时默认新标签（首页大图投放链常见需求） */
+export function resolveBannerOpenInNewTab(banner: DecorateBanner): boolean {
+  return banner.openInNewTab !== false;
 }
 
 function resolveThemeFields(parsed: Partial<DecorateConfig>) {
@@ -124,6 +206,10 @@ export function parseDecorate(raw: string | null | undefined): DecorateConfig {
             id: String(b.id || newId()),
             url: String(b.url || "").trim(),
             alt: String(b.alt || "").trim(),
+            href: normalizeOptionalHref(b.href),
+            // 旧配置无 openInNewTab：主图/横幅默认新标签，填了链接即可外跳
+            openInNewTab:
+              typeof b.openInNewTab === "boolean" ? b.openInNewTab : true,
           }))
           .filter((b) => b.url)
       : DEFAULT_DECORATE.banners;
@@ -133,6 +219,11 @@ export function parseDecorate(raw: string | null | undefined): DecorateConfig {
     const theme = resolveThemeFields(parsed);
     return {
       logoUrl: (parsed.logoUrl || DEFAULT_DECORATE.logoUrl).trim() || DEFAULT_LOGO_URL,
+      logoHref: normalizeOptionalHref(parsed.logoHref),
+      logoOpenInNewTab:
+        typeof parsed.logoOpenInNewTab === "boolean"
+          ? parsed.logoOpenInNewTab
+          : false,
       siteName:
         (parsed.siteName || brandName || DEFAULT_DECORATE.siteName).trim() ||
         DEFAULT_DECORATE.siteName,
@@ -151,6 +242,14 @@ export function parseDecorate(raw: string | null | undefined): DecorateConfig {
         (parsed.heroImageUrl || banners[0]?.url || DEFAULT_DECORATE.heroImageUrl).trim() ||
         DEFAULT_HERO_IMAGE,
       banners: banners.length ? banners : structuredClone(DEFAULT_DECORATE.banners),
+      heroPrimaryCta: normalizeCta(
+        parsed.heroPrimaryCta,
+        DEFAULT_HERO_PRIMARY_CTA,
+      ),
+      heroSecondaryCta: normalizeCta(
+        parsed.heroSecondaryCta,
+        DEFAULT_HERO_SECONDARY_CTA,
+      ),
       ...theme,
     };
   } catch {

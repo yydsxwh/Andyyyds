@@ -77,6 +77,7 @@ export async function GET(req: Request) {
         ...userSelect,
         referralCode: true,
         wechatOpenId: true,
+        wechatWebOpenId: true,
         createdAt: true,
         referredBy: { select: { id: true, name: true, referralCode: true } },
         referrals: {
@@ -120,7 +121,9 @@ export async function GET(req: Request) {
         referredById: u.referredBy?.id || "",
         referredByName: u.referredBy?.name || "",
         referredByCode: u.referredBy?.referralCode || "",
-        hasWechat: Boolean(u.wechatOpenId?.trim()),
+        hasWechat: Boolean(
+          u.wechatOpenId?.trim() || u.wechatWebOpenId?.trim(),
+        ),
         createdAt: u.createdAt.toISOString(),
         orderCount: u._count.orders,
         enrollmentCount: u._count.enrollments,
@@ -173,17 +176,27 @@ export async function PATCH(req: Request) {
       const body = unbindWechatSchema.parse(raw);
       const target = await prisma.user.findUnique({
         where: { id: body.userId },
-        select: { id: true, wechatOpenId: true, wechatUnionId: true },
+        select: {
+          id: true,
+          wechatOpenId: true,
+          wechatWebOpenId: true,
+          wechatUnionId: true,
+        },
       });
       if (!target) {
         return NextResponse.json({ error: "用户不存在" }, { status: 404 });
       }
-      if (!target.wechatOpenId?.trim() && !target.wechatUnionId?.trim()) {
+      if (
+        !target.wechatOpenId?.trim() &&
+        !target.wechatWebOpenId?.trim() &&
+        !target.wechatUnionId?.trim()
+      ) {
         return NextResponse.json({ error: "该用户未绑定微信" }, { status: 400 });
       }
+      // 同时清空公众号 / 网站应用 openid 与 unionid，避免解绑后仍被扫码识别
       await prisma.user.update({
         where: { id: body.userId },
-        data: { wechatOpenId: "", wechatUnionId: "" },
+        data: { wechatOpenId: "", wechatWebOpenId: "", wechatUnionId: "" },
       });
       return NextResponse.json({
         ok: true,

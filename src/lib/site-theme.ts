@@ -22,6 +22,10 @@ import {
   EXTRA_THEME_PACKS,
 } from "./site-theme-backgrounds-extra";
 import {
+  ISLAND_THEME_BACKGROUNDS,
+  ISLAND_THEME_PACKS,
+} from "./site-theme-islands";
+import {
   QZONE_THEME_BACKGROUNDS,
   QZONE_THEME_PACKS,
 } from "./site-theme-qzone";
@@ -42,6 +46,9 @@ export type ThemeBackground = {
   layers: string;
 };
 
+/** 一键装扮面板分组；缺省归入「经典」 */
+export type ThemePackCategory = "classic" | "qzone" | "island" | "biz";
+
 export type ThemePack = {
   id: string;
   name: string;
@@ -50,7 +57,46 @@ export type ThemePack = {
   backgroundId: string;
   /** 网格卡片封面（可用背景预览或照片） */
   cover: string;
+  /** 装扮面板筛选：海岛/阳光、空间装扮等 */
+  category?: ThemePackCategory;
+  /** 挂到 html[data-theme-fx] 的 CSS 动效 id（QQ 空间感光斑等） */
+  fx?: string;
 };
+
+export const THEME_PACK_CATEGORIES: {
+  id: ThemePackCategory | "all";
+  label: string;
+}[] = [
+  { id: "all", label: "全部" },
+  { id: "island", label: "海岛/阳光" },
+  { id: "qzone", label: "空间装扮" },
+  { id: "biz", label: "商务办公" },
+  { id: "classic", label: "经典" },
+];
+
+/** 推断主题包分组：显式 category 优先，否则按 id 前缀 */
+export function packCategoryOf(pack: ThemePack): ThemePackCategory {
+  if (pack.category) return pack.category;
+  if (pack.id.startsWith("pack-qzone-") || pack.id.includes("qzone")) {
+    return "qzone";
+  }
+  if (pack.id.startsWith("pack-island-")) return "island";
+  if (
+    pack.id.includes("biz") ||
+    pack.backgroundId.startsWith("photo-biz-") ||
+    pack.backgroundId.startsWith("grad-")
+  ) {
+    return "biz";
+  }
+  return "classic";
+}
+
+export function packsInCategory(
+  category: ThemePackCategory | "all",
+): ThemePack[] {
+  if (category === "all") return THEME_PACKS;
+  return THEME_PACKS.filter((p) => packCategoryOf(p) === category);
+}
 
 export type LayoutDensity = "default" | "compact" | "airy";
 
@@ -347,6 +393,8 @@ export const THEME_BACKGROUNDS: ThemeBackground[] = [
   ...EXTRA_THEME_BACKGROUNDS,
   // QQ 空间式梦幻光斑（七彩心晴同系）
   ...QZONE_THEME_BACKGROUNDS,
+  // 热带海岛 / 阳光沙滩（Unsplash 可商用摄影 + CSS 动效）
+  ...ISLAND_THEME_BACKGROUNDS,
 ];
 
 export const THEME_PACKS: ThemePack[] = [
@@ -510,6 +558,8 @@ export const THEME_PACKS: ThemePack[] = [
   ...EXTRA_THEME_PACKS,
   // QQ 空间装扮一键包（站长在「一键主题」里选）
   ...QZONE_THEME_PACKS,
+  // 海岛/阳光一键包（约 20 套，装扮面板「海岛/阳光」分类）
+  ...ISLAND_THEME_PACKS,
 ];
 
 export const LAYOUT_DENSITIES: {

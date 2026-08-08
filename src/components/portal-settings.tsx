@@ -248,14 +248,29 @@ export function PortalNavSettings({ value, onChange }: Props) {
               ↓
             </button>
           </div>
-          <label className="flex min-h-10 items-center gap-2 self-end text-sm text-[var(--muted)] sm:self-center sm:pt-5">
-            <input
-              type="checkbox"
-              checked={item.enabled !== false}
-              onChange={(e) => updateNav(index, { enabled: e.target.checked })}
-            />
-            显示
-          </label>
+          <div className="flex flex-col gap-2 self-end text-sm text-[var(--muted)] sm:self-center sm:pt-5">
+            <label className="flex min-h-10 items-center gap-2">
+              <input
+                type="checkbox"
+                checked={item.enabled !== false}
+                onChange={(e) => updateNav(index, { enabled: e.target.checked })}
+              />
+              显示
+            </label>
+            <label
+              className="flex min-h-10 items-center gap-2"
+              title="仅影响首页「门户入口」卡片；顶栏导航仍同页打开"
+            >
+              <input
+                type="checkbox"
+                checked={Boolean(item.openInNewTab)}
+                onChange={(e) =>
+                  updateNav(index, { openInNewTab: e.target.checked })
+                }
+              />
+              首页新标签
+            </label>
+          </div>
           <button
             type="button"
             className="btn btn-secondary min-h-10 self-end px-2.5 py-2 text-sm text-[var(--fire)] sm:self-center sm:pt-0"

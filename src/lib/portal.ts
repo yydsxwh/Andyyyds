@@ -12,6 +12,11 @@ export type PortalNavLink = {
   enabled?: boolean;
   /** true 时跳转到「即将开放」提示页也可直接链到 /shop 等占位页 */
   comingSoon?: boolean;
+  /**
+   * 首页「门户入口」卡片是否新标签打开。
+   * 未配置时同页（兼容旧导航）；顶栏仍始终同页，避免汉堡菜单误开外链。
+   */
+  openInNewTab?: boolean;
 };
 
 export type PortalAboutPage = {
@@ -205,6 +210,7 @@ function normalizeNavItem(
     enabled: item?.enabled !== false,
     // 商城已上线：旧 CMS 若仍标 comingSoon，运行时清掉，避免顶栏仍进占位页
     comingSoon: key === "shop" ? false : Boolean(item?.comingSoon),
+    openInNewTab: Boolean(item?.openInNewTab),
   };
 }
 

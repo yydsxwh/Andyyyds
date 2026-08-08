@@ -18,6 +18,7 @@ function mapUser(u: {
   roleReviewedAt: Date | null;
   referralCode: string;
   wechatOpenId: string;
+  wechatWebOpenId: string;
   createdAt: Date;
   referredBy: { id: string; name: string; referralCode: string } | null;
   /** 其邀请进来的下级（注册时 referredBy 指向此人） */
@@ -49,7 +50,9 @@ function mapUser(u: {
     referredById: u.referredBy?.id || "",
     referredByName: u.referredBy?.name || "",
     referredByCode: u.referredBy?.referralCode || "",
-    hasWechat: Boolean(u.wechatOpenId?.trim()),
+    hasWechat: Boolean(
+      u.wechatOpenId?.trim() || u.wechatWebOpenId?.trim(),
+    ),
     createdAt: u.createdAt.toISOString(),
     orderCount: u._count.orders,
     enrollmentCount: u._count.enrollments,
@@ -82,6 +85,7 @@ export default async function StudioUsersPage() {
     roleReviewedAt: true,
     referralCode: true,
     wechatOpenId: true,
+    wechatWebOpenId: true,
     createdAt: true,
     referredBy: { select: { id: true, name: true, referralCode: true } },
     referrals: {

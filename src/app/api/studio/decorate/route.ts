@@ -27,10 +27,20 @@ const bannerSchema = z.object({
   id: z.string().min(1).max(64),
   url: z.string().min(1).max(800),
   alt: z.string().max(120).optional(),
+  href: z.string().max(800).optional(),
+  openInNewTab: z.boolean().optional(),
+});
+
+const ctaSchema = z.object({
+  label: z.string().min(1).max(40),
+  href: z.string().min(1).max(800),
+  openInNewTab: z.boolean().optional(),
 });
 
 const patchSchema = z.object({
   logoUrl: z.string().max(800).optional(),
+  logoHref: z.string().max(800).optional(),
+  logoOpenInNewTab: z.boolean().optional(),
   siteName: z.string().max(80).optional(),
   brandName: z.string().max(80).optional(),
   showBrandText: z.boolean().optional(),
@@ -38,6 +48,8 @@ const patchSchema = z.object({
   heroSubtext: z.string().max(500).optional(),
   heroImageUrl: z.string().max(800).optional(),
   banners: z.array(bannerSchema).max(20).optional(),
+  heroPrimaryCta: ctaSchema.optional(),
+  heroSecondaryCta: ctaSchema.optional(),
   themePackId: z.string().max(64).optional(),
   paletteId: z.string().max(64).optional(),
   backgroundId: z.string().max(64).optional(),
@@ -93,6 +105,10 @@ export async function PATCH(req: Request) {
         id: b.id,
         url: b.url.trim(),
         alt: (b.alt || "").trim(),
+        href: (b.href || "").trim().slice(0, 800),
+        // 未传时保留旧值；全新项默认新标签（主图投放链）
+        openInNewTab:
+          typeof b.openInNewTab === "boolean" ? b.openInNewTab : true,
       }))
       .filter((b) => b.url);
 
@@ -129,6 +145,9 @@ export async function PATCH(req: Request) {
 
     const next = {
       logoUrl: (body.logoUrl ?? current.logoUrl).trim() || DEFAULT_DECORATE.logoUrl,
+      logoHref: (body.logoHref ?? current.logoHref ?? "").trim().slice(0, 800),
+      logoOpenInNewTab:
+        body.logoOpenInNewTab ?? current.logoOpenInNewTab ?? false,
       siteName:
         (body.siteName ?? current.siteName ?? brandName).trim() ||
         DEFAULT_DECORATE.siteName,
@@ -144,6 +163,20 @@ export async function PATCH(req: Request) {
         (body.heroImageUrl ?? banners[0]?.url ?? current.heroImageUrl).trim() ||
         DEFAULT_DECORATE.heroImageUrl,
       banners: banners.length ? banners : structuredClone(DEFAULT_DECORATE.banners),
+      heroPrimaryCta: body.heroPrimaryCta
+        ? {
+            label: body.heroPrimaryCta.label.trim(),
+            href: body.heroPrimaryCta.href.trim(),
+            openInNewTab: Boolean(body.heroPrimaryCta.openInNewTab),
+          }
+        : current.heroPrimaryCta,
+      heroSecondaryCta: body.heroSecondaryCta
+        ? {
+            label: body.heroSecondaryCta.label.trim(),
+            href: body.heroSecondaryCta.href.trim(),
+            openInNewTab: Boolean(body.heroSecondaryCta.openInNewTab),
+          }
+        : current.heroSecondaryCta,
       themePackId: themePackId || "",
       paletteId,
       backgroundId,

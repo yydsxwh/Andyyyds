@@ -199,6 +199,7 @@ export const QZONE_THEME_PACKS: ThemePack[] = [
     tagline: "仿 QQ 空间同名装扮 · 彩虹光斑",
     paletteId: "qzone-rainbow-sunny",
     backgroundId: "qzone-bg-rainbow-sunny",
+    category: "qzone",
     cover:
       "radial-gradient(circle at 20% 30%, rgba(251,113,133,0.55), transparent 28%), radial-gradient(circle at 70% 20%, rgba(250,204,21,0.45), transparent 26%), radial-gradient(circle at 85% 60%, rgba(56,189,248,0.5), transparent 30%), linear-gradient(165deg,#fff5fa,#ffe4f0 50%,#e0f2fe)",
   },
@@ -208,6 +209,7 @@ export const QZONE_THEME_PACKS: ThemePack[] = [
     tagline: "浅绿田野 · 金色光斑",
     paletteId: "qzone-dandelion",
     backgroundId: "qzone-bg-dandelion",
+    category: "qzone",
     cover:
       "radial-gradient(circle at 30% 40%, rgba(254,240,138,0.6), transparent 30%), radial-gradient(circle at 70% 20%, rgba(190,242,100,0.5), transparent 28%), linear-gradient(180deg,#f7fcf4,#e8f5d8)",
   },
@@ -217,6 +219,7 @@ export const QZONE_THEME_PACKS: ThemePack[] = [
     tagline: "薰衣草紫空 · 星点闪烁",
     paletteId: "qzone-starry-pastel",
     backgroundId: "qzone-bg-starry",
+    category: "qzone",
     cover:
       "radial-gradient(circle at 20% 20%, rgba(196,181,253,0.55), transparent 28%), radial-gradient(circle at 80% 40%, rgba(244,114,182,0.35), transparent 30%), linear-gradient(180deg,#f7f4ff,#ddd6fe)",
   },
@@ -226,6 +229,7 @@ export const QZONE_THEME_PACKS: ThemePack[] = [
     tagline: "粉瓣春光 · 温柔浪漫",
     paletteId: "qzone-sakura",
     backgroundId: "qzone-bg-sakura",
+    category: "qzone",
     cover:
       "radial-gradient(circle at 25% 30%, rgba(251,113,133,0.45), transparent 28%), radial-gradient(circle at 75% 20%, rgba(249,168,212,0.5), transparent 30%), linear-gradient(180deg,#fff7fa,#ffe4ef)",
   },
@@ -235,6 +239,7 @@ export const QZONE_THEME_PACKS: ThemePack[] = [
     tagline: "冰蓝柠檬 · 气泡清爽",
     paletteId: "qzone-summer-soda",
     backgroundId: "qzone-bg-soda",
+    category: "qzone",
     cover:
       "radial-gradient(circle at 30% 40%, rgba(125,211,252,0.55), transparent 28%), radial-gradient(circle at 70% 25%, rgba(254,240,138,0.45), transparent 26%), linear-gradient(180deg,#f4fbff,#bae6fd)",
   },
@@ -244,6 +249,7 @@ export const QZONE_THEME_PACKS: ThemePack[] = [
     tagline: "暖橙枫意 · 午后光漏",
     paletteId: "qzone-autumn-whisper",
     backgroundId: "qzone-bg-autumn",
+    category: "qzone",
     cover:
       "radial-gradient(circle at 35% 25%, rgba(251,146,60,0.5), transparent 30%), radial-gradient(circle at 75% 50%, rgba(248,113,113,0.35), transparent 28%), linear-gradient(180deg,#fff8f2,#ffedd5)",
   },
@@ -253,6 +259,7 @@ export const QZONE_THEME_PACKS: ThemePack[] = [
     tagline: "青绿海水 · 水波光影",
     paletteId: "qzone-ocean-dream",
     backgroundId: "qzone-bg-ocean",
+    category: "qzone",
     cover:
       "radial-gradient(circle at 40% 20%, rgba(45,212,191,0.45), transparent 30%), radial-gradient(circle at 80% 60%, rgba(56,189,248,0.4), transparent 28%), linear-gradient(180deg,#f2fbfb,#ccfbf1)",
   },
@@ -262,6 +269,7 @@ export const QZONE_THEME_PACKS: ThemePack[] = [
     tagline: "粉紫云絮 · 软甜氛围",
     paletteId: "qzone-candy-cloud",
     backgroundId: "qzone-bg-candy",
+    category: "qzone",
     cover:
       "radial-gradient(circle at 25% 35%, rgba(244,114,182,0.5), transparent 30%), radial-gradient(circle at 70% 25%, rgba(216,180,254,0.55), transparent 32%), linear-gradient(180deg,#fff5fb,#f5d0fe)",
   },
@@ -271,6 +279,7 @@ export const QZONE_THEME_PACKS: ThemePack[] = [
     tagline: "晴空远行 · 轻盈蓝调",
     paletteId: "qzone-paper-plane",
     backgroundId: "qzone-bg-plane",
+    category: "qzone",
     cover:
       "radial-gradient(circle at 50% 20%, rgba(147,197,253,0.5), transparent 35%), linear-gradient(180deg,#f5faff,#bfdbfe)",
   },
@@ -280,6 +289,7 @@ export const QZONE_THEME_PACKS: ThemePack[] = [
     tagline: "雨窗光斑 · 竖彩条纹",
     paletteId: "qzone-rainbow-rain",
     backgroundId: "qzone-bg-rain",
+    category: "qzone",
     cover:
       "linear-gradient(90deg,rgba(248,113,113,0.25),rgba(250,204,21,0.25),rgba(74,222,128,0.25),rgba(56,189,248,0.25),rgba(167,139,250,0.25)), linear-gradient(180deg,#f4f7fb,#e2e8f0)",
   },

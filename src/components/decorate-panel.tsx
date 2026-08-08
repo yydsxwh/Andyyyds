@@ -50,6 +50,14 @@ export function DecoratePanel({ initial }: Props) {
     banners: initial.banners?.length
       ? initial.banners
       : structuredClone(DEFAULT_DECORATE.banners),
+    heroPrimaryCta: {
+      ...DEFAULT_DECORATE.heroPrimaryCta,
+      ...(initial.heroPrimaryCta || {}),
+    },
+    heroSecondaryCta: {
+      ...DEFAULT_DECORATE.heroSecondaryCta,
+      ...(initial.heroSecondaryCta || {}),
+    },
   }));
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -130,6 +138,8 @@ export function DecoratePanel({ initial }: Props) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         logoUrl: form.logoUrl,
+        logoHref: form.logoHref || "",
+        logoOpenInNewTab: Boolean(form.logoOpenInNewTab),
         siteName: form.siteName,
         brandName: form.brandName,
         showBrandText: form.showBrandText,
@@ -137,6 +147,8 @@ export function DecoratePanel({ initial }: Props) {
         heroSubtext: form.heroSubtext,
         heroImageUrl: form.heroImageUrl,
         banners: form.banners,
+        heroPrimaryCta: form.heroPrimaryCta,
+        heroSecondaryCta: form.heroSecondaryCta,
       }),
     });
     setSaving(false);
@@ -179,6 +191,29 @@ export function DecoratePanel({ initial }: Props) {
                 placeholder={DEFAULT_LOGO_URL}
               />
             </Field>
+            <Field
+              label="链接地址（首页 Logo）"
+              hint="填了才可点；可写站内路径如 /courses，或 https:// 外链。顶栏 Logo 仍固定回首页。"
+            >
+              <input
+                className={inputClass}
+                value={form.logoHref || ""}
+                onChange={(e) => patch({ logoHref: e.target.value })}
+                placeholder="在此填写链接，如 /courses 或 https://…"
+                inputMode="url"
+                autoComplete="off"
+              />
+            </Field>
+            <label className="flex min-h-11 items-center gap-2 text-sm text-[var(--muted)]">
+              <input
+                type="checkbox"
+                checked={Boolean(form.logoOpenInNewTab)}
+                onChange={(e) =>
+                  patch({ logoOpenInNewTab: e.target.checked })
+                }
+              />
+              新标签页打开
+            </label>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
@@ -258,6 +293,110 @@ export function DecoratePanel({ initial }: Props) {
             onChange={(e) => patch({ heroSubtext: e.target.value })}
           />
         </Field>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2 rounded-2xl border border-[var(--line)] bg-white/50 p-3">
+            <p className="text-sm font-medium text-[var(--ink)]">主按钮</p>
+            <Field label="按钮文案">
+              <input
+                className={inputClass}
+                value={form.heroPrimaryCta?.label || ""}
+                onChange={(e) =>
+                  patch({
+                    heroPrimaryCta: {
+                      ...form.heroPrimaryCta,
+                      label: e.target.value,
+                    },
+                  })
+                }
+                placeholder="进入知识付费"
+                maxLength={40}
+              />
+            </Field>
+            <Field label="链接地址">
+              <input
+                className={inputClass}
+                value={form.heroPrimaryCta?.href || ""}
+                onChange={(e) =>
+                  patch({
+                    heroPrimaryCta: {
+                      ...form.heroPrimaryCta,
+                      href: e.target.value,
+                    },
+                  })
+                }
+                placeholder="在此填写链接，如 /courses 或 https://…"
+                inputMode="url"
+                autoComplete="off"
+              />
+            </Field>
+            <label className="flex min-h-11 items-center gap-2 text-sm text-[var(--muted)]">
+              <input
+                type="checkbox"
+                checked={Boolean(form.heroPrimaryCta?.openInNewTab)}
+                onChange={(e) =>
+                  patch({
+                    heroPrimaryCta: {
+                      ...form.heroPrimaryCta,
+                      openInNewTab: e.target.checked,
+                    },
+                  })
+                }
+              />
+              新标签页打开
+            </label>
+          </div>
+          <div className="space-y-2 rounded-2xl border border-[var(--line)] bg-white/50 p-3">
+            <p className="text-sm font-medium text-[var(--ink)]">次按钮</p>
+            <Field label="按钮文案">
+              <input
+                className={inputClass}
+                value={form.heroSecondaryCta?.label || ""}
+                onChange={(e) =>
+                  patch({
+                    heroSecondaryCta: {
+                      ...form.heroSecondaryCta,
+                      label: e.target.value,
+                    },
+                  })
+                }
+                placeholder="了解公司"
+                maxLength={40}
+              />
+            </Field>
+            <Field label="链接地址">
+              <input
+                className={inputClass}
+                value={form.heroSecondaryCta?.href || ""}
+                onChange={(e) =>
+                  patch({
+                    heroSecondaryCta: {
+                      ...form.heroSecondaryCta,
+                      href: e.target.value,
+                    },
+                  })
+                }
+                placeholder="在此填写链接，如 /about/company 或 https://…"
+                inputMode="url"
+                autoComplete="off"
+              />
+            </Field>
+            <label className="flex min-h-11 items-center gap-2 text-sm text-[var(--muted)]">
+              <input
+                type="checkbox"
+                checked={Boolean(form.heroSecondaryCta?.openInNewTab)}
+                onChange={(e) =>
+                  patch({
+                    heroSecondaryCta: {
+                      ...form.heroSecondaryCta,
+                      openInNewTab: e.target.checked,
+                    },
+                  })
+                }
+              />
+              新标签页打开
+            </label>
+          </div>
+        </div>
       </div>
 
       <div className="surface space-y-4 rounded-[28px] p-6">
@@ -265,7 +404,7 @@ export function DecoratePanel({ initial }: Props) {
           <div>
             <h2 className="text-lg font-semibold">首页主视觉 / Banner</h2>
             <p className="mt-1 text-sm text-[var(--muted)]">
-              第一张用作首页右侧大图；可上传、粘贴 URL、删除与调序。
+              第一张用作首页右侧大图；可上传、粘贴 URL、删除与调序。每张图可单独填「链接地址」，主图默认新标签打开。
             </p>
           </div>
           <button
@@ -321,6 +460,38 @@ export function DecoratePanel({ initial }: Props) {
                     }
                   />
                 </Field>
+                <Field
+                  label={
+                    index === 0
+                      ? "链接地址（首页主图，点击跳转）"
+                      : "链接地址"
+                  }
+                  hint="可填站内路径或 https；留空则图片不可点"
+                >
+                  <input
+                    className={inputClass}
+                    value={banner.href || ""}
+                    onChange={(e) =>
+                      updateBanner(banner.id, { href: e.target.value })
+                    }
+                    placeholder="在此填写链接，如 /courses 或 https://…"
+                    inputMode="url"
+                    autoComplete="off"
+                  />
+                </Field>
+                <label className="flex min-h-11 items-center gap-2 text-sm text-[var(--muted)]">
+                  <input
+                    type="checkbox"
+                    checked={banner.openInNewTab !== false}
+                    onChange={(e) =>
+                      updateBanner(banner.id, {
+                        openInNewTab: e.target.checked,
+                      })
+                    }
+                  />
+                  新标签页打开
+                  {index === 0 ? "（主图默认开启）" : ""}
+                </label>
               </div>
               <div className="flex flex-wrap gap-2 lg:flex-col">
                 <button

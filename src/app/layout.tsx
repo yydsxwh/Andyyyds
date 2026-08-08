@@ -8,7 +8,12 @@ import { SiteTypographyStyles } from "@/components/site-typography-styles";
 import { TiltParallaxProvider } from "@/components/tilt-parallax-provider";
 import { DEFAULT_DECORATE, DEFAULT_LOGO_URL } from "@/lib/decorate";
 import { getDecorateConfig } from "@/lib/site-settings";
-import { buildThemeStyleVars, paletteById } from "@/lib/site-theme";
+import { resolveThemeFx } from "@/lib/site-theme-islands";
+import {
+  buildThemeStyleVars,
+  paletteById,
+  themePackById,
+} from "@/lib/site-theme";
 import {
   buildTypographyCss,
   buildTypographyFontVars,
@@ -75,9 +80,20 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   }) as CSSProperties;
   const typographyCss = buildTypographyCss(decorate.typography);
   const fontUrls = collectTypographyFontUrls(decorate.typography);
+  // 海岛/阳光等装扮的 CSS 动效（光斑/海浪）；无则不挂属性
+  const themeFx = resolveThemeFx({
+    themePackId: decorate.themePackId,
+    backgroundId: decorate.backgroundId,
+    packFx: themePackById(decorate.themePackId)?.fx,
+  });
 
   return (
-    <html lang="zh-CN" className="h-full" style={themeStyle}>
+    <html
+      lang="zh-CN"
+      className="h-full"
+      style={themeStyle}
+      data-theme-fx={themeFx || undefined}
+    >
       <body className="min-h-full flex flex-col antialiased">
         <TiltParallaxProvider>
           <SiteFontLinks urls={fontUrls} />

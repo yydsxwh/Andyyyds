@@ -9,12 +9,13 @@ import {
 } from "@/components/save-feedback";
 import { SiteFontLoader } from "@/components/site-font-loader";
 import type { DecorateConfig } from "@/lib/decorate";
+import { resolveThemeFx } from "@/lib/site-theme-islands";
 import {
   DEFAULT_FONT_SIZES,
   FONT_SIZE_FIELDS,
   LAYOUT_DENSITIES,
   THEME_BACKGROUNDS,
-  THEME_PACKS,
+  THEME_PACK_CATEGORIES,
   THEME_PALETTE_CATEGORIES,
   THEME_PALETTES,
   applyThemePreview,
@@ -23,11 +24,13 @@ import {
   categoryLabel,
   normalizeFontSizes,
   paletteById,
+  packsInCategory,
   palettesInCategory,
   themePackById,
   type FontSizeKey,
   type FontSizesConfig,
   type LayoutDensity,
+  type ThemePackCategory,
   type ThemePaletteCategory,
 } from "@/lib/site-theme";
 import {
@@ -57,6 +60,7 @@ import {
 
 type TabKey = "packs" | "backgrounds" | "palettes" | "layout" | "type";
 type PaletteFilter = "all" | ThemePaletteCategory;
+type PackFilter = "all" | ThemePackCategory;
 
 /** 装扮草稿：仅本地试穿，点「保存装扮」后才写入 SiteSettings */
 type ThemeDraft = {
@@ -113,6 +117,8 @@ export function SiteThemePanel({ initial }: Props) {
   const [saved, setSaved] = useState<ThemeDraft>(() => draftFromConfig(initial));
   const [draft, setDraft] = useState<ThemeDraft>(() => draftFromConfig(initial));
   const [paletteFilter, setPaletteFilter] = useState<PaletteFilter>("all");
+  // 默认露出「海岛/阳光」，方便站长一键试穿热带装扮
+  const [packFilter, setPackFilter] = useState<PackFilter>("island");
   const [fontFilter, setFontFilter] = useState<FontCategory | "all">("all");
   const [fontSearch, setFontSearch] = useState("");
   const [activeTypeRole, setActiveTypeRole] = useState<FontSizeKey>("heroTitle");
@@ -174,6 +180,11 @@ export function SiteThemePanel({ initial }: Props) {
     [paletteFilter],
   );
 
+  const filteredPacks = useMemo(
+    () => packsInCategory(packFilter),
+    [packFilter],
+  );
+
   /** 「全部」时按分类分段展示，避免上百张卡片无序铺开 */
   const paletteSections = useMemo(() => {
     if (paletteFilter !== "all") {
@@ -226,6 +237,16 @@ export function SiteThemePanel({ initial }: Props) {
   // 试穿只改本页 CSS 变量；离开或切换时写回「已保存」，避免草稿泄漏到其它路由
   useEffect(() => {
     applyThemePreview(draftVars);
+    // 同步海岛动效到 html，与配色试穿同一生命周期
+    const draftFx = resolveThemeFx({
+      themePackId,
+      backgroundId,
+      packFx: themePackById(themePackId)?.fx,
+    });
+    const root = document.documentElement;
+    if (draftFx) root.setAttribute("data-theme-fx", draftFx);
+    else root.removeAttribute("data-theme-fx");
+
     let styleEl = document.getElementById(
       "site-typography-preview",
     ) as HTMLStyleElement | null;
@@ -246,11 +267,18 @@ export function SiteThemePanel({ initial }: Props) {
           fontFamilyVars: buildTypographyFontVars(latest.typography),
         }),
       );
+      const savedFx = resolveThemeFx({
+        themePackId: latest.themePackId,
+        backgroundId: latest.backgroundId,
+        packFx: themePackById(latest.themePackId)?.fx,
+      });
+      if (savedFx) root.setAttribute("data-theme-fx", savedFx);
+      else root.removeAttribute("data-theme-fx");
       if (styleEl) {
         styleEl.textContent = buildTypographyCss(latest.typography);
       }
     };
-  }, [draftVars, draftTypographyCss]);
+  }, [draftVars, draftTypographyCss, themePackId, backgroundId]);
 
   const currentPack = themePackById(themePackId);
   const currentPalette = paletteById(paletteId);
@@ -564,10 +592,34 @@ export function SiteThemePanel({ initial }: Props) {
         <section className="space-y-3">
           <Header
             title="一键装扮"
-            hint="主题包会同时切换背景与配色，适合快速定调"
+            hint="主题包会同时切换背景与配色；「海岛/阳光」含唯美摄影与轻动效"
           />
+          {/* 分类横滑：窄屏/微信内可触控点选「海岛/阳光」 */}
+          <div
+            className="flex gap-2 overflow-x-auto pb-1"
+            role="group"
+            aria-label="主题包分类"
+          >
+            {THEME_PACK_CATEGORIES.map((cat) => {
+              const active = packFilter === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  className={`min-h-10 shrink-0 rounded-full px-3.5 text-sm font-medium transition ${
+                    active
+                      ? "bg-[var(--brand)] text-white"
+                      : "border border-[var(--line)] bg-white/80 text-[var(--muted)]"
+                  }`}
+                  onClick={() => setPackFilter(cat.id)}
+                >
+                  {cat.label}
+                </button>
+              );
+            })}
+          </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {THEME_PACKS.map((pack) => {
+            {filteredPacks.map((pack) => {
               const selected = themePackId === pack.id;
               return (
                 <button

@@ -97,6 +97,7 @@ const patchSchema = z.object({
             href: z.string().min(1).max(300),
             enabled: z.boolean().optional(),
             comingSoon: z.boolean().optional(),
+            openInNewTab: z.boolean().optional(),
           }),
         )
         .max(20)

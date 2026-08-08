@@ -1,11 +1,18 @@
 import Link from "next/link";
+import { ConfigurableLink } from "@/components/configurable-link";
 import { ContactUsPanel } from "@/components/contact-us-panel";
 import { CourseCard } from "@/components/course-card";
 import {
   PageModulesView,
   shouldUseDiyLayout,
 } from "@/components/page-modules-view";
-import { DEFAULT_LOGO_URL, resolveHeroImage } from "@/lib/decorate";
+import {
+  DEFAULT_HERO_PRIMARY_CTA,
+  DEFAULT_HERO_SECONDARY_CTA,
+  DEFAULT_LOGO_URL,
+  resolveBannerOpenInNewTab,
+  resolveHeroImage,
+} from "@/lib/decorate";
 import { prisma } from "@/lib/db";
 import {
   DEFAULT_HOME_SECTION_ORDER,
@@ -51,7 +58,15 @@ function ContactSection({ contact }: { contact: PortalContact }) {
 function HeroSection({ decorate }: { decorate: DecorateConfig }) {
   const logoUrl = decorate.logoUrl || DEFAULT_LOGO_URL;
   const heroImage = resolveHeroImage(decorate);
-  const heroAlt = decorate.banners[0]?.alt || "品牌主视觉";
+  const heroBanner = decorate.banners[0];
+  const heroAlt = heroBanner?.alt || "品牌主视觉";
+  // 主视觉大图：有 href 才可点；未配 openInNewTab 时默认新标签（投放/外链常见）
+  const heroHref = (heroBanner?.href || "").trim();
+  const heroOpenInNewTab = heroBanner
+    ? resolveBannerOpenInNewTab(heroBanner)
+    : true;
+  const primaryCta = decorate.heroPrimaryCta || DEFAULT_HERO_PRIMARY_CTA;
+  const secondaryCta = decorate.heroSecondaryCta || DEFAULT_HERO_SECONDARY_CTA;
 
   return (
     <section className="relative overflow-hidden">
@@ -67,12 +82,19 @@ function HeroSection({ decorate }: { decorate: DecorateConfig }) {
       <div className="container grid min-h-[78vh] items-center gap-10 py-16 lg:grid-cols-[1.05fr_0.95fr]">
         <div className="tilt-layer-fg fade-up space-y-6">
           <div className="space-y-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={logoUrl}
-              alt={decorate.brandName || "歪歪艾斯"}
-              className="h-20 w-auto max-w-[min(100%,420px)] object-contain sm:h-24 md:h-28"
-            />
+            <ConfigurableLink
+              href={decorate.logoHref}
+              openInNewTab={Boolean(decorate.logoOpenInNewTab)}
+              className="inline-block max-w-full touch-manipulation"
+              ariaLabel={decorate.brandName || "品牌 Logo"}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={logoUrl}
+                alt={decorate.brandName || "歪歪艾斯"}
+                className="h-20 w-auto max-w-[min(100%,420px)] object-contain sm:h-24 md:h-28"
+              />
+            </ConfigurableLink>
             {decorate.showBrandText ? (
               <p
                 className={`brand-mark text-[var(--ink)] ${typoRoleClass("heroTitle")}`}
@@ -95,23 +117,40 @@ function HeroSection({ decorate }: { decorate: DecorateConfig }) {
             {decorate.heroSubtext}
           </p>
           <div className="flex flex-wrap gap-3">
-            <Link href="/courses" className="btn btn-primary">
-              进入知识付费
-            </Link>
-            <Link href="/about/company" className="btn btn-fire">
-              了解公司
-            </Link>
+            {primaryCta.href ? (
+              <ConfigurableLink
+                href={primaryCta.href}
+                openInNewTab={Boolean(primaryCta.openInNewTab)}
+                className="btn btn-primary touch-manipulation"
+              >
+                {primaryCta.label || DEFAULT_HERO_PRIMARY_CTA.label}
+              </ConfigurableLink>
+            ) : null}
+            {secondaryCta.href ? (
+              <ConfigurableLink
+                href={secondaryCta.href}
+                openInNewTab={Boolean(secondaryCta.openInNewTab)}
+                className="btn btn-fire touch-manipulation"
+              >
+                {secondaryCta.label || DEFAULT_HERO_SECONDARY_CTA.label}
+              </ConfigurableLink>
+            ) : null}
           </div>
         </div>
         <div className="fade-up-delay hero-glow relative">
-          <div className="tilt-hero-frame float-soft surface surface-fire overflow-hidden rounded-[36px]">
+          <ConfigurableLink
+            href={heroHref}
+            openInNewTab={heroOpenInNewTab}
+            className="tilt-hero-frame float-soft surface surface-fire block overflow-hidden rounded-[36px] touch-manipulation"
+            ariaLabel={heroAlt}
+          >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={heroImage}
               alt={heroAlt}
               className="tilt-layer-mid aspect-[4/5] w-full object-cover sm:aspect-[5/4] lg:aspect-[4/5]"
             />
-          </div>
+          </ConfigurableLink>
         </div>
       </div>
     </section>
@@ -124,19 +163,26 @@ function BannersSection({ decorate }: { decorate: DecorateConfig }) {
     <section className="pb-8">
       <div className="container">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {decorate.banners.slice(1).map((banner) => (
-            <div
-              key={banner.id}
-              className="surface overflow-hidden rounded-[28px]"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={banner.url}
-                alt={banner.alt || decorate.brandName}
-                className="aspect-[16/10] w-full object-cover"
-              />
-            </div>
-          ))}
+          {decorate.banners.slice(1).map((banner) => {
+            const href = (banner.href || "").trim();
+            const openInNewTab = resolveBannerOpenInNewTab(banner);
+            return (
+              <ConfigurableLink
+                key={banner.id}
+                href={href}
+                openInNewTab={openInNewTab}
+                className="surface block overflow-hidden rounded-[28px] touch-manipulation"
+                ariaLabel={banner.alt || decorate.brandName}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={banner.url}
+                  alt={banner.alt || decorate.brandName}
+                  className="aspect-[16/10] w-full object-cover"
+                />
+              </ConfigurableLink>
+            );
+          })}
         </div>
       </div>
     </section>
@@ -163,10 +209,11 @@ function PortalEntranceSection({ modules }: { modules: PortalNavLink[] }) {
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {modules.map((item) => (
-            <Link
+            <ConfigurableLink
               key={item.key}
               href={item.href}
-              className="surface-soft group rounded-[28px] p-5 transition hover:-translate-y-0.5 active:-translate-y-0.5"
+              openInNewTab={Boolean(item.openInNewTab)}
+              className="surface-soft group block rounded-[28px] p-5 transition touch-manipulation hover:-translate-y-0.5 active:-translate-y-0.5"
             >
               <div
                 className={`font-semibold group-hover:text-[var(--brand)] ${typoRoleClass("portalCardTitle")}`}
@@ -180,7 +227,7 @@ function PortalEntranceSection({ modules }: { modules: PortalNavLink[] }) {
               >
                 {item.comingSoon ? "即将开放，先了解规划" : "点击进入"}
               </p>
-            </Link>
+            </ConfigurableLink>
           ))}
         </div>
       </div>

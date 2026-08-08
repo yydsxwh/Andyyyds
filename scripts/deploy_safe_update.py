@@ -31,6 +31,7 @@ EXCLUDE_DIRS = {
     "agent-transcripts",
     "assets",
     ".cursor",
+    "tmp",
 }
 EXCLUDE_FILES = {".env", "dev.db", "dev.db-journal", "prod.db", "prod.db-journal"}
 

@@ -62,6 +62,7 @@ export default async function AccountPage() {
         email: true,
         phone: true,
         wechatOpenId: true,
+        wechatWebOpenId: true,
         avatarUrl: true,
         passwordSet: true,
       },
@@ -150,7 +151,7 @@ export default async function AccountPage() {
     ? accountEmail
     : user?.phone
       ? user.phone
-      : user?.wechatOpenId
+      : user?.wechatOpenId || user?.wechatWebOpenId
         ? "微信登录"
         : "未绑定邮箱";
 
@@ -208,7 +209,7 @@ export default async function AccountPage() {
       <AccountAuthPanel
         email={accountEmail}
         phone={user?.phone || ""}
-        hasWechat={Boolean(user?.wechatOpenId)}
+        hasWechat={Boolean(user?.wechatOpenId || user?.wechatWebOpenId)}
         passwordSet={user?.passwordSet !== false}
       />
 
