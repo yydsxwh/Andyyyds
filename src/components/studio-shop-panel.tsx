@@ -21,6 +21,7 @@ export type StudioShopProduct = {
   specs: ShopSpecsConfig;
   price: number;
   originalPrice: number;
+  hidePrice?: boolean;
   status: string;
   studentCount: number;
   categoryId: string | null;
@@ -46,6 +47,7 @@ const emptyForm = {
   description: "",
   price: "9.9",
   originalPrice: "",
+  hidePrice: false,
   coverUrl: "",
   galleryText: "",
   specsText: "",
@@ -115,6 +117,7 @@ export function StudioShopPanel({ initialProducts, categories }: Props) {
       price: centsToYuanInput(p.price),
       originalPrice:
         p.originalPrice > p.price ? centsToYuanInput(p.originalPrice) : "",
+      hidePrice: Boolean(p.hidePrice),
       coverUrl: p.coverUrl,
       galleryText: (p.gallery || []).join("\n"),
       specsText: specsToText(p.specs),
@@ -142,6 +145,7 @@ export function StudioShopPanel({ initialProducts, categories }: Props) {
       description: form.description.trim() || "商城商品",
       price: form.price,
       originalPrice: form.originalPrice || undefined,
+      hidePrice: form.hidePrice,
       coverUrl: form.coverUrl.trim() || gallery[0] || undefined,
       gallery,
       specs: parseSpecsText(form.specsText),
@@ -294,6 +298,22 @@ export function StudioShopPanel({ initialProducts, categories }: Props) {
               />
             </label>
           </div>
+          <label className="flex min-h-11 cursor-pointer items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-4 w-4 accent-[var(--brand)]"
+              checked={form.hidePrice}
+              onChange={(e) =>
+                setForm({ ...form, hidePrice: e.target.checked })
+              }
+            />
+            <span>
+              前台隐藏价格
+              <span className="mt-0.5 block text-xs text-[var(--muted)]">
+                列表与详情不显示售价；结账仍显示应付金额
+              </span>
+            </span>
+          </label>
           <ImageUrlField
             label="封面图"
             value={form.coverUrl}

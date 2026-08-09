@@ -52,6 +52,8 @@ export const meetupWriteSchema = z.object({
   contentHtml: z.string().max(100_000).optional().default(""),
   contentBlocks: z.array(z.unknown()).max(40).optional(),
   priceYuan: z.union([z.number(), z.string()]).optional(),
+  /** 前台营销面隐藏报名费（结账仍显示应付） */
+  hidePrice: z.boolean().optional(),
   category: z.string().trim(),
   startsAt: z.string().min(1),
   endsAt: z.string().optional().nullable(),
@@ -99,6 +101,7 @@ export type ParsedMeetupWrite = {
   description: string;
   contentHtml: string;
   priceCents: number;
+  hidePrice: boolean;
   category: string;
   startsAt: Date;
   endsAt: Date | null;
@@ -272,6 +275,7 @@ export function parseMeetupWriteBody(
       description: body.description || "",
       contentHtml,
       priceCents,
+      hidePrice: Boolean(body.hidePrice),
       category: body.category,
       startsAt,
       endsAt,

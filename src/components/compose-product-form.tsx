@@ -90,6 +90,7 @@ export function ComposeProductForm({
   const [subtitle, setSubtitle] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("99");
+  const [hidePrice, setHidePrice] = useState(false);
   const [groupByCategory, setGroupByCategory] = useState(true);
   const [publish, setPublish] = useState(true);
   const isColumn = productType === "COLUMN";
@@ -470,6 +471,7 @@ export function ComposeProductForm({
           subtitle,
           description: trimmedDesc,
           price,
+          hidePrice,
           publish,
           groupByCategory: isColumn ? false : groupByCategory,
           ...(isColumn
@@ -1039,6 +1041,20 @@ export function ComposeProductForm({
                 </span>
               </div>
               <p className="mt-1 text-xs text-[var(--muted)]">{copy.priceHint}</p>
+              <label className="mt-3 flex min-h-11 cursor-pointer items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-4 w-4 accent-[var(--brand)]"
+                  checked={hidePrice}
+                  onChange={(e) => setHidePrice(e.target.checked)}
+                />
+                <span>
+                  前台隐藏价格
+                  <span className="mt-0.5 block text-xs text-[var(--muted)]">
+                    列表与详情不显示售价；结账仍显示应付金额
+                  </span>
+                </span>
+              </label>
             </div>
             {!isColumn ? (
               <label className="flex items-center gap-2 text-sm">

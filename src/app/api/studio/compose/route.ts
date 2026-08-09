@@ -19,6 +19,7 @@ const schema = z
     // 产品介绍选填；空字符串也允许
     description: z.string().trim().max(5000).optional().default(""),
     price: z.union([z.string(), z.number()]),
+    hidePrice: z.boolean().optional(),
     coverUrl: z.string().optional(),
     publish: z.boolean().optional(),
     /** 单课/资料：素材 id */
@@ -130,6 +131,7 @@ export async function POST(req: Request) {
           price: priceCents,
           originalPrice: priceCents,
           isFree: priceCents <= 0,
+          hidePrice: Boolean(body.hidePrice),
           status: publish ? "PUBLISHED" : "DRAFT",
           productType: "COLUMN",
           teacherId: session.id,
@@ -194,6 +196,7 @@ export async function POST(req: Request) {
         price: priceCents,
         originalPrice: priceCents,
         isFree: priceCents <= 0,
+        hidePrice: Boolean(body.hidePrice),
         status: publish ? "PUBLISHED" : "DRAFT",
         productType: body.productType,
         teacherId: session.id,

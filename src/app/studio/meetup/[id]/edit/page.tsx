@@ -29,6 +29,7 @@ export default async function StudioMeetupEditPage({
         include: { _count: { select: { joins: true } } },
       },
       host: { select: { name: true } },
+      productCourse: { select: { hidePrice: true } },
     },
   });
   if (!meetup) notFound();
@@ -55,7 +56,7 @@ export default async function StudioMeetupEditPage({
         mode="edit"
         apiPath={`/api/studio/meetups/${meetup.id}`}
         showStatus
-        successHref={() => `/studio/meetup`}
+        successHref="/studio/meetup"
         submitLabel="保存修改"
         initial={{
           id: meetup.id,
@@ -63,6 +64,7 @@ export default async function StudioMeetupEditPage({
           description: meetup.description,
           contentHtml: meetup.contentHtml || "",
           priceCents: meetup.priceCents,
+          hidePrice: Boolean(meetup.productCourse?.hidePrice),
           category: meetup.category,
           startsAt: meetup.startsAt.toISOString(),
           endsAt: meetup.endsAt?.toISOString() ?? null,

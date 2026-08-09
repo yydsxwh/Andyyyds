@@ -38,6 +38,9 @@ import {
   type OrderFormAnswers,
   type OrderFormConfig,
 } from "@/lib/order-form";
+import { StartConsultChatButton } from "@/components/chat/start-consult-chat-button";
+import { CHAT_SOURCE } from "@/lib/chat/constants";
+import { shouldHideProductPrice } from "@/lib/product-price-display";
 import { formatPrice } from "@/lib/utils";
 
 export type MeetupDetailJoin = {
@@ -61,6 +64,8 @@ export type MeetupDetailData = {
   description: string;
   contentHtml: string;
   priceCents: number;
+  /** 对应可售壳 Course.hidePrice */
+  hidePrice?: boolean;
   category: string;
   startsAt: string;
   endsAt: string | null;
@@ -122,6 +127,8 @@ type Props = {
   siteContact?: SiteContactFallback | null;
   /** 站长可在前台详情改状态/跳转后台编辑（微信内也可用） */
   canManageAsAdmin?: boolean;
+  /** 全站藏价；与 meetup.hidePrice 任一为真则营销面不标价 */
+  hideAllPrices?: boolean;
 };
 
 function initials(name: string) {
@@ -189,9 +196,14 @@ export function MeetupDetailView({
   orderForm,
   siteContact = null,
   canManageAsAdmin = false,
+  hideAllPrices = false,
 }: Props) {
   const router = useRouter();
   const paid = isMeetupPaid(meetup.priceCents);
+  const hidePriceDisplay = shouldHideProductPrice({
+    hideAllPrices,
+    hidePrice: meetup.hidePrice,
+  });
   const isHost = Boolean(currentUserId && currentUserId === meetup.hostId);
   const canManageStatus = isHost || canManageAsAdmin;
   const alreadyJoined = Boolean(
@@ -364,9 +376,11 @@ export function MeetupDetailView({
         meetup.refundPolicy
           ? `<p><strong>退款政策</strong><br/>${meetup.refundPolicy.replace(/</g, "&lt;")}</p>`
           : "",
-        paid
-          ? `<p>报名费 ${formatPrice(meetup.priceCents)}/人（以发起人说明为准）</p>`
-          : "<p>本场免费参与</p>",
+        hidePriceDisplay
+          ? ""
+          : paid
+            ? `<p>报名费 ${formatPrice(meetup.priceCents)}/人（以发起人说明为准）</p>`
+            : "<p>本场免费参与</p>",
       ]
         .filter(Boolean)
         .join("\n");
@@ -619,21 +633,29 @@ export function MeetupDetailView({
         {/* 价格 / 余位 / 标题 */}
         <section className="surface px-4 py-4">
           <div className="flex items-end justify-between gap-3">
-            <div className="text-2xl font-semibold text-[var(--brand-strong)]">
-              {paid ? (
-                <>
-                  {formatPrice(meetup.priceCents)}
-                  <span className="text-sm font-normal text-[var(--muted)]">
-                    /人
-                  </span>
-                </>
-              ) : (
-                "免费"
-              )}
-            </div>
-            <div className="text-right text-xs text-[var(--muted)]">
-              余位 {spotsLeft} / 已报 {joinedPeople}
-            </div>
+            {hidePriceDisplay ? (
+              <div className="text-sm text-[var(--muted)]">
+                余位 {spotsLeft} / 已报 {joinedPeople}
+              </div>
+            ) : (
+              <>
+                <div className="text-2xl font-semibold text-[var(--brand-strong)]">
+                  {paid ? (
+                    <>
+                      {formatPrice(meetup.priceCents)}
+                      <span className="text-sm font-normal text-[var(--muted)]">
+                        /人
+                      </span>
+                    </>
+                  ) : (
+                    "免费"
+                  )}
+                </div>
+                <div className="text-right text-xs text-[var(--muted)]">
+                  余位 {spotsLeft} / 已报 {joinedPeople}
+                </div>
+              </>
+            )}
           </div>
           <h1 className="mt-3 text-lg font-semibold leading-snug sm:text-xl">
             {meetup.title}
@@ -1050,6 +1072,20 @@ export function MeetupDetailView({
                 打开联系/群聊链接 →
               </a>
             ) : null}
+            {currentUserId !== meetup.hostId ? (
+              <div className="mt-4 border-t border-[var(--line)] pt-3">
+                <StartConsultChatButton
+                  peerUserId={meetup.hostId}
+                  source={CHAT_SOURCE.MEETUP_CONSULT}
+                  relatedMeetupId={meetup.id}
+                >
+                  站内私聊发起人
+                </StartConsultChatButton>
+                <p className="mt-2 text-center text-xs text-[var(--muted)]">
+                  对方确认接受后即可聊天
+                </p>
+              </div>
+            ) : null}
           </div>
         </div>
       ) : null}
@@ -1175,18 +1211,21 @@ export function MeetupDetailView({
                 </div>
                 <div className="mt-1 text-xs text-[var(--muted)]">
                   余位: {slotSpotsLeft}
+                  {!hidePriceDisplay && paid ? ` · ${partySize} 人` : null}
                 </div>
-                <div className="mt-1 text-sm">
-                  <span className="text-[var(--brand-strong)]">
-                    {paid ? formatPrice(meetup.priceCents) : "免费"}
-                  </span>
-                  {paid ? (
-                    <span className="text-[var(--muted)]">
-                      {" "}
-                      /人 × {partySize}
+                {hidePriceDisplay ? null : (
+                  <div className="mt-1 text-sm">
+                    <span className="text-[var(--brand-strong)]">
+                      {paid ? formatPrice(meetup.priceCents) : "免费"}
                     </span>
-                  ) : null}
-                </div>
+                    {paid ? (
+                      <span className="text-[var(--muted)]">
+                        {" "}
+                        /人 × {partySize}
+                      </span>
+                    ) : null}
+                  </div>
+                )}
               </div>
             </div>
 

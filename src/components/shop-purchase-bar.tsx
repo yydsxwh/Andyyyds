@@ -20,6 +20,8 @@ type Props = {
   isFree: boolean;
   specs: ShopSpecsConfig;
   orderForm: OrderFormConfig;
+  /** 营销面隐藏售价（结账页仍显示应付） */
+  hidePriceDisplay?: boolean;
 };
 
 /**
@@ -33,6 +35,7 @@ export function ShopPurchaseBar({
   isFree,
   specs,
   orderForm,
+  hidePriceDisplay = false,
 }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState<"cart" | "buy" | null>(null);
@@ -187,14 +190,22 @@ export function ShopPurchaseBar({
           <div className="mx-auto w-full max-w-lg rounded-t-2xl bg-[var(--card)] p-4 pb-8 shadow-xl">
             <div className="mb-3 flex items-center justify-between">
               <div>
-                <div className="text-lg font-semibold text-[var(--fire)]">
-                  {isFree ? "免费" : formatPrice(lineTotal)}
-                </div>
-                {!isFree && quantity > 1 ? (
-                  <div className="text-xs text-[var(--muted)]">
-                    单价 {formatPrice(price)} × {quantity}
+                {hidePriceDisplay ? (
+                  <div className="text-lg font-semibold text-[var(--ink)]">
+                    {open === "cart" ? "加入购物车" : "确认购买"}
                   </div>
-                ) : null}
+                ) : (
+                  <>
+                    <div className="text-lg font-semibold text-[var(--fire)]">
+                      {isFree ? "免费" : formatPrice(lineTotal)}
+                    </div>
+                    {!isFree && quantity > 1 ? (
+                      <div className="text-xs text-[var(--muted)]">
+                        单价 {formatPrice(price)} × {quantity}
+                      </div>
+                    ) : null}
+                  </>
+                )}
               </div>
               <button
                 type="button"

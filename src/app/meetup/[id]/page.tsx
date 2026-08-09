@@ -14,6 +14,7 @@ import {
 } from "@/lib/meetup-service-contact";
 import { canManageMeetups } from "@/lib/roles";
 import {
+  getHideAllPricesFlag,
   getOrderFormConfig,
   getPortalConfig,
 } from "@/lib/site-settings";
@@ -85,9 +86,16 @@ export default async function MeetupDetailPage({
       )?.referralCode || ""
     : "";
 
-  const [orderForm, portal] = await Promise.all([
+  const [orderForm, portal, hideAllPrices, productCourse] = await Promise.all([
     getOrderFormConfig(),
     getPortalConfig(),
+    getHideAllPricesFlag(),
+    meetup.productCourseId
+      ? prisma.course.findUnique({
+          where: { id: meetup.productCourseId },
+          select: { hidePrice: true },
+        })
+      : Promise.resolve(null),
   ]);
   const siteContact = portal.contact;
 
@@ -97,6 +105,7 @@ export default async function MeetupDetailPage({
     description: meetup.description,
     contentHtml: meetup.contentHtml || "",
     priceCents: meetup.priceCents,
+    hidePrice: Boolean(productCourse?.hidePrice),
     category: meetup.category,
     startsAt: meetup.startsAt.toISOString(),
     endsAt: meetup.endsAt ? meetup.endsAt.toISOString() : null,
@@ -162,6 +171,7 @@ export default async function MeetupDetailPage({
       canManageAsAdmin={
         session ? canManageMeetups(session.role) : false
       }
+      hideAllPrices={hideAllPrices}
     />
   );
 }

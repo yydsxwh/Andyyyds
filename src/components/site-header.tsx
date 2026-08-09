@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ChatUnreadBadge } from "@/components/chat/chat-unread-badge";
 import { SiteHeaderNav, type HeaderNavLink } from "@/components/site-header-nav";
 import { SiteHomeClock } from "@/components/site-home-clock";
 import { UserAvatar } from "@/components/user-avatar";
@@ -112,6 +113,7 @@ export async function SiteHeader() {
           <SiteHeaderNav links={links} variant="mobile" />
           {session ? (
             <>
+              <ChatUnreadBadge />
               {/* 右上角头像+昵称 → 个人中心；触控区域足够大，手机可点 */}
               <Link
                 href="/account"

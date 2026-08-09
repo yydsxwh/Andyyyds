@@ -19,6 +19,7 @@ const patchItemSchema = z.object({
   sortOrder: z.number().int().min(0).optional(),
   isPinned: z.boolean().optional(),
   isFeatured: z.boolean().optional(),
+  hidePrice: z.boolean().optional(),
   /** 下架用 DRAFT，上架用 PUBLISHED；有订单时优先下架而非硬删 */
   status: z.enum(["DRAFT", "PUBLISHED"]).optional(),
 });
@@ -55,6 +56,7 @@ export async function GET() {
         sortOrder: p.sortOrder,
         isPinned: p.isPinned,
         isFeatured: p.isFeatured,
+        hidePrice: p.hidePrice,
         teacherName: p.teacher.name,
         categoryName: p.category?.name || "",
         enrollmentCount: p._count.enrollments,
@@ -109,11 +111,13 @@ export async function PATCH(req: Request) {
             sortOrder?: number;
             isPinned?: boolean;
             isFeatured?: boolean;
+            hidePrice?: boolean;
             status?: string;
           } = {};
           if (item.sortOrder !== undefined) data.sortOrder = item.sortOrder;
           if (item.isPinned !== undefined) data.isPinned = item.isPinned;
           if (item.isFeatured !== undefined) data.isFeatured = item.isFeatured;
+          if (item.hidePrice !== undefined) data.hidePrice = item.hidePrice;
           if (item.status !== undefined) data.status = item.status;
           if (Object.keys(data).length === 0) continue;
           await tx.course.update({

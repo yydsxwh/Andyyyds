@@ -262,6 +262,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
       const row = await tx.meetup.findUniqueOrThrow({ where: { id } });
       await ensureMeetupProductCourse(tx, {
         ...row,
+        hidePrice: data.hidePrice,
         productCourseId: row.productCourseId,
       });
     });

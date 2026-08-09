@@ -1,12 +1,18 @@
 import { redirect, notFound } from "next/navigation";
+import { StartConsultChatButton } from "@/components/chat/start-consult-chat-button";
 import { CourseShareBar } from "@/components/course-share-bar";
 import { PurchasePanel } from "@/components/purchase-panel";
+import { CHAT_SOURCE } from "@/lib/chat/constants";
 import { getSession } from "@/lib/auth";
 import { canPreviewAllLessons } from "@/lib/course-access";
 import { prisma } from "@/lib/db";
 import { lessonTypeLabel } from "@/lib/lesson-kinds";
 import { formatBytes } from "@/lib/media";
-import { getOrderFormConfig } from "@/lib/site-settings";
+import { shouldHideProductPrice } from "@/lib/product-price-display";
+import {
+  getHideAllPricesFlag,
+  getOrderFormConfig,
+} from "@/lib/site-settings";
 import { resolveStoredAccessUrl } from "@/lib/storage";
 import { decodeRouteSlug, formatDuration, formatPrice } from "@/lib/utils";
 
@@ -20,7 +26,10 @@ export default async function MaterialDetailPage({
 }) {
   const { slug: rawSlug } = await params;
   const slug = decodeRouteSlug(rawSlug);
-  const session = await getSession();
+  const [session, hideAllPrices] = await Promise.all([
+    getSession(),
+    getHideAllPricesFlag(),
+  ]);
   const course = await prisma.course.findUnique({
     where: { slug },
     include: {
@@ -48,6 +57,11 @@ export default async function MaterialDetailPage({
   if (course.productType !== "MATERIAL") {
     redirect(`/courses/${encodeURIComponent(slug)}`);
   }
+
+  const hidePriceDisplay = shouldHideProductPrice({
+    hideAllPrices,
+    hidePrice: course.hidePrice,
+  });
 
   const enrolled = session
     ? Boolean(
@@ -98,7 +112,9 @@ export default async function MaterialDetailPage({
               <span>{course.studentCount} 人已购</span>
               <span>★ {course.rating.toFixed(1)}</span>
               <span>{lessonCount} 个文件</span>
-              <span>{course.isFree ? "免费" : formatPrice(course.price)}</span>
+              {hidePriceDisplay ? null : (
+                <span>{course.isFree ? "免费" : formatPrice(course.price)}</span>
+              )}
             </div>
             <p className="leading-7 text-[var(--ink)]">{course.description}</p>
           </div>
@@ -162,7 +178,17 @@ export default async function MaterialDetailPage({
           orderForm={orderForm}
           productLabel="资料"
           canStaffPreview={canStaffPreview}
+          hidePriceDisplay={hidePriceDisplay}
         />
+        {session?.id !== course.teacherId ? (
+          <StartConsultChatButton
+            peerUserId={course.teacherId}
+            source={CHAT_SOURCE.PRODUCT_CONSULT}
+            relatedCourseId={course.id}
+          >
+            私聊咨询老师
+          </StartConsultChatButton>
+        ) : null}
         <CourseShareBar
           slug={course.slug}
           title={course.title}

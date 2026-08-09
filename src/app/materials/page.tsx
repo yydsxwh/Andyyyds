@@ -2,6 +2,7 @@ import { CourseCard } from "@/components/course-card";
 import { PlazaSwitcher } from "@/components/plaza-switcher";
 import { prisma } from "@/lib/db";
 import { PRODUCT_PLAZA_ORDER_BY } from "@/lib/product-display-order";
+import { getHideAllPricesFlag } from "@/lib/site-settings";
 import { typoRoleClass, typoRoleStyle } from "@/lib/site-typography";
 import { withSignedCoverUrls } from "@/lib/storage";
 
@@ -17,9 +18,9 @@ export default async function MaterialsPage({
   const q = params.q?.trim();
   const category = params.category?.trim();
 
-  const categories = await prisma.category.findMany({ orderBy: { name: "asc" } });
-  const materials = await withSignedCoverUrls(
-    await prisma.course.findMany({
+  const [categories, materialsRaw, hideAllPrices] = await Promise.all([
+    prisma.category.findMany({ orderBy: { name: "asc" } }),
+    prisma.course.findMany({
       where: {
         status: "PUBLISHED",
         productType: "MATERIAL",
@@ -37,7 +38,9 @@ export default async function MaterialsPage({
       include: { teacher: true, category: true },
       orderBy: PRODUCT_PLAZA_ORDER_BY,
     }),
-  );
+    getHideAllPricesFlag(),
+  ]);
+  const materials = await withSignedCoverUrls(materialsRaw);
 
   return (
     <div className="container py-12">
@@ -81,7 +84,11 @@ export default async function MaterialsPage({
 
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {materials.map((item) => (
-          <CourseCard key={item.id} course={item} />
+          <CourseCard
+            key={item.id}
+            course={item}
+            hideAllPrices={hideAllPrices}
+          />
         ))}
       </div>
       {materials.length === 0 ? (

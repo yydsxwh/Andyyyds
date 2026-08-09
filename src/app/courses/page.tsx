@@ -3,6 +3,7 @@ import { NavPageTemplateShell } from "@/components/nav-page-template-shell";
 import { PlazaSwitcher } from "@/components/plaza-switcher";
 import { prisma } from "@/lib/db";
 import { PRODUCT_PLAZA_ORDER_BY } from "@/lib/product-display-order";
+import { getHideAllPricesFlag } from "@/lib/site-settings";
 import { typoRoleClass, typoRoleStyle } from "@/lib/site-typography";
 import { withSignedCoverUrls } from "@/lib/storage";
 
@@ -17,10 +18,10 @@ export default async function CoursesPage({
   const q = params.q?.trim();
   const category = params.category?.trim();
 
-  const categories = await prisma.category.findMany({ orderBy: { name: "asc" } });
-  // 课程广场只展示单课/专栏；资料走同页家族的 /materials Tab
-  const courses = await withSignedCoverUrls(
-    await prisma.course.findMany({
+  const [categories, coursesRaw, hideAllPrices] = await Promise.all([
+    prisma.category.findMany({ orderBy: { name: "asc" } }),
+    // 课程广场只展示单课/专栏；资料走同页家族的 /materials Tab
+    prisma.course.findMany({
       where: {
         status: "PUBLISHED",
         productType: { in: ["COURSE", "COLUMN"] },
@@ -39,7 +40,9 @@ export default async function CoursesPage({
       // 站长产品管理：置顶优先，再 sortOrder，再人气/时间
       orderBy: PRODUCT_PLAZA_ORDER_BY,
     }),
-  );
+    getHideAllPricesFlag(),
+  ]);
+  const courses = await withSignedCoverUrls(coursesRaw);
 
   return (
     <NavPageTemplateShell type="courses">
@@ -84,7 +87,11 @@ export default async function CoursesPage({
 
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {courses.map((course) => (
-          <CourseCard key={course.id} course={course} />
+          <CourseCard
+            key={course.id}
+            course={course}
+            hideAllPrices={hideAllPrices}
+          />
         ))}
       </div>
       {courses.length === 0 ? (

@@ -74,6 +74,7 @@ export type EditableCourse = {
   subtitle: string;
   description: string;
   price: number;
+  hidePrice?: boolean;
   coverUrl: string;
   status: string;
   productType: string;
@@ -158,6 +159,7 @@ export function EditCourseForm({
   const [subtitle, setSubtitle] = useState(course.subtitle || "");
   const [description, setDescription] = useState(course.description || "");
   const [price, setPrice] = useState(centsToYuanString(course.price));
+  const [hidePrice, setHidePrice] = useState(Boolean(course.hidePrice));
   const [coverUrl, setCoverUrl] = useState(course.coverUrl || "");
   const [slug, setSlug] = useState(course.slug);
   const [productType, setProductType] = useState<
@@ -440,6 +442,7 @@ export function EditCourseForm({
           subtitle: subtitle.trim(),
           description: trimmedDesc,
           price,
+          hidePrice,
           coverUrl: coverUrl.trim(),
           slug: slug.trim(),
           productType,
@@ -632,6 +635,20 @@ export function EditCourseForm({
             </p>
           </label>
         </div>
+        <label className="flex min-h-11 cursor-pointer items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            className="mt-0.5 h-4 w-4 accent-[var(--brand)]"
+            checked={hidePrice}
+            onChange={(e) => setHidePrice(e.target.checked)}
+          />
+          <span>
+            前台隐藏价格
+            <span className="mt-0.5 block text-xs text-[var(--muted)]">
+              列表与详情不显示售价；结账仍显示应付金额
+            </span>
+          </span>
+        </label>
 
         <ImageUrlField
           label="封面图"

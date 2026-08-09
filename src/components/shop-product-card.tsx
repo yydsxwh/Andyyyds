@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { shouldHideProductPrice } from "@/lib/product-price-display";
 import { formatPrice } from "@/lib/utils";
 
 type Props = {
@@ -13,14 +14,20 @@ type Props = {
     studentCount: number;
     rating: number;
     isFree: boolean;
+    hidePrice?: boolean;
     isPinned?: boolean;
     isFeatured?: boolean;
     category: { name: string } | null;
   };
+  hideAllPrices?: boolean;
 };
 
 /** 淘宝式双列商品卡：图 + 标题 + 价 + 销量占位 */
-export function ShopProductCard({ product }: Props) {
+export function ShopProductCard({ product, hideAllPrices = false }: Props) {
+  const hidePrice = shouldHideProductPrice({
+    hideAllPrices,
+    hidePrice: product.hidePrice,
+  });
   return (
     <Link
       href={`/shop/${product.slug}`}
@@ -58,20 +65,29 @@ export function ShopProductCard({ product }: Props) {
           </p>
         ) : null}
         <div className="mt-auto flex items-end justify-between gap-2 pt-1">
-          <div>
-            <div className="text-base font-semibold text-[var(--fire)]">
-              {product.isFree ? "免费" : formatPrice(product.price)}
+          {hidePrice ? (
+            <div className="text-right text-[10px] text-[var(--muted)]">
+              <div>{product.category?.name || "综合"}</div>
+              <div>已售 {product.studentCount}</div>
             </div>
-            {!product.isFree && product.originalPrice > product.price ? (
-              <div className="text-[10px] text-[var(--muted)] line-through">
-                {formatPrice(product.originalPrice)}
+          ) : (
+            <>
+              <div>
+                <div className="text-base font-semibold text-[var(--fire)]">
+                  {product.isFree ? "免费" : formatPrice(product.price)}
+                </div>
+                {!product.isFree && product.originalPrice > product.price ? (
+                  <div className="text-[10px] text-[var(--muted)] line-through">
+                    {formatPrice(product.originalPrice)}
+                  </div>
+                ) : null}
               </div>
-            ) : null}
-          </div>
-          <div className="text-right text-[10px] text-[var(--muted)]">
-            <div>{product.category?.name || "综合"}</div>
-            <div>已售 {product.studentCount}</div>
-          </div>
+              <div className="text-right text-[10px] text-[var(--muted)]">
+                <div>{product.category?.name || "综合"}</div>
+                <div>已售 {product.studentCount}</div>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </Link>

@@ -42,6 +42,7 @@ export default async function MeetupEditPage({
         orderBy: { sortOrder: "asc" },
         include: { _count: { select: { joins: true } } },
       },
+      productCourse: { select: { hidePrice: true } },
     },
   });
   if (!meetup) notFound();
@@ -74,7 +75,7 @@ export default async function MeetupEditPage({
         mode="edit"
         apiPath={`/api/meetup/${meetup.id}`}
         showStatus
-        successHref={(meetupId) => `/meetup/${meetupId}`}
+        successHref="/meetup/{id}"
         submitLabel="保存修改"
         initial={{
           id: meetup.id,
@@ -82,6 +83,7 @@ export default async function MeetupEditPage({
           description: meetup.description,
           contentHtml: meetup.contentHtml || "",
           priceCents: meetup.priceCents,
+          hidePrice: Boolean(meetup.productCourse?.hidePrice),
           category: meetup.category,
           startsAt: meetup.startsAt.toISOString(),
           endsAt: meetup.endsAt?.toISOString() ?? null,

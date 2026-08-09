@@ -1,13 +1,19 @@
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
+import { StartConsultChatButton } from "@/components/chat/start-consult-chat-button";
 import { CourseShareBar } from "@/components/course-share-bar";
 import { PurchasePanel } from "@/components/purchase-panel";
+import { CHAT_SOURCE } from "@/lib/chat/constants";
 import { getSession } from "@/lib/auth";
 import { canPreviewAllLessons } from "@/lib/course-access";
 import { listColumnBundleCourses } from "@/lib/course-bundle";
 import { prisma } from "@/lib/db";
 import { productDetailPath, productTypeLabel } from "@/lib/product-types";
-import { getOrderFormConfig } from "@/lib/site-settings";
+import { shouldHideProductPrice } from "@/lib/product-price-display";
+import {
+  getHideAllPricesFlag,
+  getOrderFormConfig,
+} from "@/lib/site-settings";
 import { resolveStoredAccessUrl } from "@/lib/storage";
 import { decodeRouteSlug, formatDuration, formatPrice } from "@/lib/utils";
 
@@ -20,7 +26,10 @@ export default async function CourseDetailPage({
 }) {
   const { slug: rawSlug } = await params;
   const slug = decodeRouteSlug(rawSlug);
-  const session = await getSession();
+  const [session, hideAllPrices] = await Promise.all([
+    getSession(),
+    getHideAllPricesFlag(),
+  ]);
   const course = await prisma.course.findUnique({
     where: { slug },
     include: {
@@ -109,6 +118,10 @@ export default async function CourseDetailPage({
     (c) => c.status === "PUBLISHED",
   );
   const sumListPrice = publishedBundle.reduce((n, c) => n + c.price, 0);
+  const hidePriceDisplay = shouldHideProductPrice({
+    hideAllPrices,
+    hidePrice: course.hidePrice,
+  });
 
   return (
     <div className="container grid gap-8 py-12 lg:grid-cols-[1.4fr_0.8fr]">
@@ -138,8 +151,13 @@ export default async function CourseDetailPage({
               ) : (
                 <span>{lessonCount} 课时</span>
               )}
-              <span>{course.isFree ? "免费" : formatPrice(course.price)}</span>
-              {isColumn && sumListPrice > course.price && course.price > 0 ? (
+              {hidePriceDisplay ? null : (
+                <span>{course.isFree ? "免费" : formatPrice(course.price)}</span>
+              )}
+              {!hidePriceDisplay &&
+              isColumn &&
+              sumListPrice > course.price &&
+              course.price > 0 ? (
                 <span className="line-through">
                   单买合计 {formatPrice(sumListPrice)}
                 </span>
@@ -179,9 +197,11 @@ export default async function CourseDetailPage({
                             {child.subtitle}
                           </p>
                         ) : null}
-                        <div className="mt-1 text-sm text-[var(--muted)]">
-                          单独售价 {formatPrice(child.price)}
-                        </div>
+                        {hidePriceDisplay ? null : (
+                          <div className="mt-1 text-sm text-[var(--muted)]">
+                            单独售价 {formatPrice(child.price)}
+                          </div>
+                        )}
                       </div>
                       <div className="flex shrink-0 flex-wrap gap-2">
                         {enrolled || owned || canStaffPreview ? (
@@ -287,7 +307,17 @@ export default async function CourseDetailPage({
           productLabel={isColumn ? "专栏" : "课程"}
           canStaffPreview={canStaffPreview}
           learnHref={afterPurchaseHref}
+          hidePriceDisplay={hidePriceDisplay}
         />
+        {session?.id !== course.teacherId ? (
+          <StartConsultChatButton
+            peerUserId={course.teacherId}
+            source={CHAT_SOURCE.PRODUCT_CONSULT}
+            relatedCourseId={course.id}
+          >
+            私聊咨询老师
+          </StartConsultChatButton>
+        ) : null}
         <CourseShareBar
           slug={course.slug}
           title={course.title}

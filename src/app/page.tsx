@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { HomeUserChatSearch } from "@/components/chat/home-user-chat-search";
 import { ConfigurableLink } from "@/components/configurable-link";
 import { ContactUsPanel } from "@/components/contact-us-panel";
 import { CourseCard } from "@/components/course-card";
+import { getSession } from "@/lib/auth";
 import {
   MeetupCard,
   type MeetupCardData,
@@ -39,6 +41,7 @@ import { getDefaultTemplate } from "@/lib/page-templates";
 import { PRODUCT_PLAZA_ORDER_BY } from "@/lib/product-display-order";
 import {
   getDecorateConfig,
+  getHideAllPricesFlag,
   getPageTemplatesConfig,
   getPortalConfig,
 } from "@/lib/site-settings";
@@ -248,7 +251,13 @@ function PortalEntranceSection({ modules }: { modules: PortalNavLink[] }) {
   );
 }
 
-function HotCoursesSection({ courses }: { courses: CourseCardRow[] }) {
+function HotCoursesSection({
+  courses,
+  hideAllPrices,
+}: {
+  courses: CourseCardRow[];
+  hideAllPrices: boolean;
+}) {
   if (!courses.length) return null;
   return (
     <section className="pb-16 sm:pb-20">
@@ -278,7 +287,11 @@ function HotCoursesSection({ courses }: { courses: CourseCardRow[] }) {
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {courses.map((course) => (
-            <CourseCard key={course.id} course={course} />
+            <CourseCard
+              key={course.id}
+              course={course}
+              hideAllPrices={hideAllPrices}
+            />
           ))}
         </div>
       </div>
@@ -286,7 +299,13 @@ function HotCoursesSection({ courses }: { courses: CourseCardRow[] }) {
   );
 }
 
-function HotMeetupsSection({ meetups }: { meetups: MeetupCardData[] }) {
+function HotMeetupsSection({
+  meetups,
+  hideAllPrices,
+}: {
+  meetups: MeetupCardData[];
+  hideAllPrices: boolean;
+}) {
   if (!meetups.length) return null;
   return (
     <section className="pb-20">
@@ -316,7 +335,11 @@ function HotMeetupsSection({ meetups }: { meetups: MeetupCardData[] }) {
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {meetups.map((meetup) => (
-            <MeetupCard key={meetup.id} meetup={meetup} />
+            <MeetupCard
+              key={meetup.id}
+              meetup={meetup}
+              hideAllPrices={hideAllPrices}
+            />
           ))}
         </div>
       </div>
@@ -331,6 +354,8 @@ function ClassicHomeByOrder({
   modules,
   courses,
   meetups,
+  hideAllPrices,
+  loggedIn,
 }: {
   order: HomeSectionEntry[];
   contact: PortalContact;
@@ -338,11 +363,15 @@ function ClassicHomeByOrder({
   modules: PortalNavLink[];
   courses: CourseCardRow[];
   meetups: MeetupCardData[];
+  hideAllPrices: boolean;
+  loggedIn: boolean;
 }) {
   // 按 CMS 顺序渲染，并跳过 visible===false 的区块（隐藏后仍保留后台位次）
   const sectionIds: HomeSectionId[] = visibleHomeSectionIds(order);
   return (
     <div>
+      {/* 找人私聊独立于 CMS 区块，始终在首页靠前展示 */}
+      <HomeUserChatSearch loggedIn={loggedIn} />
       {sectionIds.map((sectionId) => {
         switch (sectionId) {
           case "contact":
@@ -354,9 +383,21 @@ function ClassicHomeByOrder({
           case "portal":
             return <PortalEntranceSection key="portal" modules={modules} />;
           case "courses":
-            return <HotCoursesSection key="courses" courses={courses} />;
+            return (
+              <HotCoursesSection
+                key="courses"
+                courses={courses}
+                hideAllPrices={hideAllPrices}
+              />
+            );
           case "meetup":
-            return <HotMeetupsSection key="meetup" meetups={meetups} />;
+            return (
+              <HotMeetupsSection
+                key="meetup"
+                meetups={meetups}
+                hideAllPrices={hideAllPrices}
+              />
+            );
           default: {
             const _exhaustive: never = sectionId;
             return _exhaustive;
@@ -373,6 +414,7 @@ async function loadHomeMeetups(): Promise<MeetupCardData[]> {
     where: buildMeetupPlazaWhere(),
     include: {
       host: { select: { id: true, name: true, avatarUrl: true } },
+      productCourse: { select: { hidePrice: true } },
       _count: { select: { joins: true } },
     },
     orderBy: [{ startsAt: "desc" }, { createdAt: "desc" }],
@@ -400,12 +442,20 @@ async function loadHomeMeetups(): Promise<MeetupCardData[]> {
     host: { name: m.host.name },
     hostId: m.hostId,
     priceCents: m.priceCents,
+    hidePrice: Boolean(m.productCourse?.hidePrice),
   }));
 }
 
 export default async function HomePage() {
-  const [coursesRaw, meetups, decorate, portal, pageTemplates] =
-    await Promise.all([
+  const [
+    coursesRaw,
+    meetups,
+    decorate,
+    portal,
+    pageTemplates,
+    hideAllPrices,
+    session,
+  ] = await Promise.all([
       prisma.course.findMany({
         where: {
           status: "PUBLISHED",
@@ -420,7 +470,10 @@ export default async function HomePage() {
       getDecorateConfig(),
       getPortalConfig(),
       getPageTemplatesConfig(),
+      getHideAllPricesFlag(),
+      getSession(),
     ]);
+  const loggedIn = Boolean(session);
 
   const contact = portal.contact || DEFAULT_PORTAL_CONTACT;
   const homeSectionOrder = normalizeHomeSectionOrder(
@@ -446,9 +499,18 @@ export default async function HomePage() {
             <ContactUsPanel contact={contact} variant="hero" />
           </div>
         ) : null}
-        <PageModulesView template={diyHome!} />
+        <HomeUserChatSearch loggedIn={loggedIn} />
+        <PageModulesView
+          template={diyHome!}
+          hideAllPrices={hideAllPrices}
+        />
         {/* DIY 模块未内置约搭：区块开启时在 DIY 内容后补热门约搭 */}
-        {showMeetupSection ? <HotMeetupsSection meetups={meetups} /> : null}
+        {showMeetupSection ? (
+          <HotMeetupsSection
+            meetups={meetups}
+            hideAllPrices={hideAllPrices}
+          />
+        ) : null}
         {showContact && !contactBefore ? (
           <div className="w-full max-w-6xl px-3 sm:px-5 lg:px-8">
             <ContactUsPanel contact={contact} variant="hero" />
@@ -472,6 +534,8 @@ export default async function HomePage() {
       modules={modules}
       courses={courses}
       meetups={meetups}
+      hideAllPrices={hideAllPrices}
+      loggedIn={loggedIn}
     />
   );
 }

@@ -45,6 +45,7 @@ export default async function StudioShopPage() {
       specs: parseSpecs(p.specsJson),
       price: p.price,
       originalPrice: p.originalPrice,
+      hidePrice: p.hidePrice,
       status: p.status,
       studentCount: p.studentCount,
       categoryId: p.categoryId,

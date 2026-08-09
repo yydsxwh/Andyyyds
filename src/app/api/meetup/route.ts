@@ -292,6 +292,7 @@ export async function POST(req: Request) {
         contentHtml: created.contentHtml,
         coverUrl: created.coverUrl,
         priceCents: created.priceCents,
+        hidePrice: data.hidePrice,
         hostId: created.hostId,
         status: created.status,
       });

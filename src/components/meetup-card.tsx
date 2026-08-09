@@ -9,6 +9,7 @@ import {
   meetupStatusLabel,
 } from "@/lib/meetup";
 import { confirmAndDeleteMeetup } from "@/lib/meetup-delete-client";
+import { shouldHideProductPrice } from "@/lib/product-price-display";
 import { formatPrice } from "@/lib/utils";
 
 export type MeetupCardData = {
@@ -28,6 +29,8 @@ export type MeetupCardData = {
   hostId?: string;
   /** 报名费（分）；0 或未传视为免费 */
   priceCents?: number;
+  /** 对应可售壳 Course.hidePrice */
+  hidePrice?: boolean;
 };
 
 type Props = {
@@ -37,9 +40,14 @@ type Props = {
    * 由列表页按 session + canManageMeetups / hostId 算好再传入，避免卡片内再拉权限。
    */
   canEdit?: boolean;
+  hideAllPrices?: boolean;
 };
 
-export function MeetupCard({ meetup, canEdit = false }: Props) {
+export function MeetupCard({
+  meetup,
+  canEdit = false,
+  hideAllPrices = false,
+}: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const startsAt =
@@ -48,6 +56,10 @@ export function MeetupCard({ meetup, canEdit = false }: Props) {
       : meetup.startsAt;
   const spotsLeft = Math.max(meetup.maxPeople - meetup.joinCount, 0);
   const editHref = `/meetup/${meetup.id}/edit`;
+  const hidePrice = shouldHideProductPrice({
+    hideAllPrices,
+    hidePrice: meetup.hidePrice,
+  });
 
   async function onDelete() {
     setBusy(true);
@@ -109,17 +121,28 @@ export function MeetupCard({ meetup, canEdit = false }: Props) {
           </p>
           <p className="truncate text-sm text-[var(--ink)]">{meetup.place}</p>
           <div className="flex items-center justify-between gap-3 pt-2">
-            <span className="text-sm font-semibold text-emerald-600">
-              {(meetup.priceCents || 0) > 0
-                ? formatPrice(meetup.priceCents || 0)
-                : "免费"}
-            </span>
-            <span className="text-sm text-[var(--muted)]">
-              {meetup.joinCount}/{meetup.maxPeople}人
-              {spotsLeft > 0 && meetup.status === "OPEN"
-                ? ` · 余${spotsLeft}`
-                : ""}
-            </span>
+            {hidePrice ? (
+              <span className="text-sm text-[var(--muted)]">
+                {meetup.joinCount}/{meetup.maxPeople}人
+                {spotsLeft > 0 && meetup.status === "OPEN"
+                  ? ` · 余${spotsLeft}`
+                  : ""}
+              </span>
+            ) : (
+              <>
+                <span className="text-sm font-semibold text-emerald-600">
+                  {(meetup.priceCents || 0) > 0
+                    ? formatPrice(meetup.priceCents || 0)
+                    : "免费"}
+                </span>
+                <span className="text-sm text-[var(--muted)]">
+                  {meetup.joinCount}/{meetup.maxPeople}人
+                  {spotsLeft > 0 && meetup.status === "OPEN"
+                    ? ` · 余${spotsLeft}`
+                    : ""}
+                </span>
+              </>
+            )}
           </div>
         </div>
       </Link>

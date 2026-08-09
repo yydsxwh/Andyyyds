@@ -42,6 +42,7 @@ const createSchema = z.object({
   description: z.string().trim().max(10000).optional().default(""),
   price: z.union([z.string(), z.number()]),
   originalPrice: z.union([z.string(), z.number()]).optional(),
+  hidePrice: z.boolean().optional(),
   coverUrl: z.string().max(800).optional(),
   gallery: z.array(z.string().max(800)).max(12).optional(),
   specs: specsSchema.optional(),
@@ -56,6 +57,7 @@ const patchSchema = z.object({
   description: z.string().trim().max(10000).optional(),
   price: z.union([z.string(), z.number()]).optional(),
   originalPrice: z.union([z.string(), z.number()]).optional(),
+  hidePrice: z.boolean().optional(),
   coverUrl: z.string().max(800).optional(),
   gallery: z.array(z.string().max(800)).max(12).optional(),
   specs: specsSchema.optional(),
@@ -94,6 +96,7 @@ export async function GET() {
         specs: parseSpecs(p.specsJson),
         price: p.price,
         originalPrice: p.originalPrice,
+        hidePrice: p.hidePrice,
         status: p.status,
         studentCount: p.studentCount,
         categoryId: p.categoryId,
@@ -163,6 +166,7 @@ export async function POST(req: Request) {
         price: priceCents,
         originalPrice: Math.max(originalCents, priceCents),
         isFree: priceCents <= 0,
+        hidePrice: Boolean(body.hidePrice),
         status: publish ? "PUBLISHED" : "DRAFT",
         productType: SHOP_PRODUCT_TYPE,
         teacherId: session.id,
@@ -230,6 +234,7 @@ export async function PATCH(req: Request) {
         );
       }
     }
+    if (body.hidePrice !== undefined) data.hidePrice = body.hidePrice;
 
     const updated = await prisma.course.update({
       where: { id: existing.id },

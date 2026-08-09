@@ -13,6 +13,7 @@ import {
   sortMeetupPlazaRows,
 } from "@/lib/meetup";
 import { canManageMeetups } from "@/lib/roles";
+import { getHideAllPricesFlag } from "@/lib/site-settings";
 
 export const dynamic = "force-dynamic";
 
@@ -44,18 +45,22 @@ export default async function MeetupPlazaPage({
   const where = buildMeetupPlazaWhere({ category });
 
   // 取数用开场时间作候选池，再在内存按 sort 重排（综合/距离不便纯 SQL）
-  const rows = await prisma.meetup.findMany({
-    where,
-    include: {
-      host: { select: { id: true, name: true, avatarUrl: true } },
-      _count: { select: { joins: true } },
-    },
-    orderBy:
-      sort === "latest"
-        ? [{ createdAt: "desc" }, { startsAt: "desc" }]
-        : [{ startsAt: "desc" }, { createdAt: "desc" }],
-    take: MEETUP_PLAZA_TAKE,
-  });
+  const [rows, hideAllPrices] = await Promise.all([
+    prisma.meetup.findMany({
+      where,
+      include: {
+        host: { select: { id: true, name: true, avatarUrl: true } },
+        productCourse: { select: { hidePrice: true } },
+        _count: { select: { joins: true } },
+      },
+      orderBy:
+        sort === "latest"
+          ? [{ createdAt: "desc" }, { startsAt: "desc" }]
+          : [{ startsAt: "desc" }, { createdAt: "desc" }],
+      take: MEETUP_PLAZA_TAKE,
+    }),
+    getHideAllPricesFlag(),
+  ]);
 
   const meetups = sortMeetupPlazaRows(
     rows.map((m) => ({
@@ -104,6 +109,7 @@ export default async function MeetupPlazaPage({
             canEdit={
               isMeetupAdmin || Boolean(session && session.id === m.hostId)
             }
+            hideAllPrices={hideAllPrices}
             meetup={{
               id: m.id,
               title: m.title,
@@ -118,6 +124,7 @@ export default async function MeetupPlazaPage({
               host: { name: m.host.name },
               hostId: m.hostId,
               priceCents: m.priceCents,
+              hidePrice: Boolean(m.productCourse?.hidePrice),
             }}
           />
         ))}

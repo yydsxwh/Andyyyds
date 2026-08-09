@@ -185,6 +185,7 @@ export default async function EditCoursePage({
           subtitle: course.subtitle,
           description: course.description,
           price: course.price,
+          hidePrice: course.hidePrice,
           coverUrl: course.coverUrl,
           status: course.status,
           productType: course.productType,

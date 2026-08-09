@@ -45,6 +45,7 @@ export default async function StudioProductsPage() {
     sortOrder: p.sortOrder,
     isPinned: p.isPinned,
     isFeatured: p.isFeatured,
+    hidePrice: p.hidePrice,
     teacherName: p.teacher.name,
     categoryName: p.category?.name || "",
     enrollmentCount: p._count.enrollments,
@@ -69,7 +70,7 @@ export default async function StudioProductsPage() {
           key={products
             .map(
               (p) =>
-                `${p.id}:${p.sortOrder}:${p.isPinned}:${p.isFeatured}:${p.status}`,
+                `${p.id}:${p.sortOrder}:${p.isPinned}:${p.isFeatured}:${p.hidePrice}:${p.status}`,
             )
             .join("|")}
           initialProducts={products}

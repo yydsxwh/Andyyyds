@@ -46,6 +46,8 @@ type Props = {
   buyCtaLabel?: string;
   /** 支付说明旁白 */
   payHint?: string;
+  /** 营销面隐藏售价（结账页仍显示应付） */
+  hidePriceDisplay?: boolean;
 };
 
 export function PurchasePanel({
@@ -62,6 +64,7 @@ export function PurchasePanel({
   ownedCtaLabel,
   buyCtaLabel,
   payHint,
+  hidePriceDisplay = false,
 }: Props) {
   const goLearn = learnHref || `/learn/${slug}`;
   const router = useRouter();
@@ -239,25 +242,37 @@ export function PurchasePanel({
         >
           {isMaterial ? "预览资料" : isColumn ? "查看套餐" : "预览网课"}
         </button>
-        <p className="mt-3 text-xs text-[var(--muted)]">
-          前台售价 {isFree || price <= 0 ? "免费" : formatPrice(price)}
-          ；学员仍须购买后
-          {isMaterial ? "查看 / 下载" : "学习"}。
-        </p>
+        {hidePriceDisplay ? (
+          <p className="mt-3 text-xs text-[var(--muted)]">
+            学员仍须购买后{isMaterial ? "查看 / 下载" : "学习"}。
+          </p>
+        ) : (
+          <p className="mt-3 text-xs text-[var(--muted)]">
+            前台售价 {isFree || price <= 0 ? "免费" : formatPrice(price)}
+            ；学员仍须购买后
+            {isMaterial ? "查看 / 下载" : "学习"}。
+          </p>
+        )}
       </div>
     );
   }
 
   return (
     <div className="surface rounded-[28px] p-6">
-      <div className="text-3xl font-semibold text-[var(--brand)]">
-        {isFree || price <= 0
-          ? "免费领取"
-          : previewDiscount > 0
-            ? formatPrice(previewPay)
-            : `¥${(price / 100).toFixed(price % 100 === 0 ? 0 : 2)}`}
-      </div>
-      {previewDiscount > 0 ? (
+      {hidePriceDisplay ? (
+        <div className="text-xl font-semibold text-[var(--ink)]">
+          {isFree || price <= 0 ? "免费领取" : `获取${productLabel}`}
+        </div>
+      ) : (
+        <div className="text-3xl font-semibold text-[var(--brand)]">
+          {isFree || price <= 0
+            ? "免费领取"
+            : previewDiscount > 0
+              ? formatPrice(previewPay)
+              : `¥${(price / 100).toFixed(price % 100 === 0 ? 0 : 2)}`}
+        </div>
+      )}
+      {previewDiscount > 0 && !hidePriceDisplay ? (
         <p className="mt-1 text-sm text-[var(--fire)]">
           已选优惠 -{formatPrice(previewDiscount)}（原价 {formatPrice(price)}）
           {willZeroPay

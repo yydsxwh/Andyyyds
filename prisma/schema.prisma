@@ -55,6 +55,8 @@ model User {
   meetupJoins          MeetupJoin[]
   /// 商城购物车行
   cartItems            CartItem[]
+  chatMemberships      ChatMember[]
+  chatMessagesSent     ChatMessage[]      @relation("ChatMessageSender")
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
 
@@ -63,6 +65,71 @@ model User {
   @@index([wechatOpenId])
   @@index([wechatWebOpenId])
   @@index([wechatUnionId])
+  @@index([name])
+}
+
+/// 站内私聊/群聊会话（第一期以 DIRECT 为主；GROUP 预留做大）
+model ChatConversation {
+  id        String   @id @default(cuid())
+  /// DIRECT | GROUP
+  kind      String   @default("DIRECT")
+  /// PENDING=待对方确认 | ACTIVE=可聊天 | REJECTED | CLOSED
+  status    String   @default("PENDING")
+  /// DIRECT 时双方 userId 排序拼接，便于查重进行中的会话
+  directKey String   @default("")
+  initiatedById String
+  /// 直聊对方（DIRECT）；群聊为空
+  peerUserId String  @default("")
+  /// USER_SEARCH | PRODUCT_CONSULT | MEETUP_CONSULT | GROUP
+  source    String   @default("USER_SEARCH")
+  relatedCourseId String @default("")
+  relatedMeetupId String @default("")
+  /// 群标题等；直聊可空（展示时用对方昵称）
+  title     String   @default("")
+  lastMessageAt DateTime?
+  lastMessagePreview String @default("")
+  members   ChatMember[]
+  messages  ChatMessage[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([directKey, status])
+  @@index([status, lastMessageAt])
+  @@index([initiatedById])
+  @@index([peerUserId])
+}
+
+model ChatMember {
+  id             String   @id @default(cuid())
+  conversationId String
+  userId         String
+  /// REQUESTER | RECIPIENT | MEMBER（群成员）
+  memberRole     String   @default("MEMBER")
+  unreadCount    Int      @default(0)
+  lastReadAt     DateTime?
+  conversation   ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([conversationId, userId])
+  @@index([userId, unreadCount])
+}
+
+model ChatMessage {
+  id             String   @id @default(cuid())
+  conversationId String
+  senderId       String
+  /// TEXT | IMAGE | SYSTEM
+  type           String   @default("TEXT")
+  body           String   @default("")
+  mediaUrl       String   @default("")
+  conversation   ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User     @relation("ChatMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+
+  @@index([conversationId, createdAt])
+  @@index([senderId])
 }
 
 /// 约搭活动：线下结伴 / 兴趣搭子；可免费或付费报名（付费复用 Course+Order 支付与分销）
@@ -303,6 +370,9 @@ model SiteSettings {
   /// 用户分销提成：其邀请用户成交订单的分成比例（% of 实付）；默认 5
   userDistributionPercent Int @default(5)
 
+  /// 前台营销面隐藏所有产品价格（结账/订单仍显示应付金额）
+  hideAllPrices Boolean @default(false)
+
   /// 短信：是否启用手机号验证码登录
   smsEnabled Boolean @default(false)
   /// test = 仅测试（打日志 / 固定码）；aliyun = 阿里云短信
@@ -401,6 +471,8 @@ model Course {
   status        String       @default("DRAFT")
   productType   String       @default("COURSE")
   isFree        Boolean      @default(false)
+  /// 前台营销面隐藏本商品价格（结账/订单仍显示应付金额）
+  hidePrice     Boolean      @default(false)
   studentCount  Int          @default(0)
   rating        Float        @default(5)
   /// 前台展示次序（越小越靠前）；置顶优先于此字段，见 productPlazaOrderBy

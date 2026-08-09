@@ -50,6 +50,7 @@ export type PublicSettings = {
   agentBuyerOrderPercent: number;
   teacherDistributionPercent: number;
   userDistributionPercent: number;
+  hideAllPrices: boolean;
   smsEnabled: boolean;
   smsProvider: string;
   smsAccessKeyId: string;
@@ -175,6 +176,7 @@ export function SiteSettingsPanel({ initial }: Props) {
     agentBuyerOrderPercent: initial.agentBuyerOrderPercent ?? 10,
     teacherDistributionPercent: initial.teacherDistributionPercent ?? 8,
     userDistributionPercent: initial.userDistributionPercent ?? 5,
+    hideAllPrices: Boolean(initial.hideAllPrices),
     smsEnabled: Boolean(initial.smsEnabled),
     smsProvider: initial.smsProvider || "test",
     smsAccessKeyId: initial.smsAccessKeyId || "",
@@ -235,6 +237,7 @@ export function SiteSettingsPanel({ initial }: Props) {
         return {
           siteUrl: form.siteUrl,
           paymentMode: form.paymentMode,
+          hideAllPrices: form.hideAllPrices,
         };
       case "commission":
         return {
@@ -490,6 +493,22 @@ export function SiteSettingsPanel({ initial }: Props) {
             <option value="both">微信 + 支付宝</option>
           </select>
         </Field>
+        <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-2xl border border-[var(--line)] bg-white/70 px-3 py-3 text-sm">
+          <input
+            type="checkbox"
+            className="mt-1 h-4 w-4 accent-[var(--brand)]"
+            checked={form.hideAllPrices}
+            onChange={(e) => set("hideAllPrices", e.target.checked)}
+          />
+          <span>
+            <span className="font-medium text-[var(--ink)]">
+              前台隐藏所有产品价格
+            </span>
+            <span className="mt-0.5 block text-xs text-[var(--muted)]">
+              列表、详情等营销面不显示售价；结账与订单仍显示应付金额。单品也可单独隐藏。
+            </span>
+          </span>
+        </label>
         {sectionSaveBar("site")}
       </SettingsSection>
 

@@ -27,6 +27,7 @@ export async function ensureMeetupProductCourse(
     contentHtml?: string;
     coverUrl: string;
     priceCents: number;
+    hidePrice?: boolean;
     hostId: string;
     productCourseId?: string | null;
     status: string;
@@ -34,6 +35,8 @@ export async function ensureMeetupProductCourse(
 ): Promise<string> {
   const price = Math.max(0, Math.floor(meetup.priceCents || 0));
   const isFree = price <= 0;
+  const hidePrice =
+    meetup.hidePrice === undefined ? undefined : Boolean(meetup.hidePrice);
   // 取消的活动壳下架，避免优惠券/搜索误购；其它状态保持可售以便已报名履约
   const courseStatus = meetup.status === "CANCELLED" ? "DRAFT" : "PUBLISHED";
   const description =
@@ -54,6 +57,7 @@ export async function ensureMeetupProductCourse(
         price,
         originalPrice: price,
         isFree,
+        ...(hidePrice === undefined ? {} : { hidePrice }),
         status: courseStatus,
         productType: MEETUP_PRODUCT_TYPE,
         teacherId: meetup.hostId,
@@ -75,6 +79,7 @@ export async function ensureMeetupProductCourse(
         price,
         originalPrice: price,
         isFree,
+        ...(hidePrice === undefined ? {} : { hidePrice }),
         status: courseStatus,
         productType: MEETUP_PRODUCT_TYPE,
         teacherId: meetup.hostId,
@@ -97,6 +102,7 @@ export async function ensureMeetupProductCourse(
       price,
       originalPrice: price,
       isFree,
+      hidePrice: Boolean(hidePrice),
       status: courseStatus,
       productType: MEETUP_PRODUCT_TYPE,
       teacherId: meetup.hostId,

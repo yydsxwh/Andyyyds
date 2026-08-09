@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { shouldHideProductPrice } from "@/lib/product-price-display";
 import { productDetailPath, productTypeLabel } from "@/lib/product-types";
 import { formatPrice } from "@/lib/utils";
 
@@ -14,18 +15,25 @@ type CourseCardProps = {
     studentCount: number;
     rating: number;
     isFree: boolean;
+    hidePrice?: boolean;
     productType?: string;
     isPinned?: boolean;
     isFeatured?: boolean;
     teacher: { name: string };
     category: { name: string } | null;
   };
+  /** 全站藏价；与 course.hidePrice 任一为真则不显示价格 */
+  hideAllPrices?: boolean;
 };
 
-export function CourseCard({ course }: CourseCardProps) {
+export function CourseCard({ course, hideAllPrices = false }: CourseCardProps) {
   const type = course.productType || "COURSE";
   const kindLabel = productTypeLabel(type);
   const countLabel = type === "MATERIAL" ? "人已购" : "人在学";
+  const hidePrice = shouldHideProductPrice({
+    hideAllPrices,
+    hidePrice: course.hidePrice,
+  });
 
   return (
     <Link
@@ -69,22 +77,33 @@ export function CourseCard({ course }: CourseCardProps) {
           </p>
         </div>
         <div className="flex items-end justify-between gap-3">
-          <div>
-            <div className="text-lg font-semibold text-[var(--brand)]">
-              {course.isFree ? "免费" : formatPrice(course.price)}
-            </div>
-            {!course.isFree && course.originalPrice > course.price ? (
-              <div className="text-xs text-[var(--muted)] line-through">
-                {formatPrice(course.originalPrice)}
+          {hidePrice ? (
+            <div className="text-right text-xs text-[var(--muted)]">
+              <div>{course.teacher.name}</div>
+              <div>
+                {course.studentCount} {countLabel}
               </div>
-            ) : null}
-          </div>
-          <div className="text-right text-xs text-[var(--muted)]">
-            <div>{course.teacher.name}</div>
-            <div>
-              {course.studentCount} {countLabel}
             </div>
-          </div>
+          ) : (
+            <>
+              <div>
+                <div className="text-lg font-semibold text-[var(--brand)]">
+                  {course.isFree ? "免费" : formatPrice(course.price)}
+                </div>
+                {!course.isFree && course.originalPrice > course.price ? (
+                  <div className="text-xs text-[var(--muted)] line-through">
+                    {formatPrice(course.originalPrice)}
+                  </div>
+                ) : null}
+              </div>
+              <div className="text-right text-xs text-[var(--muted)]">
+                <div>{course.teacher.name}</div>
+                <div>
+                  {course.studentCount} {countLabel}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </Link>

@@ -25,6 +25,7 @@ export type AdminProductRow = {
   sortOrder: number;
   isPinned: boolean;
   isFeatured: boolean;
+  hidePrice: boolean;
   teacherName: string;
   categoryName: string;
   enrollmentCount: number;
@@ -119,7 +120,7 @@ export function AdminProductsPanel({ initialProducts }: Props) {
   async function patchItem(
     id: string,
     patch: Partial<
-      Pick<AdminProductRow, "isPinned" | "isFeatured" | "status">
+      Pick<AdminProductRow, "isPinned" | "isFeatured" | "hidePrice" | "status">
     >,
   ) {
     if (busy) return;
@@ -258,6 +259,11 @@ export function AdminProductsPanel({ initialProducts }: Props) {
                           精华
                         </span>
                       ) : null}
+                      {product.hidePrice ? (
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
+                          藏价
+                        </span>
+                      ) : null}
                       <span
                         className={`rounded-full px-2 py-0.5 text-xs ${
                           product.status === "PUBLISHED"
@@ -303,6 +309,20 @@ export function AdminProductsPanel({ initialProducts }: Props) {
                       }
                     />
                     精华
+                  </label>
+                  <label className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[var(--line)] bg-white px-3 text-sm">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4"
+                      checked={product.hidePrice}
+                      disabled={busy}
+                      onChange={(e) =>
+                        void patchItem(product.id, {
+                          hidePrice: e.target.checked,
+                        })
+                      }
+                    />
+                    藏价
                   </label>
                   <button
                     type="button"

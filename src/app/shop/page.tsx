@@ -10,6 +10,7 @@ import {
   SHOP_SORT_LABEL,
   type ShopSort,
 } from "@/lib/shop";
+import { getHideAllPricesFlag } from "@/lib/site-settings";
 import { typoRoleClass, typoRoleStyle } from "@/lib/site-typography";
 import { withSignedCoverUrls } from "@/lib/storage";
 
@@ -29,9 +30,9 @@ export default async function ShopPage({
   const category = params.category?.trim();
   const sort: ShopSort = isShopSort(params.sort) ? params.sort : "default";
 
-  const categories = await prisma.category.findMany({ orderBy: { name: "asc" } });
-  const products = await withSignedCoverUrls(
-    await prisma.course.findMany({
+  const [categories, productsRaw, hideAllPrices] = await Promise.all([
+    prisma.category.findMany({ orderBy: { name: "asc" } }),
+    prisma.course.findMany({
       where: {
         status: "PUBLISHED",
         productType: SHOP_PRODUCT_TYPE,
@@ -49,7 +50,9 @@ export default async function ShopPage({
       include: { category: true },
       orderBy: shopListOrderBy(sort),
     }),
-  );
+    getHideAllPricesFlag(),
+  ]);
+  const products = await withSignedCoverUrls(productsRaw);
 
   function hrefFor(next: { category?: string; sort?: string; q?: string }) {
     const sp = new URLSearchParams();
@@ -153,7 +156,11 @@ export default async function ShopPage({
           ) : (
             <div className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-4">
               {products.map((product) => (
-                <ShopProductCard key={product.id} product={product} />
+                <ShopProductCard
+                  key={product.id}
+                  product={product}
+                  hideAllPrices={hideAllPrices}
+                />
               ))}
             </div>
           )}

@@ -94,6 +94,7 @@ export type MeetupEditorInitial = {
   description?: string;
   contentHtml?: string;
   priceCents?: number;
+  hidePrice?: boolean;
   category?: string;
   startsAt?: string;
   endsAt?: string | null;
@@ -160,6 +161,7 @@ export function MeetupEditorForm({
     const cents = initial?.priceCents || 0;
     return (cents / 100).toFixed(cents % 100 === 0 ? 0 : 2);
   });
+  const [hidePrice, setHidePrice] = useState(Boolean(initial?.hidePrice));
   const [category, setCategory] = useState(initial?.category || "SPORT");
   const [timezone, setTimezone] = useState(() =>
     normalizeMeetupTimeZone(initial?.timezone || DEFAULT_MEETUP_TIMEZONE),
@@ -348,6 +350,7 @@ export function MeetupEditorForm({
         contentHtml: mode === "edit" ? contentHtml : "",
         contentBlocks: contentBlocks.length > 0 ? contentBlocks : undefined,
         priceYuan: priceYuan.trim() === "" ? 0 : Number(priceYuan),
+        hidePrice,
         category,
         // 传墙钟 + timezone，由服务端换算 UTC，避免浏览器时区污染
         startsAt,
@@ -643,6 +646,20 @@ export function MeetupEditorForm({
           value={priceYuan}
           onChange={(e) => setPriceYuan(e.target.value)}
         />
+        <label className="mt-3 flex min-h-11 cursor-pointer items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            className="mt-0.5 h-4 w-4 accent-[var(--brand)]"
+            checked={hidePrice}
+            onChange={(e) => setHidePrice(e.target.checked)}
+          />
+          <span>
+            前台隐藏价格
+            <span className="mt-0.5 block text-xs text-[var(--muted)]">
+              列表与详情不显示报名费；结账仍显示应付金额
+            </span>
+          </span>
+        </label>
       </div>
 
       <div>

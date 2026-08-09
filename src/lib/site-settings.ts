@@ -63,6 +63,7 @@ export type SiteSettingsRow = {
   agentBuyerOrderPercent: number;
   teacherDistributionPercent: number;
   userDistributionPercent: number;
+  hideAllPrices: boolean;
   smsEnabled: boolean;
   smsProvider: string;
   smsAccessKeyId: string;
@@ -92,6 +93,12 @@ export async function getSiteSettings(): Promise<SiteSettingsRow> {
   });
   cache = { at: Date.now(), row };
   return row;
+}
+
+/** 全站藏价开关；仅服务端调用（勿从客户端组件 import 本模块） */
+export async function getHideAllPricesFlag(): Promise<boolean> {
+  const row = await getSiteSettings();
+  return Boolean(row.hideAllPrices);
 }
 
 export async function getUiCopy(): Promise<UiCopy> {
@@ -231,6 +238,7 @@ export function publicSiteSettings(row: SiteSettingsRow) {
     agentBuyerOrderPercent: row.agentBuyerOrderPercent ?? 10,
     teacherDistributionPercent: row.teacherDistributionPercent ?? 8,
     userDistributionPercent: row.userDistributionPercent ?? 5,
+    hideAllPrices: Boolean(row.hideAllPrices),
     smsEnabled: Boolean(row.smsEnabled),
     smsProvider: row.smsProvider || "test",
     smsAccessKeyId: row.smsAccessKeyId || "",

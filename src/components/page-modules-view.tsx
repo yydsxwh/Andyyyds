@@ -45,6 +45,7 @@ import {
   isStudioOnlyRichtextHint,
   resolveModuleLayout,
 } from "@/lib/page-templates";
+import { getHideAllPricesFlag } from "@/lib/site-settings";
 import { withSignedCoverUrls } from "@/lib/storage";
 
 export type PageModuleSlots = Partial<Record<PageSlotId, ReactNode>>;
@@ -60,6 +61,7 @@ type CourseCardData = {
   studentCount: number;
   rating: number;
   isFree: boolean;
+  hidePrice?: boolean;
   productType?: string;
   isPinned?: boolean;
   isFeatured?: boolean;
@@ -224,9 +226,11 @@ function ImageBlock({ props }: { props: ImageModuleProps }) {
 function CoursesBlock({
   props,
   courses,
+  hideAllPrices,
 }: {
   props: CoursesModuleProps;
   courses: CourseCardData[];
+  hideAllPrices: boolean;
 }) {
   return (
     <section className="px-3 py-3">
@@ -244,7 +248,11 @@ function CoursesBlock({
       {courses.length ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {courses.map((course) => (
-            <CourseCard key={course.id} course={course} />
+            <CourseCard
+              key={course.id}
+              course={course}
+              hideAllPrices={hideAllPrices}
+            />
           ))}
         </div>
       ) : (
@@ -796,10 +804,12 @@ async function ModuleBlock({
   module,
   slots,
   viewerIsAdmin,
+  hideAllPrices,
 }: {
   module: PageModule;
   slots?: PageModuleSlots;
   viewerIsAdmin: boolean;
+  hideAllPrices: boolean;
 }) {
   switch (module.type) {
     case "search":
@@ -814,6 +824,7 @@ async function ModuleBlock({
         <CoursesBlock
           props={module.props as CoursesModuleProps}
           courses={courses}
+          hideAllPrices={hideAllPrices}
         />
       );
     }
@@ -915,12 +926,18 @@ async function ModuleBlock({
 export async function PageModulesView({
   template,
   slots,
+  hideAllPrices: hideAllPricesProp,
 }: {
   template: PageTemplate;
   slots?: PageModuleSlots;
+  hideAllPrices?: boolean;
 }) {
   const session = await getSession();
   const viewerIsAdmin = Boolean(session && isAdmin(session.role));
+  const hideAllPrices =
+    hideAllPricesProp === undefined
+      ? await getHideAllPricesFlag()
+      : hideAllPricesProp;
   const bg = template.backgroundUrl?.trim();
   const flowModules = template.modules.filter(
     (m) => resolveModuleLayout(m.layout).mode !== "absolute",
@@ -968,6 +985,7 @@ export async function PageModulesView({
                   module={module}
                   slots={slots}
                   viewerIsAdmin={viewerIsAdmin}
+                  hideAllPrices={hideAllPrices}
                 />
               </div>
             );
@@ -981,6 +999,7 @@ export async function PageModulesView({
                 module={module}
                 slots={slots}
                 viewerIsAdmin={viewerIsAdmin}
+                hideAllPrices={hideAllPrices}
               />
             </div>
           );

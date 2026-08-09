@@ -1,15 +1,22 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { StartConsultChatButton } from "@/components/chat/start-consult-chat-button";
 import { ShopBottomNav } from "@/components/shop-bottom-nav";
 import { ShopGallery } from "@/components/shop-gallery";
 import { ShopPurchaseBar } from "@/components/shop-purchase-bar";
+import { getSession } from "@/lib/auth";
+import { CHAT_SOURCE } from "@/lib/chat/constants";
 import { prisma } from "@/lib/db";
 import {
   parseSpecs,
   resolveShopImages,
   SHOP_PRODUCT_TYPE,
 } from "@/lib/shop";
-import { getOrderFormConfig } from "@/lib/site-settings";
+import { shouldHideProductPrice } from "@/lib/product-price-display";
+import {
+  getHideAllPricesFlag,
+  getOrderFormConfig,
+} from "@/lib/site-settings";
 import { resolveStoredAccessUrl } from "@/lib/storage";
 import { decodeRouteSlug, formatPrice } from "@/lib/utils";
 
@@ -23,10 +30,17 @@ export default async function ShopProductDetailPage({
   const { slug: rawSlug } = await params;
   const slug = decodeRouteSlug(rawSlug);
 
-  const product = await prisma.course.findUnique({
-    where: { slug },
-    include: { category: true, teacher: { select: { name: true } } },
-  });
+  const [product, hideAllPrices, session] = await Promise.all([
+    prisma.course.findUnique({
+      where: { slug },
+      include: {
+        category: true,
+        teacher: { select: { id: true, name: true } },
+      },
+    }),
+    getHideAllPricesFlag(),
+    getSession(),
+  ]);
 
   if (!product || product.status !== "PUBLISHED") notFound();
 
@@ -38,6 +52,10 @@ export default async function ShopProductDetailPage({
     redirect(`/courses/${encodeURIComponent(slug)}`);
   }
 
+  const hidePriceDisplay = shouldHideProductPrice({
+    hideAllPrices,
+    hidePrice: product.hidePrice,
+  });
   const orderForm = await getOrderFormConfig();
   const specs = parseSpecs(product.specsJson);
   const rawImages = resolveShopImages(product.coverUrl, product.galleryJson);
@@ -52,16 +70,18 @@ export default async function ShopProductDetailPage({
 
         <div className="space-y-3 px-4 py-4">
           <div className="rounded-xl bg-[var(--card)] p-4 shadow-sm">
-            <div className="flex items-end gap-2">
-              <span className="text-2xl font-semibold text-[var(--fire)]">
-                {product.isFree ? "免费" : formatPrice(product.price)}
-              </span>
-              {!product.isFree && product.originalPrice > product.price ? (
-                <span className="pb-0.5 text-sm text-[var(--muted)] line-through">
-                  {formatPrice(product.originalPrice)}
+            {hidePriceDisplay ? null : (
+              <div className="flex items-end gap-2">
+                <span className="text-2xl font-semibold text-[var(--fire)]">
+                  {product.isFree ? "免费" : formatPrice(product.price)}
                 </span>
-              ) : null}
-            </div>
+                {!product.isFree && product.originalPrice > product.price ? (
+                  <span className="pb-0.5 text-sm text-[var(--muted)] line-through">
+                    {formatPrice(product.originalPrice)}
+                  </span>
+                ) : null}
+              </div>
+            )}
             <h1 className="mt-2 text-lg font-semibold leading-snug">
               {product.title}
             </h1>
@@ -92,6 +112,16 @@ export default async function ShopProductDetailPage({
             </div>
           </div>
 
+          {session?.id !== product.teacherId ? (
+            <StartConsultChatButton
+              peerUserId={product.teacherId}
+              source={CHAT_SOURCE.PRODUCT_CONSULT}
+              relatedCourseId={product.id}
+            >
+              私聊咨询卖家
+            </StartConsultChatButton>
+          ) : null}
+
           <div className="flex gap-3 text-sm">
             <Link href="/shop" className="text-[var(--brand)]">
               ← 返回商城
@@ -110,6 +140,7 @@ export default async function ShopProductDetailPage({
         isFree={product.isFree || product.price <= 0}
         specs={specs}
         orderForm={orderForm}
+        hidePriceDisplay={hidePriceDisplay}
       />
       <ShopBottomNav />
     </div>

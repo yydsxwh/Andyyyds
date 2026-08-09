@@ -4,8 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:server": "node server/prod.mjs",
     "build": "prisma generate && next build --webpack",
-    "start": "next start",
+    "start": "NODE_ENV=production node server/prod.mjs",
+    "start:next": "next start",
     "lint": "eslint",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
@@ -30,6 +32,7 @@
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "tailwindcss": "^4",
+    "ws": "^8.18.3",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -39,6 +42,7 @@
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/ws": "^8.18.1",
     "eslint": "^9",
     "eslint-config-next": "16.3.0",
     "prisma": "^5.22.0",

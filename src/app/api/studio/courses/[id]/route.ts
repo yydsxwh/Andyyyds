@@ -49,6 +49,7 @@ const patchSchema = z.object({
   subtitle: z.string().trim().max(200).optional(),
   description: z.string().trim().max(5000).optional(),
   price: z.union([z.string(), z.number()]).optional(),
+  hidePrice: z.boolean().optional(),
   coverUrl: z.string().max(800).optional(),
   status: z.enum(["DRAFT", "PUBLISHED"]).optional(),
   productType: z.enum(["COURSE", "COLUMN", "MATERIAL"]).optional(),
@@ -109,6 +110,7 @@ function serializeCourse(
     status: course.status,
     productType: course.productType,
     isFree: course.isFree,
+    hidePrice: course.hidePrice,
     bundleCourses: course.bundleItems.map((item) => item.course),
     chapters: course.chapters.map((c) => ({
       id: c.id,
@@ -200,6 +202,7 @@ export async function PATCH(
         );
       }
     }
+    if (body.hidePrice !== undefined) data.hidePrice = body.hidePrice;
 
     if (body.slug !== undefined) {
       const nextSlug = slugify(body.slug) || course.slug;
