@@ -307,7 +307,8 @@ export function BgMusicStudioPanel({
           <span>
             <span className="font-medium">进入站点自动播放</span>
             <span className="mt-0.5 block text-xs text-[var(--muted)]">
-              浏览器与微信常拦截「无手势带声自动播」。拦截时会等访客首次点击页面再续播；网易云 / QQ 外链另受其自身策略限制。
+              进站后在悬浮球状态下尝试开播（不强制展开列表）。浏览器/微信可能拦截，拦截后点「播放」或点一下页面即可。本站
+              MP3 最稳；网易云/QQ 外链依赖官方策略。
             </span>
           </span>
         </label>
