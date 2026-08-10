@@ -1,22 +1,23 @@
 /**
  * 全站背景音乐歌单（QQ 空间风格）。
- * 来源：upload/url 自建、stock（Jamendo 可商用检索）、netease（官方外链 iframe）。
+ * 来源：upload/url 自建、stock（Jamendo）、netease/qqmusic（官方外链 iframe）。
  */
 
-export type BgMusicKind = "audio" | "netease";
+export type BgMusicKind = "audio" | "netease" | "qqmusic";
 
 export type BgMusicSource =
   | "upload"
   | "url"
   | "stock"
-  | "netease";
+  | "netease"
+  | "qqmusic";
 
 export type BgMusicTrack = {
   id: string;
   title: string;
   artist: string;
   kind: BgMusicKind;
-  /** audio: 可播放 URL；netease: 网易云歌曲数字 id */
+  /** audio: 可播放 URL；netease/qqmusic: 平台歌曲数字 id */
   src: string;
   coverUrl?: string;
   /** 免费曲库署名（Jamendo / Mixkit 等） */
@@ -32,6 +33,11 @@ export type BgMusicConfig = {
   loopPlaylist: boolean;
   /** 默认展开播放器面板 */
   defaultOpen: boolean;
+  /**
+   * 进入站点时尝试自动播放。
+   * 浏览器/微信常拦截「无手势带声自动播」；失败时等访客首次点击页面再续播。
+   */
+  autoplay: boolean;
   tracks: BgMusicTrack[];
 };
 
@@ -39,6 +45,7 @@ export const DEFAULT_BG_MUSIC: BgMusicConfig = {
   enabled: false,
   loopPlaylist: true,
   defaultOpen: false,
+  autoplay: false,
   tracks: [],
 };
 
@@ -84,6 +91,7 @@ export function parseBgMusic(raw: string | null | undefined): BgMusicConfig {
       enabled: Boolean(parsed.enabled),
       loopPlaylist: parsed.loopPlaylist !== false,
       defaultOpen: Boolean(parsed.defaultOpen),
+      autoplay: Boolean(parsed.autoplay),
       tracks,
     };
   } catch {
@@ -96,26 +104,69 @@ export function stringifyBgMusic(config: BgMusicConfig): string {
     enabled: Boolean(config.enabled),
     loopPlaylist: config.loopPlaylist !== false,
     defaultOpen: Boolean(config.defaultOpen),
+    autoplay: Boolean(config.autoplay),
     tracks: config.tracks.map(normalizeTrack).filter(Boolean),
   });
+}
+
+/**
+ * 把误填成「音频直链」的网易云 / QQ 歌曲页纠正为外链 kind，
+ * 避免 iOS 微信里 <audio> 去播一个 HTML 页面导致完全无声。
+ */
+export function coerceBgMusicTrackKind(
+  kind: BgMusicKind,
+  src: string,
+): { kind: BgMusicKind; src: string; source?: BgMusicSource } {
+  if (kind === "audio") {
+    const neteaseId = parseNeteaseSongId(src);
+    if (neteaseId && /163\.com|music\.163/i.test(src)) {
+      return { kind: "netease", src: neteaseId, source: "netease" };
+    }
+    // 纯数字且来源已标 netease 时在 normalize 里处理；此处只认明确网易域名
+    const qqId = parseQqmusicSongId(src);
+    if (qqId && /y\.qq\.com|qq\.com/i.test(src)) {
+      return { kind: "qqmusic", src: qqId, source: "qqmusic" };
+    }
+  }
+  if (kind === "netease") {
+    const id = parseNeteaseSongId(src);
+    if (id) return { kind: "netease", src: id };
+  }
+  if (kind === "qqmusic") {
+    const id = parseQqmusicSongId(src);
+    if (id) return { kind: "qqmusic", src: id };
+  }
+  return { kind, src };
 }
 
 function normalizeTrack(raw: unknown): BgMusicTrack | null {
   if (!raw || typeof raw !== "object") return null;
   const t = raw as Partial<BgMusicTrack>;
   const title = String(t.title || "").trim().slice(0, 120);
-  const src = String(t.src || "").trim().slice(0, 2000);
+  let src = String(t.src || "").trim().slice(0, 2000);
   if (!title || !src) return null;
-  const kind: BgMusicKind = t.kind === "netease" ? "netease" : "audio";
+  let kind: BgMusicKind =
+    t.kind === "netease"
+      ? "netease"
+      : t.kind === "qqmusic"
+        ? "qqmusic"
+        : "audio";
+  const coerced = coerceBgMusicTrackKind(kind, src);
+  kind = coerced.kind;
+  src = coerced.src;
   const source: BgMusicSource =
-    t.source === "upload" ||
+    coerced.source ||
+    (t.source === "upload" ||
     t.source === "url" ||
     t.source === "stock" ||
-    t.source === "netease"
+    t.source === "netease" ||
+    t.source === "qqmusic"
       ? t.source
       : kind === "netease"
         ? "netease"
-        : "url";
+        : kind === "qqmusic"
+          ? "qqmusic"
+          : "url");
   return {
     id: String(t.id || "").trim() || `t_${Math.random().toString(36).slice(2, 10)}`,
     title,
@@ -135,9 +186,16 @@ export function activeBgMusicTracks(config: BgMusicConfig): BgMusicTrack[] {
   return config.tracks.filter((t) => t.enabled && t.src);
 }
 
-export function neteaseEmbedSrc(songId: string): string {
+export function neteaseEmbedSrc(songId: string, autoplay = false): string {
   const id = songId.replace(/\D/g, "");
-  return `https://music.163.com/outchain/player?type=2&id=${id}&auto=0&height=66`;
+  const auto = autoplay ? "1" : "0";
+  return `https://music.163.com/outchain/player?type=2&id=${id}&auto=${auto}&height=66`;
+}
+
+/** QQ 音乐官方外链迷你播放器（需数字 songid，非 songmid） */
+export function qqmusicEmbedSrc(songId: string): string {
+  const id = songId.replace(/\D/g, "");
+  return `https://i.y.qq.com/n2/m/outchain/player/index.html?songid=${id}&songtype=0`;
 }
 
 /** 从网易云分享链接或纯数字提取歌曲 id */
@@ -149,4 +207,25 @@ export function parseNeteaseSongId(input: string): string | null {
     /[?&]id=(\d+)/i.exec(s) ||
     /outchain\/player\?[^#]*[?&]id=(\d+)/i.exec(s);
   return m?.[1] || null;
+}
+
+/**
+ * 从 QQ 音乐分享链接 / 外链 / 纯数字提取 songid。
+ * 仅含 songmid（如 songDetail/0041nxUx…）的链接无法解析，需 PC 分享得到 songid。
+ */
+export function parseQqmusicSongId(input: string): string | null {
+  const s = input.trim();
+  if (/^\d{5,}$/.test(s)) return s;
+  const m =
+    /[?&#]songid=(\d+)/i.exec(s) ||
+    /outchain\/player\/index\.html\?[^#]*songid=(\d+)/i.exec(s) ||
+    /playsong\.html\?[^#]*songid=(\d+)/i.exec(s);
+  return m?.[1] || null;
+}
+
+/** 是否为 iframe 外链曲目（不用本站 <audio>） */
+export function isEmbedBgMusicKind(
+  kind: BgMusicKind,
+): kind is "netease" | "qqmusic" {
+  return kind === "netease" || kind === "qqmusic";
 }

@@ -20,11 +20,11 @@ const trackSchema = z.object({
   id: z.string().max(64).optional(),
   title: z.string().min(1).max(120),
   artist: z.string().max(80).optional().default(""),
-  kind: z.enum(["audio", "netease"]),
+  kind: z.enum(["audio", "netease", "qqmusic"]),
   src: z.string().min(1).max(2000),
   coverUrl: z.string().max(2000).optional(),
   credit: z.string().max(200).optional(),
-  source: z.enum(["upload", "url", "stock", "netease"]),
+  source: z.enum(["upload", "url", "stock", "netease", "qqmusic"]),
   enabled: z.boolean().optional().default(true),
 });
 
@@ -32,6 +32,7 @@ const patchSchema = z.object({
   enabled: z.boolean().optional(),
   loopPlaylist: z.boolean().optional(),
   defaultOpen: z.boolean().optional(),
+  autoplay: z.boolean().optional(),
   tracks: z.array(trackSchema).max(80).optional(),
   jamendoClientId: z.string().max(128).optional(),
 });
@@ -72,6 +73,7 @@ export async function PATCH(req: Request) {
           : prev.loopPlaylist,
       defaultOpen:
         body.defaultOpen !== undefined ? body.defaultOpen : prev.defaultOpen,
+      autoplay: body.autoplay !== undefined ? body.autoplay : prev.autoplay,
       tracks:
         body.tracks !== undefined
           ? body.tracks.map((t) => {

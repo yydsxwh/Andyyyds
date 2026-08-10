@@ -160,6 +160,7 @@ export async function getPublicBgMusicPayload() {
     enabled: config.enabled,
     loopPlaylist: config.loopPlaylist,
     defaultOpen: config.defaultOpen,
+    autoplay: config.autoplay,
     tracks: activeBgMusicTracks(config).map((t) => ({
       id: t.id,
       title: t.title,

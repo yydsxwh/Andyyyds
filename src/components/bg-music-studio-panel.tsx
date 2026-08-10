@@ -4,7 +4,9 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   FREE_STOCK_GUIDES,
+  coerceBgMusicTrackKind,
   parseNeteaseSongId,
+  parseQqmusicSongId,
   type BgMusicConfig,
   type BgMusicSource,
   type BgMusicTrack,
@@ -62,6 +64,8 @@ export function BgMusicStudioPanel({
 
   const [neteaseInput, setNeteaseInput] = useState("");
   const [neteaseTitle, setNeteaseTitle] = useState("");
+  const [qqInput, setQqInput] = useState("");
+  const [qqTitle, setQqTitle] = useState("");
 
   const [jamendoQ, setJamendoQ] = useState("ambient");
   const [jamendoHits, setJamendoHits] = useState<JamendoHit[]>([]);
@@ -96,6 +100,7 @@ export function BgMusicStudioPanel({
         enabled: config.enabled,
         loopPlaylist: config.loopPlaylist,
         defaultOpen: config.defaultOpen,
+        autoplay: config.autoplay,
         tracks: config.tracks,
         jamendoClientId,
       }),
@@ -165,18 +170,24 @@ export function BgMusicStudioPanel({
       setStatus({ kind: "error", text: "请填写曲名与音频地址" });
       return;
     }
+    // 误把网易云/QQ 歌曲页贴进直链时，自动改成官方外链 kind
+    const coerced = coerceBgMusicTrackKind("audio", src);
     addTrack({
       title,
       artist: urlArtist.trim(),
-      kind: "audio",
-      src,
-      source: "url",
+      kind: coerced.kind,
+      src: coerced.src,
+      source: coerced.source || "url",
     });
     setUrlTitle("");
     setUrlArtist("");
     setUrlSrc("");
     setStatus(null);
-    setHint("已加入歌单（记得点保存）");
+    setHint(
+      coerced.kind === "audio"
+        ? "已加入歌单（记得点保存）"
+        : `已识别为${coerced.kind === "netease" ? "网易云" : "QQ音乐"}外链（记得点保存）。iPhone 微信更稳妥请上传 MP3。`,
+    );
   }
 
   function addNetease() {
@@ -200,6 +211,29 @@ export function BgMusicStudioPanel({
     setNeteaseTitle("");
     setStatus(null);
     setHint("已加入网易云外链（记得点保存）");
+  }
+
+  function addQqmusic() {
+    const id = parseQqmusicSongId(qqInput);
+    if (!id) {
+      setStatus({
+        kind: "error",
+        text: "请粘贴含 songid=数字 的 QQ 音乐链接（PC 分享），或纯数字 songid；仅 songmid 的链接无法识别",
+      });
+      return;
+    }
+    const title = qqTitle.trim() || `QQ音乐 ${id}`;
+    addTrack({
+      title,
+      artist: "",
+      kind: "qqmusic",
+      src: id,
+      source: "qqmusic",
+    });
+    setQqInput("");
+    setQqTitle("");
+    setStatus(null);
+    setHint("已加入 QQ 音乐外链（记得点保存）");
   }
 
   async function searchJamendo() {
@@ -242,8 +276,8 @@ export function BgMusicStudioPanel({
       <section className="space-y-3 rounded-3xl border border-[var(--line)] bg-white/70 p-4 sm:p-5">
         <h2 className="text-lg font-semibold text-[var(--ink)]">播放器开关</h2>
         <p className="text-sm text-[var(--muted)]">
-          QQ 空间风格：访客点击播放；不强制自动出声（浏览器与微信均限制）。
-          无法合法免费接入 QQ 音乐 / 网易云 / Apple 全曲库，本页用免版税曲库 + 自建上传 + 网易云官方外链补齐。
+          QQ 空间风格悬浮播放器。无法合法免费接入三大平台全曲库；本页用免版税曲库
+          + 自建上传 + 网易云 / QQ 音乐官方外链补齐。
         </p>
         <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-2xl border border-[var(--line)] bg-white/80 px-3 py-3 text-sm">
           <input
@@ -258,6 +292,22 @@ export function BgMusicStudioPanel({
             <span className="font-medium">启用前台悬浮背景音乐</span>
             <span className="mt-0.5 block text-xs text-[var(--muted)]">
               关闭后前台不显示播放器
+            </span>
+          </span>
+        </label>
+        <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-2xl border border-[var(--line)] bg-white/80 px-3 py-3 text-sm">
+          <input
+            type="checkbox"
+            className="mt-1 h-4 w-4 accent-[var(--brand)]"
+            checked={config.autoplay}
+            onChange={(e) =>
+              setConfig((c) => ({ ...c, autoplay: e.target.checked }))
+            }
+          />
+          <span>
+            <span className="font-medium">进入站点自动播放</span>
+            <span className="mt-0.5 block text-xs text-[var(--muted)]">
+              浏览器与微信常拦截「无手势带声自动播」。拦截时会等访客首次点击页面再续播；网易云 / QQ 外链另受其自身策略限制。
             </span>
           </span>
         </label>
@@ -281,7 +331,12 @@ export function BgMusicStudioPanel({
               setConfig((c) => ({ ...c, defaultOpen: e.target.checked }))
             }
           />
-          <span className="font-medium">默认展开播放列表面板</span>
+          <span>
+            <span className="font-medium">默认展开播放列表面板（已停用）</span>
+            <span className="mt-0.5 block text-xs text-[var(--muted)]">
+              为避免微信白屏，前台始终先显示悬浮球；外链 iframe 仅在展开时加载。登录/注册页不显示播放器。
+            </span>
+          </span>
         </label>
       </section>
 
@@ -323,7 +378,7 @@ export function BgMusicStudioPanel({
             <p className="mt-1 text-xs text-[var(--muted)]">
               {jamendoConfigured
                 ? "已配置；改完请点下方「保存全部」。"
-                : "未配置时只能上传 / 直链 / 网易云外链。"}
+                : "未配置时只能上传 / 直链 / 网易云 / QQ 音乐外链。"}
             </p>
           </label>
           <div className="flex flex-col gap-2 sm:flex-row">
@@ -380,7 +435,9 @@ export function BgMusicStudioPanel({
       </section>
 
       <section className="space-y-3 rounded-3xl border border-[var(--line)] bg-white/70 p-4 sm:p-5">
-        <h2 className="text-lg font-semibold">D · 上传 / 直链 / 网易云外链</h2>
+        <h2 className="text-lg font-semibold">
+          D · 上传 / 直链 / 网易云 / QQ 音乐外链
+        </h2>
         <div className="space-y-2">
           <h3 className="text-sm font-medium">上传音频到本站</h3>
           <input
@@ -445,6 +502,34 @@ export function BgMusicStudioPanel({
           <button
             type="button"
             onClick={addNetease}
+            className="min-h-11 rounded-2xl border border-[var(--line)] px-4 text-sm"
+          >
+            加入歌单
+          </button>
+        </div>
+
+        <div className="space-y-2 border-t border-[var(--line)] pt-4">
+          <h3 className="text-sm font-medium">QQ 音乐官方外链</h3>
+          <p className="text-xs text-[var(--muted)]">
+            需数字 songid：PC 网页打开歌曲 → 分享 → 复制链接（含
+            songid=…）。仅有 songmid 的短链无法加入。前台用官方 iframe
+            播放。
+          </p>
+          <input
+            className={inputClass}
+            placeholder="显示名称（可选）"
+            value={qqTitle}
+            onChange={(e) => setQqTitle(e.target.value)}
+          />
+          <input
+            className={inputClass}
+            placeholder="https://i.y.qq.com/…?songid=127570280 或纯数字 songid"
+            value={qqInput}
+            onChange={(e) => setQqInput(e.target.value)}
+          />
+          <button
+            type="button"
+            onClick={addQqmusic}
             className="min-h-11 rounded-2xl border border-[var(--line)] px-4 text-sm"
           >
             加入歌单
