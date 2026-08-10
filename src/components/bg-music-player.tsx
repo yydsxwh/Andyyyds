@@ -43,11 +43,12 @@ function normalizePublicTrack(t: PublicTrack): PublicTrack {
 }
 
 /**
- * QQ 空间风格悬浮播放器（微信 / iOS：手势内同步 play、默认悬浮球）。
+ * QQ 空间风格悬浮播放器。
+ * 收成悬浮球后：本站 <audio> / 已开播的外链 iframe 均继续播（外链用 clip 隐藏，不卸载）。
+ * 登录/注册页不挂载，避免微信白屏。
  */
 export function BgMusicPlayer() {
   const pathname = usePathname() || "/";
-  // 登录/注册页不挂播放器：网易云 iframe 曾导致微信 WebView「This page couldn't load」
   const hideOnStudio = pathname.startsWith("/studio");
   const hideOnAuth =
     pathname.startsWith("/login") || pathname.startsWith("/register");
@@ -66,6 +67,8 @@ export function BgMusicPlayer() {
   const [awaitingGesture, setAwaitingGesture] = useState(false);
   const [wechat, setWechat] = useState(false);
   const [ios, setIos] = useState(false);
+  /** 外链已加载过：收起时仍挂载 iframe，避免断播 */
+  const [embedKeepAlive, setEmbedKeepAlive] = useState(false);
 
   useEffect(() => {
     setWechat(isWechatUa());
@@ -81,11 +84,11 @@ export function BgMusicPlayer() {
         if (!res.ok) return;
         const data = (await res.json()) as Payload;
         if (cancelled) return;
-        const tracks = (data.tracks || []).map(normalizePublicTrack);
-        setPayload({ ...data, tracks });
-        // 始终默认悬浮球，避免外链 iframe 一进站就加载把微信打崩
+        const nextTracks = (data.tracks || []).map(normalizePublicTrack);
+        setPayload({ ...data, tracks: nextTracks });
         setOpen(false);
-        const audioIdx = tracks.findIndex((t) => t.kind === "audio");
+        setEmbedKeepAlive(false);
+        const audioIdx = nextTracks.findIndex((t) => t.kind === "audio");
         if (audioIdx >= 0) setIndex(audioIdx);
       } catch {
         /* ignore */
@@ -156,7 +159,7 @@ export function BgMusicPlayer() {
     if (isEmbedBgMusicKind(track.kind)) {
       if (wechat || ios) {
         setAwaitingGesture(true);
-        setError("微信内请点右下角 ♪；网易云/QQ 外链需展开后手动点播放");
+        setError("微信内请点右下角 ♪；网易云/QQ 外链需展开后点播放，再收起可继续播");
       }
       return;
     }
@@ -232,8 +235,21 @@ export function BgMusicPlayer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [awaitingGesture, track?.id, track?.kind]);
 
-  /** 选歌/点播放后收成悬浮球，避免列表一直挡住内容 */
+  // 切到本站音频时释放外链保活；展开外链时开启保活
+  useEffect(() => {
+    if (!track) return;
+    if (track.kind === "audio") {
+      setEmbedKeepAlive(false);
+      return;
+    }
+    if (open) setEmbedKeepAlive(true);
+  }, [track?.id, track?.kind, open]);
+
   function collapseToBall() {
+    // 外链：先保活再收起，保证 iframe 不卸载、音乐不断
+    if (track && isEmbedBgMusicKind(track.kind)) {
+      setEmbedKeepAlive(true);
+    }
     setOpen(false);
   }
 
@@ -243,6 +259,7 @@ export function BgMusicPlayer() {
     setIndex(i);
     const nextTrack = tracks[i];
     if (nextTrack?.kind === "audio") {
+      setEmbedKeepAlive(false);
       setPlaying(true);
       requestAnimationFrame(() => {
         const el = audioRef.current;
@@ -253,7 +270,7 @@ export function BgMusicPlayer() {
         void el.play().then(
           () => {
             setPlaying(true);
-            collapseToBall();
+            setOpen(false);
           },
           () => {
             setPlaying(false);
@@ -263,8 +280,9 @@ export function BgMusicPlayer() {
       });
       return;
     }
-    // 外链：切歌后仍可立刻收成悬浮球（iframe 收起后继续挂载）
-    collapseToBall();
+    // 外链：保持展开，方便在官方播放器里点播放；收起用「收起为悬浮球」
+    setEmbedKeepAlive(true);
+    setOpen(true);
   }
 
   function togglePlay() {
@@ -274,7 +292,7 @@ export function BgMusicPlayer() {
       return;
     }
     playAudioInGesture();
-    collapseToBall();
+    setOpen(false);
   }
 
   function next() {
@@ -319,19 +337,17 @@ export function BgMusicPlayer() {
       return;
     }
     if (open) {
-      setOpen(false);
+      collapseToBall();
       return;
     }
-    // 收起态：本站音频在手势内播/停，不展开面板
     if (track?.kind === "audio") {
       if (playing) pauseAudioInGesture();
       else playAudioInGesture();
       return;
     }
+    // 外链收起态：再点球展开列表；已保活时音乐应仍在播
     setOpen(true);
-    if (wechat || ios) {
-      setError("请在播放器里点播放（微信对外链限制较多，稳妥请上传 MP3）");
-    }
+    setEmbedKeepAlive(true);
   }
 
   if (!visible || !track) return null;
@@ -344,7 +360,10 @@ export function BgMusicPlayer() {
         ? qqmusicEmbedSrc(track.src)
         : "";
   const isEmbed = isEmbedBgMusicKind(track.kind);
-  const ballBusy = playing && track.kind === "audio";
+  // 同一壳层切换展开/收起，iframe 不卸载，收成悬浮球后外链可继续播
+  const showShell = open || (isEmbed && embedKeepAlive);
+  const ballBusy =
+    (playing && track.kind === "audio") || (isEmbed && embedKeepAlive);
   const hasAnyAudio = tracks.some((t) => t.kind === "audio");
 
   return (
@@ -368,50 +387,71 @@ export function BgMusicPlayer() {
         }}
       />
 
-      {/* 仅展开时挂载面板与外链 iframe；收起绝不加载 163/QQ，避免微信白屏崩溃 */}
-      {open ? (
-        <div className="pointer-events-auto w-[min(20rem,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--bg)]/95 shadow-lg backdrop-blur-md">
-          <div className="border-b border-[var(--line)]">
-            <div className="flex items-start gap-3 px-3 py-3">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[var(--brand)]/15 text-lg text-[var(--brand)]">
-                ♪
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium text-[var(--ink)]">
-                  {track.title}
+      {showShell ? (
+        <div
+          className={
+            open
+              ? "pointer-events-auto w-[min(20rem,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--bg)]/95 shadow-lg backdrop-blur-md"
+              : "pointer-events-none h-[66px] w-[280px] overflow-hidden"
+          }
+          style={
+            open
+              ? undefined
+              : {
+                  position: "fixed",
+                  right: 16,
+                  bottom: 72,
+                  // 勿用 display:none，否则会停播 iframe
+                  clipPath: "inset(50%)",
+                }
+          }
+          aria-hidden={!open}
+        >
+          {open ? (
+            <div className="border-b border-[var(--line)]">
+              <div className="flex items-start gap-3 px-3 py-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[var(--brand)]/15 text-lg text-[var(--brand)]">
+                  ♪
                 </div>
-                <div className="truncate text-xs text-[var(--muted)]">
-                  {track.artist || track.credit || "背景音乐"}
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium text-[var(--ink)]">
+                    {track.title}
+                  </div>
+                  <div className="truncate text-xs text-[var(--muted)]">
+                    {track.artist || track.credit || "背景音乐"}
+                  </div>
+                  {error ? (
+                    <p className="mt-1 text-xs text-[var(--fire-strong)]">{error}</p>
+                  ) : (
+                    <p className="mt-1 text-[10px] text-[var(--muted)]">
+                      {isEmbed
+                        ? "先在播放器里点播放，再点下方收起，音乐会继续"
+                        : "本站音频收成悬浮球后仍继续播放"}
+                    </p>
+                  )}
+                  {isEmbed && (wechat || ios) ? (
+                    <p className="mt-1 text-[10px] text-[var(--muted)]">
+                      微信对外链限制多
+                      {hasAnyAudio
+                        ? "，更稳请用「本站」MP3"
+                        : "，iPhone 建议上传 MP3"}
+                    </p>
+                  ) : null}
                 </div>
-                {error ? (
-                  <p className="mt-1 text-xs text-[var(--fire-strong)]">{error}</p>
-                ) : (
-                  <p className="mt-1 text-[10px] text-[var(--muted)]">
-                    选歌或点播放后会自动收成悬浮球
-                  </p>
-                )}
-                {isEmbed && (wechat || ios) ? (
-                  <p className="mt-1 text-[10px] text-[var(--muted)]">
-                    微信对网易云/QQ 外链限制多
-                    {hasAnyAudio
-                      ? "，建议切到「本站」曲目"
-                      : "，iPhone 微信请上传 MP3"}
-                  </p>
-                ) : null}
               </div>
+              <button
+                type="button"
+                aria-label="收起为悬浮球并继续播放"
+                className="flex min-h-11 w-full items-center justify-center gap-2 border-t border-[var(--line)] bg-[var(--brand)]/8 px-3 text-sm font-medium text-[var(--brand)]"
+                onClick={collapseToBall}
+              >
+                收起为悬浮球（继续播放）
+              </button>
             </div>
-            <button
-              type="button"
-              aria-label="收起为悬浮球"
-              className="flex min-h-11 w-full items-center justify-center gap-2 border-t border-[var(--line)] bg-[var(--brand)]/8 px-3 text-sm font-medium text-[var(--brand)]"
-              onClick={collapseToBall}
-            >
-              收起为悬浮球
-            </button>
-          </div>
+          ) : null}
 
           {isEmbed && embedSrc ? (
-            <div className="border-b border-[var(--line)] px-2 py-2">
+            <div className={open ? "border-b border-[var(--line)] px-2 py-2" : ""}>
               <iframe
                 title={track.title}
                 src={embedSrc}
@@ -421,7 +461,7 @@ export function BgMusicPlayer() {
             </div>
           ) : null}
 
-          {!isEmbed ? (
+          {open && !isEmbed ? (
             <div className="flex items-center justify-center gap-2 px-3 py-3">
               <button
                 type="button"
@@ -450,41 +490,43 @@ export function BgMusicPlayer() {
             </div>
           ) : null}
 
-          <ul className="max-h-40 overflow-y-auto border-t border-[var(--line)]">
-            {tracks.map((t, i) => (
-              <li key={t.id}>
-                <button
-                  type="button"
-                  className={`flex min-h-11 w-full items-center gap-2 px-3 text-left text-sm ${
-                    i === index
-                      ? "bg-[var(--brand)]/10 text-[var(--brand)]"
-                      : "text-[var(--ink)]"
-                  }`}
-                  onClick={() => selectTrack(i)}
-                >
-                  <span className="w-5 shrink-0 text-xs text-[var(--muted)]">
-                    {i + 1}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate">{t.title}</span>
-                  {t.kind === "netease" ? (
-                    <span className="shrink-0 text-[10px] text-[var(--muted)]">
-                      网易
+          {open ? (
+            <ul className="max-h-40 overflow-y-auto border-t border-[var(--line)]">
+              {tracks.map((t, i) => (
+                <li key={t.id}>
+                  <button
+                    type="button"
+                    className={`flex min-h-11 w-full items-center gap-2 px-3 text-left text-sm ${
+                      i === index
+                        ? "bg-[var(--brand)]/10 text-[var(--brand)]"
+                        : "text-[var(--ink)]"
+                    }`}
+                    onClick={() => selectTrack(i)}
+                  >
+                    <span className="w-5 shrink-0 text-xs text-[var(--muted)]">
+                      {i + 1}
                     </span>
-                  ) : null}
-                  {t.kind === "qqmusic" ? (
-                    <span className="shrink-0 text-[10px] text-[var(--muted)]">
-                      QQ
-                    </span>
-                  ) : null}
-                  {t.kind === "audio" ? (
-                    <span className="shrink-0 text-[10px] text-[var(--muted)]">
-                      本站
-                    </span>
-                  ) : null}
-                </button>
-              </li>
-            ))}
-          </ul>
+                    <span className="min-w-0 flex-1 truncate">{t.title}</span>
+                    {t.kind === "netease" ? (
+                      <span className="shrink-0 text-[10px] text-[var(--muted)]">
+                        网易
+                      </span>
+                    ) : null}
+                    {t.kind === "qqmusic" ? (
+                      <span className="shrink-0 text-[10px] text-[var(--muted)]">
+                        QQ
+                      </span>
+                    ) : null}
+                    {t.kind === "audio" ? (
+                      <span className="shrink-0 text-[10px] text-[var(--muted)]">
+                        本站
+                      </span>
+                    ) : null}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </div>
       ) : null}
 
@@ -499,18 +541,20 @@ export function BgMusicPlayer() {
         data-bgm-ball
         aria-label={
           open
-            ? "收起为悬浮球"
+            ? "收起为悬浮球并继续播放"
             : track.kind === "audio"
               ? playing
                 ? "暂停背景音乐"
                 : "播放背景音乐"
-              : "展开背景音乐"
+              : embedKeepAlive
+                ? "展开列表（正在播放）"
+                : "展开背景音乐"
         }
         aria-expanded={open}
         title={
           track.kind === "audio"
             ? "点按播放/暂停；长按展开列表"
-            : "点按展开外链播放器"
+            : "展开后点官方播放器；收起后继续播"
         }
         className={`pointer-events-auto flex h-14 w-14 touch-manipulation items-center justify-center rounded-full border border-[var(--line)] bg-[var(--bg)]/95 text-xl text-[var(--brand)] shadow-lg backdrop-blur-md ${
           ballBusy ? "ring-2 ring-[var(--brand)]/40" : ""
@@ -520,7 +564,13 @@ export function BgMusicPlayer() {
         onPointerCancel={onBallPointerUp}
         onClick={onBallClick}
       >
-        {open ? "×" : playing && track.kind === "audio" ? "❚❚" : "♪"}
+        {open
+          ? "×"
+          : playing && track.kind === "audio"
+            ? "❚❚"
+            : embedKeepAlive
+              ? "♫"
+              : "♪"}
       </button>
     </div>
   );
