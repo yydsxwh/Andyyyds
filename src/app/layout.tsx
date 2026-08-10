@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import type { CSSProperties } from "react";
+import { BgMusicPlayer } from "@/components/bg-music-player";
 import { CouponCapture } from "@/components/coupon-capture";
 import { LocaleProvider } from "@/components/i18n/locale-provider";
 import { ReferralCapture } from "@/components/referral-capture";
@@ -144,6 +145,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             <CouponCapture />
             <SiteHeader />
             <main className="flex-1">{children}</main>
+            <BgMusicPlayer />
             <footer className="glass-bar border-t py-8 text-sm text-[var(--muted)]">
               <div className="container flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-2.5">

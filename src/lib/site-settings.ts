@@ -19,6 +19,11 @@ import {
 import { parsePortal, type PortalConfig } from "./portal";
 import { parseStudioNav, type StudioNavConfig } from "./studio-nav-config";
 import { parseUiCopy, type UiCopy } from "./ui-copy";
+import {
+  activeBgMusicTracks,
+  parseBgMusic,
+  type BgMusicConfig,
+} from "./bg-music";
 
 function parseEnabledLocalesJsonSafe(raw: string | null | undefined): AppLocale[] {
   return parseEnabledLocalesJson(raw);
@@ -86,6 +91,8 @@ export type SiteSettingsRow = {
   smsTemplateCode: string;
   smsTestMode: boolean;
   smsTestFixedCode: string;
+  bgMusicJson: string;
+  jamendoClientId: string;
   updatedAt: Date;
 };
 
@@ -119,6 +126,9 @@ export async function getSiteSettings(): Promise<SiteSettingsRow> {
     translateApiModel:
       (row as { translateApiModel?: string }).translateApiModel ||
       "gpt-4o-mini",
+    bgMusicJson: (row as { bgMusicJson?: string }).bgMusicJson || "",
+    jamendoClientId:
+      (row as { jamendoClientId?: string }).jamendoClientId || "",
   } as SiteSettingsRow;
   cache = { at: Date.now(), row: normalized };
   return normalized;
@@ -134,6 +144,32 @@ export async function getHideAllPricesFlag(): Promise<boolean> {
 export async function getHideSocialChatFlag(): Promise<boolean> {
   const row = await getSiteSettings();
   return Boolean(row.hideSocialChat);
+}
+
+/** 全站背景音乐配置（含未启用曲目，供后台编辑） */
+export async function getBgMusicConfig(): Promise<BgMusicConfig> {
+  const row = await getSiteSettings();
+  return parseBgMusic(row.bgMusicJson);
+}
+
+/** 前台播放器用：仅启用曲目；未开总开关则空列表 */
+export async function getPublicBgMusicPayload() {
+  const row = await getSiteSettings();
+  const config = parseBgMusic(row.bgMusicJson);
+  return {
+    enabled: config.enabled,
+    loopPlaylist: config.loopPlaylist,
+    defaultOpen: config.defaultOpen,
+    tracks: activeBgMusicTracks(config).map((t) => ({
+      id: t.id,
+      title: t.title,
+      artist: t.artist,
+      kind: t.kind,
+      src: t.src,
+      coverUrl: t.coverUrl || "",
+      credit: t.credit || "",
+    })),
+  };
 }
 
 export async function getUiCopy(): Promise<UiCopy> {
@@ -304,6 +340,9 @@ export function publicSiteSettings(row: SiteSettingsRow) {
             row.smsSignName &&
             row.smsTemplateCode)),
     ),
+    bgMusic: parseBgMusic(row.bgMusicJson),
+    jamendoClientId: row.jamendoClientId || "",
+    jamendoConfigured: Boolean(row.jamendoClientId?.trim()),
     updatedAt: row.updatedAt.toISOString(),
   };
 }

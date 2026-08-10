@@ -52,6 +52,7 @@ export const STUDIO_ADMIN_HUB_NAV_KEYS = [
   "templates",
   "cms",
   "wechat-mp",
+  "bg-music",
   "settings",
 ] as const;
 
@@ -84,6 +85,7 @@ export const DEFAULT_STUDIO_NAV: StudioNavConfig = {
     { key: "decorate", label: "装修", href: "/studio/decorate" },
     { key: "cms", label: "内容管理", href: "/studio/cms" },
     { key: "wechat-mp", label: "公众号宣传", href: "/studio/wechat-mp" },
+    { key: "bg-music", label: "背景音乐", href: "/studio/bg-music" },
     { key: "settings", label: "系统设置", href: "/studio/settings" },
   ],
   // 默认：创建在左；约搭与课程/资料平行（活动语义，不进课程列表）

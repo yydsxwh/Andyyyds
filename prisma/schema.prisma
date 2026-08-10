@@ -442,6 +442,11 @@ model SiteSettings {
   /// 测试固定验证码（仅 testMode 时生效）；空则每次随机并打日志
   smsTestFixedCode String @default("123456")
 
+  /// 全站背景音乐歌单（JSON）：开关、循环、曲目列表（upload/url/stock/netease）
+  bgMusicJson String @default("")
+  /// Jamendo 免费 API Client ID（站长自助申请）；用于检索可商用免版税曲目
+  jamendoClientId String @default("")
+
   updatedAt DateTime @updatedAt
 }
 
