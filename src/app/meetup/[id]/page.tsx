@@ -13,6 +13,8 @@ import {
   sumMeetupPartySize,
 } from "@/lib/meetup-service-contact";
 import { canManageMeetups } from "@/lib/roles";
+import { resolveContentFields } from "@/lib/i18n/content-resolve";
+import { getRequestLocaleContext } from "@/lib/i18n/get-request-locale";
 import {
   getHideAllPricesFlag,
   getOrderFormConfig,
@@ -98,30 +100,53 @@ export default async function MeetupDetailPage({
       : Promise.resolve(null),
   ]);
   const siteContact = portal.contact;
+  const localeCtx = await getRequestLocaleContext();
+  const loc = await resolveContentFields({
+    entityType: "meetup",
+    entityId: meetup.id,
+    fields: {
+      title: meetup.title,
+      description: meetup.description || "",
+      contentHtml: meetup.contentHtml || "",
+      place: meetup.place || "",
+      meetingPoint: meetup.meetingPoint || "",
+      destination: meetup.destination || "",
+      highlights: meetup.highlights || "",
+      feeIncludes: meetup.feeIncludes || "",
+      refundPolicy: meetup.refundPolicy || "",
+    },
+    locale: localeCtx.contentLocale,
+  });
+  // 站长详情：主显中文；英文由 MeetupDetailView 若支持 title 可再挂，此处先保中文不挤版
+  const withBi = (field: keyof typeof loc) => {
+    const row = loc[field];
+    if (!localeCtx.bilingual) return row.text;
+    return row.source || row.text;
+  };
 
   const data: MeetupDetailData = {
     id: meetup.id,
-    title: meetup.title,
-    description: meetup.description,
-    contentHtml: meetup.contentHtml || "",
+    title: withBi("title"),
+    description: withBi("description"),
+    contentHtml: withBi("contentHtml") || "",
     priceCents: meetup.priceCents,
     hidePrice: Boolean(productCourse?.hidePrice),
     category: meetup.category,
     startsAt: meetup.startsAt.toISOString(),
     endsAt: meetup.endsAt ? meetup.endsAt.toISOString() : null,
     timezone: meetup.timezone || "Asia/Shanghai",
-    place: meetup.place,
+    place: withBi("place"),
     maxPeople: fromMeetupPeopleDb(meetup.maxPeople),
     coverUrl: meetup.coverUrl || "",
     tags: parseJsonStringArray(meetup.tagsJson),
-    feeIncludes: meetup.feeIncludes || "",
-    refundPolicy: meetup.refundPolicy || "",
+    feeIncludes: withBi("feeIncludes") || "",
+    refundPolicy: withBi("refundPolicy") || "",
     autoRefund: Boolean(meetup.autoRefund),
     gallery: parseJsonStringArray(meetup.galleryJson),
     contactUrl: meetup.contactUrl || "",
-    meetingPoint: meetup.meetingPoint || "",
-    destination: meetup.destination || "",
-    highlights: meetup.highlights || "",
+    meetingPoint: withBi("meetingPoint") || "",
+    destination: withBi("destination") || "",
+    highlights: withBi("highlights") || "",
     adminPhone: meetup.adminPhone || "",
     servicePhones: parseMeetupServicePhones(meetup.servicePhonesJson),
     wechatService: meetup.wechatService || "",

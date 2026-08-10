@@ -10,6 +10,9 @@ import { listColumnBundleCourses } from "@/lib/course-bundle";
 import { prisma } from "@/lib/db";
 import { productDetailPath, productTypeLabel } from "@/lib/product-types";
 import { shouldHideProductPrice } from "@/lib/product-price-display";
+import { BilingualText } from "@/components/i18n/bilingual-text";
+import { resolveContentFields } from "@/lib/i18n/content-resolve";
+import { getRequestLocaleContext } from "@/lib/i18n/get-request-locale";
 import {
   getHideAllPricesFlag,
   getOrderFormConfig,
@@ -26,9 +29,10 @@ export default async function CourseDetailPage({
 }) {
   const { slug: rawSlug } = await params;
   const slug = decodeRouteSlug(rawSlug);
-  const [session, hideAllPrices] = await Promise.all([
+  const [session, hideAllPrices, localeCtx] = await Promise.all([
     getSession(),
     getHideAllPricesFlag(),
+    getRequestLocaleContext(),
   ]);
   const course = await prisma.course.findUnique({
     where: { slug },
@@ -123,6 +127,27 @@ export default async function CourseDetailPage({
     hidePrice: course.hidePrice,
   });
 
+  const localized = await resolveContentFields({
+    entityType: "course",
+    entityId: course.id,
+    fields: {
+      title: course.title,
+      subtitle: course.subtitle || "",
+      description: course.description || "",
+    },
+    locale: localeCtx.contentLocale,
+  });
+  let categoryName = course.category?.name ?? "综合";
+  if (course.category) {
+    const cat = await resolveContentFields({
+      entityType: "category",
+      entityId: course.category.id,
+      fields: { name: course.category.name },
+      locale: localeCtx.contentLocale,
+    });
+    categoryName = localeCtx.bilingual ? cat.name.source : cat.name.text;
+  }
+
   return (
     <div className="container grid gap-8 py-12 lg:grid-cols-[1.4fr_0.8fr]">
       <div className="space-y-8">
@@ -130,17 +155,31 @@ export default async function CourseDetailPage({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={coverUrl}
-            alt={course.title}
+            alt={localized.title.text}
             className="aspect-[16/9] w-full object-cover"
           />
           <div className="space-y-4 p-6 sm:p-8">
             <div className="text-sm text-[var(--muted)]">
               {productTypeLabel(course.productType)}
               {isColumn ? "套餐" : ""} ·{" "}
-              {course.category?.name ?? "综合"} · {course.teacher.name}
+              {categoryName} · {course.teacher.name}
             </div>
-            <h1 className="text-3xl font-semibold">{course.title}</h1>
-            <p className="text-[var(--muted)]">{course.subtitle}</p>
+            <BilingualText
+              as="h1"
+              className="text-3xl font-semibold"
+              source={localized.title.source}
+              text={localized.title.text}
+              bilingual={localeCtx.bilingual}
+              locale={localeCtx.locale}
+            />
+            <BilingualText
+              as="p"
+              className="text-[var(--muted)]"
+              source={localized.subtitle.source}
+              text={localized.subtitle.text}
+              bilingual={localeCtx.bilingual}
+              locale={localeCtx.locale}
+            />
             <div className="flex flex-wrap gap-4 text-sm text-[var(--muted)]">
               <span>{course.studentCount} 人在学</span>
               <span>★ {course.rating.toFixed(1)}</span>
@@ -163,7 +202,14 @@ export default async function CourseDetailPage({
                 </span>
               ) : null}
             </div>
-            <p className="leading-7 text-[var(--ink)]">{course.description}</p>
+            <BilingualText
+              as="p"
+              className="leading-7 text-[var(--ink)]"
+              source={localized.description.source}
+              text={localized.description.text}
+              bilingual={localeCtx.bilingual}
+              locale={localeCtx.locale}
+            />
           </div>
         </div>
 

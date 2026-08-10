@@ -1,7 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+import { useLocale } from "@/components/i18n/locale-provider";
 import type { ChatSource } from "@/lib/chat/constants";
 
 type Props = {
@@ -12,7 +13,7 @@ type Props = {
   /** 未登录时跳转 */
   loginHref?: string;
   className?: string;
-  children?: React.ReactNode;
+  children?: ReactNode;
 };
 
 /**
@@ -28,6 +29,7 @@ export function StartConsultChatButton({
   children,
 }: Props) {
   const router = useRouter();
+  const { t } = useLocale();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -79,7 +81,7 @@ export function StartConsultChatButton({
         disabled={loading || !peerUserId}
         onClick={() => void onClick()}
       >
-        {loading ? "发起中…" : children || "站内私聊咨询"}
+        {loading ? t("common.loading") : children || t("cta.consult")}
       </button>
       {error ? (
         <p className="mt-1 text-center text-xs text-[var(--fire)]">{error}</p>

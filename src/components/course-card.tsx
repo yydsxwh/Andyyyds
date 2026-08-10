@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BilingualHover } from "@/components/i18n/bilingual-hover";
 import { shouldHideProductPrice } from "@/lib/product-price-display";
 import { productDetailPath, productTypeLabel } from "@/lib/product-types";
 import { formatPrice } from "@/lib/utils";
@@ -7,8 +8,11 @@ type CourseCardProps = {
   course: {
     id: string;
     title: string;
+    /** 站长双语：悬浮英文，不占卡片宽度 */
+    titleSecondary?: string;
     slug: string;
     subtitle: string;
+    subtitleSecondary?: string;
     coverUrl: string;
     price: number;
     originalPrice: number;
@@ -71,9 +75,20 @@ export function CourseCard({ course, hideAllPrices = false }: CourseCardProps) {
           <span>★ {course.rating.toFixed(1)}</span>
         </div>
         <div>
-          <h3 className="text-lg font-semibold leading-snug">{course.title}</h3>
+          <h3 className="text-lg font-semibold leading-snug">
+            <BilingualHover
+              as="span"
+              className="block"
+              primary={course.title}
+              secondary={course.titleSecondary}
+            />
+          </h3>
           <p className="mt-1 line-clamp-2 text-sm text-[var(--muted)]">
-            {course.subtitle}
+            <BilingualHover
+              as="span"
+              primary={course.subtitle}
+              secondary={course.subtitleSecondary}
+            />
           </p>
         </div>
         <div className="flex items-end justify-between gap-3">

@@ -6,11 +6,14 @@ import { useChatRealtime } from "@/components/chat/use-chat-realtime";
 
 export type InboxRow = {
   id: string;
+  kind?: string;
   status: string;
   title: string;
   lastMessagePreview: string;
   lastMessageAt: string | null;
   unreadCount: number;
+  joinStatus?: string;
+  memberCount?: number;
   peer: { id: string; name: string; avatarUrl: string } | null;
 };
 
@@ -70,7 +73,12 @@ export function ChatInboxClient({
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <span className="truncate font-medium">{c.title}</span>
-                {c.status === "PENDING" ? (
+                {c.kind === "GROUP" ? (
+                  <span className="shrink-0 rounded-md bg-sky-100 px-1.5 py-0.5 text-[10px] text-sky-800">
+                    群{c.memberCount ? ` · ${c.memberCount}` : ""}
+                  </span>
+                ) : null}
+                {c.joinStatus === "PENDING" || c.status === "PENDING" ? (
                   <span className="shrink-0 rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-800">
                     待确认
                   </span>

@@ -189,6 +189,27 @@ export async function POST(
       );
     }
 
+    // 免费报名成功：自动加入约搭群
+    try {
+      const meetup = await prisma.meetup.findUnique({
+        where: { id },
+        select: { id: true, hostId: true, title: true },
+      });
+      if (meetup) {
+        const { ensureMeetupGroupAndJoin } = await import(
+          "@/lib/chat/group-service"
+        );
+        await ensureMeetupGroupAndJoin({
+          meetupId: meetup.id,
+          hostId: meetup.hostId,
+          meetupTitle: meetup.title,
+          userId: session.id,
+        });
+      }
+    } catch (err) {
+      console.error("[meetup:join:chat-group]", err);
+    }
+
     const row = await loadDetail(id);
     return NextResponse.json({ ok: true, meetupId: row?.id });
   } catch (error) {

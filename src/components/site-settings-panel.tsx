@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import {
   postSave,
@@ -51,6 +51,13 @@ export type PublicSettings = {
   teacherDistributionPercent: number;
   userDistributionPercent: number;
   hideAllPrices: boolean;
+  hideSocialChat: boolean;
+  defaultLocale: string;
+  enabledLocales: string[];
+  translateApiBaseUrl: string;
+  translateApiKey: string;
+  translateApiModel: string;
+  translateConfigured?: boolean;
   smsEnabled: boolean;
   smsProvider: string;
   smsAccessKeyId: string;
@@ -71,7 +78,7 @@ function Field({
 }: {
   label: string;
   hint?: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <label className="block text-sm">
@@ -87,6 +94,7 @@ const inputClass =
 
 type SettingsSectionId =
   | "site"
+  | "i18n"
   | "commission"
   | "wechat-mp"
   | "wechat-web"
@@ -177,6 +185,27 @@ export function SiteSettingsPanel({ initial }: Props) {
     teacherDistributionPercent: initial.teacherDistributionPercent ?? 8,
     userDistributionPercent: initial.userDistributionPercent ?? 5,
     hideAllPrices: Boolean(initial.hideAllPrices),
+    hideSocialChat: Boolean(initial.hideSocialChat),
+    defaultLocale: initial.defaultLocale || "zh-Hans",
+    enabledLocales: Array.isArray(initial.enabledLocales)
+      ? initial.enabledLocales
+      : [
+          "zh-Hans",
+          "zh-Hant",
+          "en",
+          "es",
+          "ja",
+          "fr",
+          "de",
+          "vi",
+          "fil",
+          "pt",
+        ],
+    translateApiBaseUrl:
+      initial.translateApiBaseUrl || "https://api.openai.com/v1",
+    translateApiKey: initial.translateApiKey || "",
+    translateApiModel: initial.translateApiModel || "gpt-4o-mini",
+    translateConfigured: Boolean(initial.translateConfigured),
     smsEnabled: Boolean(initial.smsEnabled),
     smsProvider: initial.smsProvider || "test",
     smsAccessKeyId: initial.smsAccessKeyId || "",
@@ -238,6 +267,15 @@ export function SiteSettingsPanel({ initial }: Props) {
           siteUrl: form.siteUrl,
           paymentMode: form.paymentMode,
           hideAllPrices: form.hideAllPrices,
+          hideSocialChat: form.hideSocialChat,
+        };
+      case "i18n":
+        return {
+          defaultLocale: form.defaultLocale,
+          enabledLocales: form.enabledLocales,
+          translateApiBaseUrl: form.translateApiBaseUrl,
+          translateApiKey: form.translateApiKey,
+          translateApiModel: form.translateApiModel,
         };
       case "commission":
         return {
@@ -313,6 +351,7 @@ export function SiteSettingsPanel({ initial }: Props) {
 
   const SECTION_SAVE_OK: Record<SettingsSectionId, string> = {
     site: "站点基础已保存",
+    i18n: "语言与翻译已保存",
     commission: "分成与抽成已保存",
     "wechat-mp": "微信公众号接口已保存",
     "wechat-web": "微信扫码登录已保存",
@@ -509,8 +548,34 @@ export function SiteSettingsPanel({ initial }: Props) {
             </span>
           </span>
         </label>
+        <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-2xl border border-[var(--line)] bg-white/70 px-3 py-3 text-sm">
+          <input
+            type="checkbox"
+            className="mt-1 h-4 w-4 accent-[var(--brand)]"
+            checked={form.hideSocialChat}
+            onChange={(e) => set("hideSocialChat", e.target.checked)}
+          />
+          <span>
+            <span className="font-medium text-[var(--ink)]">
+              隐藏站内社交私聊与群组
+            </span>
+            <span className="mt-0.5 block text-xs text-[var(--muted)]">
+              关闭首页找人私聊、发起群聊、约搭/班级自动群等前台能力（合规管控用）。
+              商品/约搭详情里「私聊咨询商家或发起人」不受影响，仍可保留。
+            </span>
+          </span>
+        </label>
         {sectionSaveBar("site")}
       </SettingsSection>
+
+      <LanguageTranslateSection
+        form={form}
+        set={set}
+        open={openSections.has("i18n")}
+        onToggle={toggleSection}
+        sectionSaveBar={sectionSaveBar}
+        mergeSettingsResponse={mergeSettingsResponse}
+      />
 
       <SettingsSection
         id="commission"
@@ -1215,5 +1280,218 @@ export function SiteSettingsPanel({ initial }: Props) {
         {sectionSaveBar("oss")}
       </SettingsSection>
     </div>
+  );
+}
+
+const LOCALE_OPTIONS: { id: string; label: string }[] = [
+  { id: "zh-Hans", label: "简体中文" },
+  { id: "zh-Hant", label: "繁體中文" },
+  { id: "en", label: "English" },
+  { id: "es", label: "Español" },
+  { id: "ja", label: "日本語" },
+  { id: "fr", label: "Français" },
+  { id: "de", label: "Deutsch" },
+  { id: "vi", label: "Tiếng Việt" },
+  { id: "fil", label: "Filipino" },
+  { id: "pt", label: "Português" },
+];
+
+function LanguageTranslateSection({
+  form,
+  set,
+  open,
+  onToggle,
+  sectionSaveBar,
+  mergeSettingsResponse,
+}: {
+  form: PublicSettings;
+  set: <K extends keyof PublicSettings>(key: K, value: PublicSettings[K]) => void;
+  open: boolean;
+  onToggle: (id: SettingsSectionId) => void;
+  sectionSaveBar: (id: SettingsSectionId) => ReactNode;
+  mergeSettingsResponse: (settings: Partial<PublicSettings>) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [targetLocale, setTargetLocale] = useState("en");
+  const [result, setResult] = useState("");
+  const [force, setForce] = useState(false);
+
+  async function runTranslate() {
+    setBusy(true);
+    setResult("");
+    try {
+      const res = await fetch("/api/studio/i18n/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ locale: targetLocale, force }),
+      });
+      const data = (await res.json()) as {
+        error?: string;
+        done?: number;
+        skipped?: number;
+        failed?: number;
+        total?: number;
+        errors?: string[];
+      };
+      if (!res.ok) {
+        setResult(data.error || "翻译失败");
+        return;
+      }
+      setResult(
+        `完成：成功 ${data.done ?? 0} · 跳过 ${data.skipped ?? 0} · 失败 ${data.failed ?? 0} / 共 ${data.total ?? 0}` +
+          (data.errors?.length
+            ? `\n${data.errors.slice(0, 5).join("\n")}`
+            : ""),
+      );
+    } catch {
+      setResult("网络错误");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function toggleLocale(id: string, checked: boolean) {
+    const cur = form.enabledLocales || [];
+    const next = checked
+      ? Array.from(new Set([...cur, id]))
+      : cur.filter((x) => x !== id);
+    // 至少保留简体，避免整站无语言
+    if (!next.includes("zh-Hans")) next.unshift("zh-Hans");
+    set("enabledLocales", next);
+  }
+
+  return (
+    <SettingsSection
+      id="i18n"
+      title="语言与翻译"
+      summary={`回退 ${form.defaultLocale || "zh-Hans"} · 启用 ${form.enabledLocales?.length || 0} 种 · ${form.translateConfigured ? "API 已配置" : "API 未配置"}`}
+      open={open}
+      onToggle={onToggle}
+    >
+      <p className="text-sm text-[var(--muted)]">
+        访客按浏览器语言自动匹配。界面词条与简繁转换免费；课程/约搭等正文一键翻译需配置
+        OpenAI 兼容 API（按量计费），结果落库缓存。站长登录前台时会并排看到中文原文与译文。
+      </p>
+      <Field label="无匹配时的回退语言">
+        <select
+          className={inputClass}
+          value={form.defaultLocale || "zh-Hans"}
+          onChange={(e) => set("defaultLocale", e.target.value)}
+        >
+          {LOCALE_OPTIONS.map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <div className="space-y-2">
+        <span className="text-sm text-[var(--muted)]">已启用语种</span>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {LOCALE_OPTIONS.map((o) => (
+            <label
+              key={o.id}
+              className="flex min-h-11 cursor-pointer items-center gap-2 rounded-2xl border border-[var(--line)] bg-white/70 px-3 text-sm"
+            >
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-[var(--brand)]"
+                checked={(form.enabledLocales || []).includes(o.id)}
+                onChange={(e) => toggleLocale(o.id, e.target.checked)}
+              />
+              {o.label}
+            </label>
+          ))}
+        </div>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field
+          label="翻译 API Base URL"
+          hint="OpenAI 兼容，如 https://api.openai.com/v1"
+        >
+          <input
+            className={inputClass}
+            value={form.translateApiBaseUrl || ""}
+            onChange={(e) => set("translateApiBaseUrl", e.target.value)}
+            placeholder="https://api.openai.com/v1"
+          />
+        </Field>
+        <Field label="模型名">
+          <input
+            className={inputClass}
+            value={form.translateApiModel || ""}
+            onChange={(e) => set("translateApiModel", e.target.value)}
+            placeholder="gpt-4o-mini"
+          />
+        </Field>
+        <Field
+          label="API Key"
+          hint="已保存的密钥显示为打码；留空保存表示不修改"
+        >
+          <input
+            className={inputClass}
+            type="password"
+            autoComplete="off"
+            value={form.translateApiKey || ""}
+            onChange={(e) => set("translateApiKey", e.target.value)}
+            placeholder="sk-…"
+          />
+        </Field>
+      </div>
+      {sectionSaveBar("i18n")}
+      <div className="mt-4 space-y-3 rounded-2xl border border-[var(--line)] bg-white/50 p-4">
+        <p className="text-sm font-medium text-[var(--ink)]">一键翻译正文</p>
+        <p className="text-xs text-[var(--muted)]">
+          将课程/约搭/分类/装扮/门户可见文案翻译到目标语言并缓存。繁体可走本地转换无需
+          API；英语等需已保存 API Key。
+        </p>
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="block text-sm">
+            <span className="text-[var(--muted)]">目标语言</span>
+            <select
+              className={`${inputClass} mt-1 min-w-[10rem]`}
+              value={targetLocale}
+              onChange={(e) => setTargetLocale(e.target.value)}
+            >
+              {LOCALE_OPTIONS.filter((o) => o.id !== "zh-Hans").map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex min-h-11 items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="h-4 w-4 accent-[var(--brand)]"
+              checked={force}
+              onChange={(e) => setForce(e.target.checked)}
+            />
+            强制重翻（忽略未过期缓存）
+          </label>
+          <button
+            type="button"
+            className="btn btn-primary min-h-11"
+            disabled={busy}
+            onClick={() => void runTranslate()}
+          >
+            {busy ? "翻译中…" : "开始一键翻译"}
+          </button>
+        </div>
+        {result ? (
+          <pre className="whitespace-pre-wrap text-xs text-[var(--muted)]">
+            {result}
+          </pre>
+        ) : null}
+      </div>
+      {/* 保存后刷新打码状态 */}
+      <button
+        type="button"
+        className="sr-only"
+        tabIndex={-1}
+        aria-hidden
+        onClick={() => mergeSettingsResponse({})}
+      />
+    </SettingsSection>
   );
 }

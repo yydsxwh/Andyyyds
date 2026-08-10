@@ -133,10 +133,36 @@ async function ensureEnrollment(
   await db.enrollment.create({
     data: { userId, courseId },
   });
-  await db.course.update({
+  const course = await db.course.update({
     where: { id: courseId },
     data: { studentCount: { increment: 1 } },
+    select: {
+      id: true,
+      title: true,
+      teacherId: true,
+      productType: true,
+    },
   });
+  // 课程/专栏/资料：开通后自动进班级群（商城实体货与约搭壳不建班级群）
+  if (
+    course.productType === "COURSE" ||
+    course.productType === "COLUMN" ||
+    course.productType === "MATERIAL"
+  ) {
+    try {
+      const { ensureCourseGroupAndJoin } = await import(
+        "@/lib/chat/group-service"
+      );
+      await ensureCourseGroupAndJoin({
+        courseId: course.id,
+        teacherId: course.teacherId,
+        courseTitle: course.title,
+        userId,
+      });
+    } catch (err) {
+      console.error("[course:chat-group]", err);
+    }
+  }
 }
 
 export async function listColumnBundleCourses(columnId: string) {

@@ -1,19 +1,21 @@
 "use client";
 
 /**
- * 登录 / 注册统一表单：微信 | 手机号 | 邮箱。
+ * 登录 / 注册统一表单：微信 | 账号 | 手机号 | 邮箱。
  *
  * - 微信内：公众号网页授权（/api/auth/wechat）
  * - 站外浏览器：开放平台网站应用扫码（/api/auth/wechat/qr）
+ * - 账号：登录名 + 密码（与邮箱通道分开，不填邮箱）
  * - 手机号：短信验证码；注册可带身份申请与可选密码
- * - 邮箱：原有密码流程
+ * - 邮箱：真实邮箱 + 密码
  *
- * 国内用户默认落在微信 Tab；微信未配置时回退手机/邮箱，避免空白页。
- * 注册页三种方式均可选「我是…」身份；代理/商家/老师待站长审核。
+ * 国内用户默认落在微信 Tab；微信未配置时回退账号/手机/邮箱，避免空白页。
+ * 注册页各方式均可选「我是…」身份；代理/商家/老师待站长审核。
  */
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useLocale } from "@/components/i18n/locale-provider";
 import {
   APPLYABLE_ROLES,
   ROLE_HINT,
@@ -26,7 +28,7 @@ import { normalizeReferralCode } from "@/lib/referral-code";
 import { preferWechatFromClient } from "@/lib/auth-channel-preference";
 import { isWeChatBrowser } from "@/lib/wechat-env";
 
-type AuthChannel = "email" | "phone" | "wechat";
+type AuthChannel = "email" | "account" | "phone" | "wechat";
 
 type Props = {
   mode: "login" | "register";
@@ -68,10 +70,11 @@ function shouldDefaultToWechat(
   return true;
 }
 
-/** 微信不可用时的回退：手机优先，再邮箱 */
-function fallbackChannel(methods: Pick<MethodsState, "phone" | "email">): AuthChannel {
-  if (methods.phone) return "phone";
-  return "email";
+/** 微信不可用时的回退：账号密码（不依赖短信/扫码配置） */
+function fallbackChannel(
+  _methods?: Pick<MethodsState, "phone" | "email">,
+): AuthChannel {
+  return "account";
 }
 
 export function AuthForm({
@@ -188,8 +191,8 @@ export function AuthForm({
       router.refresh();
       return;
     }
-    // 登录与各渠道注册成功后统一进个人中心；邮箱注册成功去课程广场选课
-    if (mode === "register" && channel === "email") {
+    // 登录与各渠道注册成功后统一进个人中心；账号/邮箱密码注册去课程广场选课
+    if (mode === "register" && (channel === "email" || channel === "account")) {
       router.push("/courses");
     } else {
       router.push("/account");
@@ -216,6 +219,40 @@ export function AuthForm({
     const data = await res.json();
     setLoading(false);
 
+    if (!res.ok) {
+      setError(data.error || "操作失败");
+      return;
+    }
+    finishAuth(data);
+  }
+
+  async function onAccountSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    setNotice("");
+    const form = new FormData(e.currentTarget);
+    const username = String(form.get("username") || "");
+    const password = String(form.get("password") || "");
+    const name = String(form.get("name") || "");
+    const referralCode = String(
+      form.get("referralCode") || resolvedRef || "",
+    );
+
+    const res = await fetch("/api/auth/account", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username,
+        password,
+        mode,
+        name: mode === "register" ? name : undefined,
+        referralCode: referralCode || undefined,
+        requestedRole: mode === "register" ? requestedRole : "STUDENT",
+      }),
+    });
+    const data = await res.json();
+    setLoading(false);
     if (!res.ok) {
       setError(data.error || "操作失败");
       return;
@@ -335,33 +372,41 @@ export function AuthForm({
     window.location.href = `/api/auth/wechat/qr?${buildWechatLoginParams().toString()}`;
   }
 
-  // Tab 顺序：微信 → 手机号 → 邮箱（国内主路径在左，拇指区优先）
+  // Tab 顺序：微信 → 账号 → 手机号 → 邮箱（账号与邮箱分开，电脑端可走账号密码）
   const visibleTabs = (
     [
       { id: "wechat" as const, label: "微信", show: true },
+      { id: "account" as const, label: "账号", show: true },
       { id: "phone" as const, label: "手机号", show: true },
       { id: "email" as const, label: "邮箱", show: methods.email },
     ] as const
   ).filter((tab) => tab.show);
 
+  const tabGridClass =
+    visibleTabs.length <= 2
+      ? "grid-cols-2"
+      : visibleTabs.length === 3
+        ? "grid-cols-3"
+        : "grid-cols-2 sm:grid-cols-4";
+
+  const { t } = useLocale();
+
   return (
     <div className="surface mx-auto w-full max-w-md space-y-4 rounded-[28px] p-5 sm:p-8">
       <div>
         <h1 className="brand-mark text-3xl text-[var(--brand)]">
-          {mode === "login" ? "欢迎回来" : "创建账号"}
+          {mode === "login" ? t("auth.loginTitle") : t("auth.registerTitle")}
         </h1>
         <p className="mt-2 text-sm text-[var(--muted)]">
           {mode === "login"
-            ? "可用微信、手机号或邮箱登录。"
-            : "可用微信、手机号或邮箱注册。普通用户即用；加盟代理 / 入驻商家 / 老师需站长审核。"}
+            ? "可用微信、账号密码、手机号或邮箱登录。"
+            : "可用微信、账号密码、手机号或邮箱注册。普通用户即用；加盟代理 / 入驻商家 / 老师需站长审核。"}
         </p>
       </div>
 
-      {/* 大触控分区，保证手机微信内拇指可点 */}
+      {/* 大触控分区，保证手机微信内拇指可点；四项时手机两列避免挤成一条 */}
       <div
-        className={`grid gap-2 rounded-2xl bg-[var(--bg-deep)]/50 p-1 ${
-          visibleTabs.length <= 2 ? "grid-cols-2" : "grid-cols-3"
-        }`}
+        className={`grid gap-2 rounded-2xl bg-[var(--bg-deep)]/50 p-1 ${tabGridClass}`}
         role="tablist"
         aria-label="登录方式"
       >
@@ -387,8 +432,71 @@ export function AuthForm({
         ))}
       </div>
 
+      {channel === "account" ? (
+        <form onSubmit={onAccountSubmit} className="space-y-4">
+          <p className="rounded-2xl bg-[var(--bg-deep)]/60 px-3 py-2 text-xs leading-5 text-[var(--muted)]">
+            使用登录账号 + 密码（不是邮箱）。账号为 4–20
+            位，小写字母开头，仅含字母、数字、下划线。
+          </p>
+          {mode === "register" ? (
+            <input className="field" name="name" placeholder="昵称" required />
+          ) : null}
+          <input
+            className="field"
+            name="username"
+            autoComplete="username"
+            placeholder="登录账号"
+            spellCheck={false}
+            required
+          />
+          <input
+            className="field"
+            type="password"
+            name="password"
+            autoComplete={
+              mode === "login" ? "current-password" : "new-password"
+            }
+            placeholder="密码（至少 6 位）"
+            minLength={6}
+            required
+          />
+          {mode === "register" ? (
+            <>
+              <RolePicker
+                requestedRole={requestedRole}
+                onChange={setRequestedRole}
+              />
+              <input
+                className="field"
+                name="referralCode"
+                placeholder="邀请码（可选）"
+                defaultValue={resolvedRef}
+              />
+            </>
+          ) : null}
+          {error ? <p className="text-sm text-red-700">{error}</p> : null}
+          {notice ? (
+            <p className="text-sm text-[var(--brand-strong)]">{notice}</p>
+          ) : null}
+          <button
+            className="btn btn-primary w-full"
+            disabled={loading}
+            type="submit"
+          >
+            {loading
+              ? "提交中..."
+              : mode === "login"
+                ? "账号登录"
+                : "账号注册"}
+          </button>
+        </form>
+      ) : null}
+
       {channel === "email" ? (
         <form onSubmit={onEmailSubmit} className="space-y-4">
+          <p className="rounded-2xl bg-[var(--bg-deep)]/60 px-3 py-2 text-xs leading-5 text-[var(--muted)]">
+            使用真实邮箱 + 密码。若要用登录名注册，请切换到「账号」。
+          </p>
           {mode === "register" ? (
             <input className="field" name="name" placeholder="昵称" required />
           ) : null}
@@ -396,6 +504,7 @@ export function AuthForm({
             className="field"
             type="email"
             name="email"
+            autoComplete="email"
             placeholder="邮箱"
             required
           />
@@ -403,6 +512,9 @@ export function AuthForm({
             className="field"
             type="password"
             name="password"
+            autoComplete={
+              mode === "login" ? "current-password" : "new-password"
+            }
             placeholder="密码（至少 6 位）"
             minLength={6}
             required

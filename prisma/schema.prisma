@@ -57,6 +57,8 @@ model User {
   cartItems            CartItem[]
   chatMemberships      ChatMember[]
   chatMessagesSent     ChatMessage[]      @relation("ChatMessageSender")
+  chatMessageHides     ChatMessageHide[]
+  chatMessageReads     ChatMessageRead[]
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
 
@@ -68,24 +70,28 @@ model User {
   @@index([name])
 }
 
-/// 站内私聊/群聊会话（第一期以 DIRECT 为主；GROUP 预留做大）
+/// 站内私聊/群聊会话
 model ChatConversation {
   id        String   @id @default(cuid())
   /// DIRECT | GROUP
   kind      String   @default("DIRECT")
-  /// PENDING=待对方确认 | ACTIVE=可聊天 | REJECTED | CLOSED
+  /// PENDING=待对方确认(直聊) | ACTIVE=可聊天 | REJECTED | CLOSED
   status    String   @default("PENDING")
   /// DIRECT 时双方 userId 排序拼接，便于查重进行中的会话
   directKey String   @default("")
   initiatedById String
   /// 直聊对方（DIRECT）；群聊为空
   peerUserId String  @default("")
-  /// USER_SEARCH | PRODUCT_CONSULT | MEETUP_CONSULT | GROUP
+  /// USER_SEARCH | PRODUCT_CONSULT | MEETUP_CONSULT | GROUP | MEETUP_GROUP | COURSE_GROUP
   source    String   @default("USER_SEARCH")
   relatedCourseId String @default("")
   relatedMeetupId String @default("")
   /// 群标题等；直聊可空（展示时用对方昵称）
   title     String   @default("")
+  /// 群公告正文；空表示无公告
+  announcement String @default("")
+  announcementUpdatedAt DateTime?
+  announcementById String @default("")
   lastMessageAt DateTime?
   lastMessagePreview String @default("")
   members   ChatMember[]
@@ -97,14 +103,18 @@ model ChatConversation {
   @@index([status, lastMessageAt])
   @@index([initiatedById])
   @@index([peerUserId])
+  @@index([relatedMeetupId])
+  @@index([relatedCourseId])
 }
 
 model ChatMember {
   id             String   @id @default(cuid())
   conversationId String
   userId         String
-  /// REQUESTER | RECIPIENT | MEMBER（群成员）
+  /// OWNER | ADMIN | MEMBER | REQUESTER | RECIPIENT
   memberRole     String   @default("MEMBER")
+  /// ACTIVE | PENDING(邀清待同意) | REJECTED | LEFT
+  joinStatus     String   @default("ACTIVE")
   unreadCount    Int      @default(0)
   lastReadAt     DateTime?
   conversation   ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
@@ -114,22 +124,55 @@ model ChatMember {
 
   @@unique([conversationId, userId])
   @@index([userId, unreadCount])
+  @@index([userId, joinStatus])
 }
 
 model ChatMessage {
   id             String   @id @default(cuid())
   conversationId String
   senderId       String
-  /// TEXT | IMAGE | SYSTEM
+  /// TEXT | IMAGE | SYSTEM | NOTICE
   type           String   @default("TEXT")
   body           String   @default("")
   mediaUrl       String   @default("")
+  /// @ 提及的用户 id 列表 JSON
+  mentionJson    String   @default("[]")
+  /// 撤回时间；非空则客户端展示「已撤回」
+  recalledAt     DateTime?
   conversation   ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender         User     @relation("ChatMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  hides          ChatMessageHide[]
+  reads          ChatMessageRead[]
   createdAt      DateTime @default(now())
 
   @@index([conversationId, createdAt])
   @@index([senderId])
+}
+
+/// 消息已读回执（群聊为主；直聊也可写）
+model ChatMessageRead {
+  id        String      @id @default(cuid())
+  messageId String
+  userId    String
+  message   ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  readAt    DateTime    @default(now())
+
+  @@unique([messageId, userId])
+  @@index([userId])
+}
+
+/// 本地删除：仅对该用户隐藏，不删库、不影响对方可见
+model ChatMessageHide {
+  id        String      @id @default(cuid())
+  messageId String
+  userId    String
+  message   ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime    @default(now())
+
+  @@unique([messageId, userId])
+  @@index([userId])
 }
 
 /// 约搭活动：线下结伴 / 兴趣搭子；可免费或付费报名（付费复用 Course+Order 支付与分销）
@@ -372,6 +415,17 @@ model SiteSettings {
 
   /// 前台营销面隐藏所有产品价格（结账/订单仍显示应付金额）
   hideAllPrices Boolean @default(false)
+  /// 隐藏前台社交私聊/群聊（找人、建群、班级/约搭群）；产品咨询私信仍保留
+  hideSocialChat Boolean @default(false)
+
+  /// 浏览器语言无匹配时的回退 locale（如 zh-Hans / en）
+  defaultLocale String @default("zh-Hans")
+  /// 已启用语种 JSON 数组，空则用内置默认列表
+  enabledLocalesJson String @default("")
+  /// OpenAI 兼容翻译接口（正文一键翻译）；空则仅界面词条+简繁
+  translateApiBaseUrl String @default("")
+  translateApiKey String @default("")
+  translateApiModel String @default("gpt-4o-mini")
 
   /// 短信：是否启用手机号验证码登录
   smsEnabled Boolean @default(false)
@@ -761,4 +815,23 @@ model Order {
   commissions     Commission[]
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
+}
+
+/// 业务正文多语言缓存（源文为简体中文；一键翻译写入，按 sourceHash 判断是否过期）
+model ContentTranslation {
+  id         String   @id @default(cuid())
+  entityType String
+  entityId   String
+  field      String
+  locale     String
+  sourceHash String   @default("")
+  text       String   @default("")
+  /// 源文变更后标记过期，可再一键重翻
+  stale      Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([entityType, entityId, field, locale])
+  @@index([entityType, entityId])
+  @@index([locale, stale])
 }

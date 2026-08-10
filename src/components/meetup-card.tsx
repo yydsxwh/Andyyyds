@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { BilingualHover } from "@/components/i18n/bilingual-hover";
 import {
   formatMeetupWhen,
   meetupCategoryLabel,
@@ -15,11 +16,13 @@ import { formatPrice } from "@/lib/utils";
 export type MeetupCardData = {
   id: string;
   title: string;
+  titleSecondary?: string;
   category: string;
   startsAt: string | Date;
   /** IANA；缺省按北京时间展示 */
   timezone?: string | null;
   place: string;
+  placeSecondary?: string;
   maxPeople: number;
   coverUrl?: string;
   status: string;
@@ -114,12 +117,23 @@ export function MeetupCard({
             </span>
           </div>
           <h3 className="text-lg font-semibold leading-snug group-hover:text-[var(--brand)]">
-            {meetup.title}
+            <BilingualHover
+              as="span"
+              className="block"
+              primary={meetup.title}
+              secondary={meetup.titleSecondary}
+            />
           </h3>
           <p className="text-sm text-[var(--muted)]">
             {formatMeetupWhen(startsAt, meetup.timezone || undefined)}
           </p>
-          <p className="truncate text-sm text-[var(--ink)]">{meetup.place}</p>
+          <p className="truncate text-sm text-[var(--ink)]">
+            <BilingualHover
+              as="span"
+              primary={meetup.place}
+              secondary={meetup.placeSecondary}
+            />
+          </p>
           <div className="flex items-center justify-between gap-3 pt-2">
             {hidePrice ? (
               <span className="text-sm text-[var(--muted)]">

@@ -3,15 +3,30 @@
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { BilingualHover } from "@/components/i18n/bilingual-hover";
+import { useLocale } from "@/components/i18n/locale-provider";
 import { typoRoleClass, typoRoleStyle } from "@/lib/site-typography";
 
 export type HeaderNavLink = {
   label: string;
+  /** 站长双语：悬浮显示的英文等，不占位 */
+  labelSecondary?: string;
   /** 普通链接；有子菜单时可省略 */
   href?: string;
   /** 下拉子级，如「站长管理 → 内容管理」 */
-  children?: { href: string; label: string }[];
+  children?: { href: string; label: string; labelSecondary?: string }[];
 };
+
+function NavLabel({
+  label,
+  secondary,
+}: {
+  label: string;
+  secondary?: string;
+}) {
+  if (!secondary) return <>{label}</>;
+  return <BilingualHover primary={label} secondary={secondary} />;
+}
 
 type Props = {
   links: HeaderNavLink[];
@@ -19,27 +34,29 @@ type Props = {
   variant?: "desktop" | "mobile";
 };
 
-/** 门户默认入口：CMS 未返回或异常时仍保证汉堡菜单可点 */
-const FALLBACK_MOBILE_LINKS: HeaderNavLink[] = [
-  { href: "/", label: "首页" },
-  { href: "/about/company", label: "公司介绍" },
-  { href: "/about/person", label: "个人介绍" },
-  { href: "/courses", label: "网课资料" },
-  { href: "/meetup", label: "约搭" },
-  { href: "/shop", label: "商城" },
-  { href: "/forum", label: "大学论坛" },
-  { href: "/games", label: "游戏中心" },
-];
+/** 门户默认入口 key：文案走 i18n，避免汉堡菜单空壳 */
+const FALLBACK_MOBILE_HREFS = [
+  { href: "/", key: "nav.home" },
+  { href: "/about/company", key: "nav.company" },
+  { href: "/about/person", key: "nav.person" },
+  { href: "/courses", key: "nav.courses" },
+  { href: "/meetup", key: "nav.meetup" },
+  { href: "/shop", key: "nav.shop" },
+  { href: "/forum", key: "nav.forum" },
+  { href: "/games", key: "nav.games" },
+] as const;
 
 function DesktopDropdown({
   label,
+  labelSecondary,
   href,
   children,
 }: {
   label: string;
+  labelSecondary?: string;
   /** 有 href 时标题本身可点进总览（如站长管理 → /studio/admin） */
   href?: string;
-  children: { href: string; label: string }[];
+  children: { href: string; label: string; labelSecondary?: string }[];
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -77,7 +94,7 @@ function DesktopDropdown({
           aria-expanded={open}
           onClick={() => setOpen(false)}
         >
-          {label}
+          <NavLabel label={label} secondary={labelSecondary} />
           <span
             className="text-xs opacity-70"
             aria-hidden
@@ -98,7 +115,7 @@ function DesktopDropdown({
           aria-expanded={open}
           onClick={() => setOpen((v) => !v)}
         >
-          {label}
+          <NavLabel label={label} secondary={labelSecondary} />
           <span className="text-xs opacity-70" aria-hidden>
             ▾
           </span>
@@ -114,7 +131,10 @@ function DesktopDropdown({
                 className="block min-h-11 whitespace-nowrap px-3.5 py-2.5 text-[var(--ink)] active:bg-[var(--bg-deep)]/60"
                 onClick={() => setOpen(false)}
               >
-                {child.label}
+                <NavLabel
+                  label={child.label}
+                  secondary={child.labelSecondary}
+                />
               </Link>
             ))}
           </div>
@@ -138,6 +158,7 @@ function DesktopNav({ links }: { links: HeaderNavLink[] }) {
             <DesktopDropdown
               key={`dd-${link.label}`}
               label={link.label}
+              labelSecondary={link.labelSecondary}
               href={link.href}
               children={link.children}
             />
@@ -147,7 +168,10 @@ function DesktopNav({ links }: { links: HeaderNavLink[] }) {
               href={link.href}
               className="whitespace-nowrap hover:text-[var(--ink)]"
             >
-              {link.label}
+              <NavLabel
+                label={link.label}
+                secondary={link.labelSecondary}
+              />
             </Link>
           ) : null,
         )}
@@ -161,17 +185,22 @@ function DesktopNav({ links }: { links: HeaderNavLink[] }) {
  * 不用 CSS min()/复杂 inset 组合——部分微信 X5 会解析失败导致面板塌成一条「导航菜单」空壳。
  */
 function MobileNav({ links }: { links: HeaderNavLink[] }) {
+  const { t } = useLocale();
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [mobileOpenKey, setMobileOpenKey] = useState<string | null>(null);
   const panelId = useId();
   const closeBtnRef = useRef<HTMLButtonElement>(null);
 
+  const fallbackLinks: HeaderNavLink[] = FALLBACK_MOBILE_HREFS.map((item) => ({
+    href: item.href,
+    label: t(item.key),
+  }));
   const menuLinks =
     links.filter((l) => l.href || (l.children && l.children.length > 0))
       .length > 0
       ? links
-      : FALLBACK_MOBILE_LINKS;
+      : fallbackLinks;
 
   useEffect(() => {
     setMounted(true);
@@ -317,7 +346,10 @@ function MobileNav({ links }: { links: HeaderNavLink[] }) {
                                 fontWeight: 600,
                               }}
                             >
-                              {link.label}
+                              <NavLabel
+                                label={link.label}
+                                secondary={link.labelSecondary}
+                              />
                             </Link>
                           ) : (
                             <button
@@ -338,7 +370,10 @@ function MobileNav({ links }: { links: HeaderNavLink[] }) {
                                 font: "inherit",
                               }}
                             >
-                              {link.label}
+                              <NavLabel
+                                label={link.label}
+                                secondary={link.labelSecondary}
+                              />
                             </button>
                           )}
                           <button
@@ -386,7 +421,10 @@ function MobileNav({ links }: { links: HeaderNavLink[] }) {
                                   color: "#0f172a",
                                 }}
                               >
-                                {child.label}
+                                <NavLabel
+                                  label={child.label}
+                                  secondary={child.labelSecondary}
+                                />
                               </Link>
                             ))}
                           </div>
@@ -408,7 +446,10 @@ function MobileNav({ links }: { links: HeaderNavLink[] }) {
                         fontWeight: 600,
                       }}
                     >
-                      {link.label}
+                      <NavLabel
+                        label={link.label}
+                        secondary={link.labelSecondary}
+                      />
                     </Link>
                   );
                 })}

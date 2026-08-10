@@ -73,6 +73,12 @@ const patchSchema = z.object({
   teacherDistributionPercent: z.number().int().min(0).max(100).optional(),
   userDistributionPercent: z.number().int().min(0).max(100).optional(),
   hideAllPrices: z.boolean().optional(),
+  hideSocialChat: z.boolean().optional(),
+  defaultLocale: z.string().max(16).optional(),
+  enabledLocales: z.array(z.string().max(16)).max(20).optional(),
+  translateApiBaseUrl: z.string().max(300).optional(),
+  translateApiKey: z.string().max(500).optional(),
+  translateApiModel: z.string().max(128).optional(),
   smsEnabled: z.boolean().optional(),
   smsProvider: z.enum(["test", "aliyun"]).optional(),
   smsAccessKeyId: z.string().max(128).optional(),
@@ -155,6 +161,10 @@ export async function PATCH(req: Request) {
       "teacherDistributionPercent",
       "userDistributionPercent",
       "hideAllPrices",
+      "hideSocialChat",
+      "defaultLocale",
+      "translateApiBaseUrl",
+      "translateApiModel",
       "smsEnabled",
       "smsProvider",
       "smsAccessKeyId",
@@ -171,6 +181,10 @@ export async function PATCH(req: Request) {
       }
     }
 
+    if (body.enabledLocales) {
+      data.enabledLocalesJson = JSON.stringify(body.enabledLocales);
+    }
+
     const secretKeys = [
       ["wechatAppSecret", body.wechatAppSecret],
       ["wechatWebAppSecret", body.wechatWebAppSecret],
@@ -181,6 +195,7 @@ export async function PATCH(req: Request) {
       ["ossAccessKeySecret", body.ossAccessKeySecret],
       ["vodAccessKeySecret", body.vodAccessKeySecret],
       ["smsAccessKeySecret", body.smsAccessKeySecret],
+      ["translateApiKey", body.translateApiKey],
     ] as const;
 
     for (const [key, incoming] of secretKeys) {

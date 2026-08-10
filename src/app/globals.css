@@ -878,9 +878,10 @@ body.learn-landscape-fs {
 }
 
 /* ============================================================
- * 海岛/阳光装扮动效（仿 QQ 空间黄钻：光斑漂浮、海浪、阳光粒子、椰影、呼吸）
+ * 海岛/阳光装扮动效（仿 QQ 空间黄钻：海浪、阳光粒子、椰影、呼吸）
  * 挂在 html[data-theme-fx=…]；仅 transform/opacity，微信内可降级；
  * prefers-reduced-motion / 窄屏弱化，避免挡点击与耗电。
+ * 暖金圆形「阳光光斑」bokeh 已去掉：固定大圆挡视线，海浪/椰影/细粒子保留。
  * ============================================================ */
 html[data-theme-fx^="island-"]::before,
 html[data-theme-fx^="island-"]::after {
@@ -891,19 +892,6 @@ html[data-theme-fx^="island-"]::after {
   pointer-events: none;
   z-index: 25;
   will-change: transform, opacity;
-}
-
-/* 光斑层：暖金/天蓝 bokeh */
-html[data-theme-fx="island-sunbeam"]::before,
-html[data-theme-fx="island-sparkle"]::before,
-html[data-theme-fx="island-breath"]::before {
-  background:
-    radial-gradient(circle 90px at 18% 22%, rgba(251, 191, 36, 0.28), transparent 62%),
-    radial-gradient(circle 70px at 78% 16%, rgba(255, 255, 255, 0.45), transparent 60%),
-    radial-gradient(circle 110px at 62% 70%, rgba(56, 189, 248, 0.18), transparent 65%),
-    radial-gradient(circle 50px at 40% 48%, rgba(254, 243, 199, 0.35), transparent 58%);
-  animation: island-bokeh-drift 14s ease-in-out infinite;
-  opacity: 0.85;
 }
 
 /* 海浪层：底部柔波 */
@@ -917,28 +905,25 @@ html[data-theme-fx="island-lagoon"]::before {
   opacity: 0.9;
 }
 
-/* 椰影轻晃：斜向柔影 */
+/* 椰影轻晃：斜向柔影（不含暖金圆斑） */
 html[data-theme-fx="island-palm"]::before {
   background:
     radial-gradient(ellipse 40% 55% at 92% -5%, rgba(22, 101, 52, 0.1), transparent 70%),
-    radial-gradient(ellipse 28% 40% at 8% 0%, rgba(20, 83, 45, 0.08), transparent 65%),
-    radial-gradient(circle 80px at 70% 18%, rgba(251, 191, 36, 0.2), transparent 60%);
+    radial-gradient(ellipse 28% 40% at 8% 0%, rgba(20, 83, 45, 0.08), transparent 65%);
   animation: island-palm-sway 11s ease-in-out infinite;
   transform-origin: 90% 0%;
   opacity: 0.88;
 }
 
-/* 第二层：细小阳光粒子 / 水面闪点 */
+/* 第二层：细小白/水色闪点（去掉琥珀黄粒子，避免残留光斑感） */
 html[data-theme-fx="island-sunbeam"]::after,
 html[data-theme-fx="island-sparkle"]::after,
 html[data-theme-fx="island-lagoon"]::after {
   background:
     radial-gradient(circle 3px at 22% 30%, rgba(255, 255, 255, 0.75), transparent 70%),
-    radial-gradient(circle 2px at 68% 24%, rgba(254, 243, 199, 0.8), transparent 70%),
     radial-gradient(circle 2.5px at 45% 58%, rgba(255, 255, 255, 0.65), transparent 70%),
     radial-gradient(circle 2px at 82% 62%, rgba(186, 230, 253, 0.7), transparent 70%),
-    radial-gradient(circle 1.5px at 35% 78%, rgba(255, 255, 255, 0.55), transparent 70%),
-    radial-gradient(circle 2px at 55% 40%, rgba(253, 224, 71, 0.55), transparent 70%);
+    radial-gradient(circle 1.5px at 35% 78%, rgba(255, 255, 255, 0.55), transparent 70%);
   animation: island-sparkle-twinkle 6.5s ease-in-out infinite;
   opacity: 0.7;
 }
@@ -946,16 +931,14 @@ html[data-theme-fx="island-lagoon"]::after {
 html[data-theme-fx="island-wave"]::after,
 html[data-theme-fx="island-palm"]::after {
   background:
-    radial-gradient(circle 60px at 30% 20%, rgba(255, 255, 255, 0.35), transparent 60%),
-    radial-gradient(circle 40px at 75% 35%, rgba(254, 240, 138, 0.22), transparent 58%);
+    radial-gradient(circle 60px at 30% 20%, rgba(255, 255, 255, 0.35), transparent 60%);
   animation: island-bokeh-drift 16s ease-in-out infinite reverse;
   opacity: 0.55;
 }
 
 html[data-theme-fx="island-breath"]::after {
   background:
-    radial-gradient(ellipse 70% 45% at 50% 40%, rgba(56, 189, 248, 0.1), transparent 60%),
-    radial-gradient(ellipse 50% 35% at 70% 70%, rgba(251, 191, 36, 0.12), transparent 55%);
+    radial-gradient(ellipse 70% 45% at 50% 40%, rgba(56, 189, 248, 0.1), transparent 60%);
   animation: island-breath-glow 8s ease-in-out infinite;
   opacity: 0.75;
 }

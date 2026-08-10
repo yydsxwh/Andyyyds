@@ -184,4 +184,17 @@ export async function joinMeetupAfterPurchase(
       data: { status: nextStatus },
     });
   }
+
+  // 付费报名履约后进约搭群（best-effort，不阻断报名）
+  try {
+    const { ensureMeetupGroupAndJoin } = await import("@/lib/chat/group-service");
+    await ensureMeetupGroupAndJoin({
+      meetupId: meetup.id,
+      hostId: meetup.hostId,
+      meetupTitle: meetup.title,
+      userId: input.userId,
+    });
+  } catch (err) {
+    console.error("[meetup:chat-group]", err);
+  }
 }

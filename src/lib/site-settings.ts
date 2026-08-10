@@ -7,6 +7,10 @@
 
 import { prisma } from "./db";
 import { parseDecorate, type DecorateConfig } from "./decorate";
+import {
+  parseEnabledLocalesJson,
+  type AppLocale,
+} from "./i18n/locales";
 import { parseOrderForm, type OrderFormConfig } from "./order-form";
 import {
   parsePageTemplates,
@@ -15,6 +19,10 @@ import {
 import { parsePortal, type PortalConfig } from "./portal";
 import { parseStudioNav, type StudioNavConfig } from "./studio-nav-config";
 import { parseUiCopy, type UiCopy } from "./ui-copy";
+
+function parseEnabledLocalesJsonSafe(raw: string | null | undefined): AppLocale[] {
+  return parseEnabledLocalesJson(raw);
+}
 
 export type StorageProvider = "LOCAL" | "ALIYUN_OSS";
 export type VideoStorageProvider = "LOCAL" | "ALIYUN_VOD";
@@ -64,6 +72,12 @@ export type SiteSettingsRow = {
   teacherDistributionPercent: number;
   userDistributionPercent: number;
   hideAllPrices: boolean;
+  hideSocialChat: boolean;
+  defaultLocale: string;
+  enabledLocalesJson: string;
+  translateApiBaseUrl: string;
+  translateApiKey: string;
+  translateApiModel: string;
   smsEnabled: boolean;
   smsProvider: string;
   smsAccessKeyId: string;
@@ -91,14 +105,35 @@ export async function getSiteSettings(): Promise<SiteSettingsRow> {
     create: { id: "default" },
     update: {},
   });
-  cache = { at: Date.now(), row };
-  return row;
+  // 兼容迁移前后旧进程：缺字段时补默认，避免读配置崩溃
+  const normalized = {
+    ...row,
+    defaultLocale:
+      (row as { defaultLocale?: string }).defaultLocale || "zh-Hans",
+    enabledLocalesJson:
+      (row as { enabledLocalesJson?: string }).enabledLocalesJson || "",
+    translateApiBaseUrl:
+      (row as { translateApiBaseUrl?: string }).translateApiBaseUrl || "",
+    translateApiKey:
+      (row as { translateApiKey?: string }).translateApiKey || "",
+    translateApiModel:
+      (row as { translateApiModel?: string }).translateApiModel ||
+      "gpt-4o-mini",
+  } as SiteSettingsRow;
+  cache = { at: Date.now(), row: normalized };
+  return normalized;
 }
 
 /** 全站藏价开关；仅服务端调用（勿从客户端组件 import 本模块） */
 export async function getHideAllPricesFlag(): Promise<boolean> {
   const row = await getSiteSettings();
   return Boolean(row.hideAllPrices);
+}
+
+/** 隐藏社交私聊/群聊前台；产品咨询私信不受影响 */
+export async function getHideSocialChatFlag(): Promise<boolean> {
+  const row = await getSiteSettings();
+  return Boolean(row.hideSocialChat);
 }
 
 export async function getUiCopy(): Promise<UiCopy> {
@@ -239,6 +274,16 @@ export function publicSiteSettings(row: SiteSettingsRow) {
     teacherDistributionPercent: row.teacherDistributionPercent ?? 8,
     userDistributionPercent: row.userDistributionPercent ?? 5,
     hideAllPrices: Boolean(row.hideAllPrices),
+    hideSocialChat: Boolean(row.hideSocialChat),
+    defaultLocale: row.defaultLocale || "zh-Hans",
+    enabledLocalesJson: row.enabledLocalesJson || "",
+    enabledLocales: parseEnabledLocalesJsonSafe(row.enabledLocalesJson),
+    translateApiBaseUrl: row.translateApiBaseUrl || "",
+    translateApiKey: row.translateApiKey
+      ? maskSecret(row.translateApiKey)
+      : "",
+    translateApiModel: row.translateApiModel || "gpt-4o-mini",
+    translateConfigured: Boolean(row.translateApiKey?.trim()),
     smsEnabled: Boolean(row.smsEnabled),
     smsProvider: row.smsProvider || "test",
     smsAccessKeyId: row.smsAccessKeyId || "",

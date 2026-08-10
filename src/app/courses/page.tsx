@@ -2,6 +2,8 @@ import { CourseCard } from "@/components/course-card";
 import { NavPageTemplateShell } from "@/components/nav-page-template-shell";
 import { PlazaSwitcher } from "@/components/plaza-switcher";
 import { prisma } from "@/lib/db";
+import { getRequestLocaleContext } from "@/lib/i18n/get-request-locale";
+import { localizeCourseCardFields } from "@/lib/i18n/localize-entities";
 import { PRODUCT_PLAZA_ORDER_BY } from "@/lib/product-display-order";
 import { getHideAllPricesFlag } from "@/lib/site-settings";
 import { typoRoleClass, typoRoleStyle } from "@/lib/site-typography";
@@ -18,7 +20,7 @@ export default async function CoursesPage({
   const q = params.q?.trim();
   const category = params.category?.trim();
 
-  const [categories, coursesRaw, hideAllPrices] = await Promise.all([
+  const [categories, coursesRaw, hideAllPrices, localeCtx] = await Promise.all([
     prisma.category.findMany({ orderBy: { name: "asc" } }),
     // 课程广场只展示单课/专栏；资料走同页家族的 /materials Tab
     prisma.course.findMany({
@@ -41,8 +43,36 @@ export default async function CoursesPage({
       orderBy: PRODUCT_PLAZA_ORDER_BY,
     }),
     getHideAllPricesFlag(),
+    getRequestLocaleContext(),
   ]);
-  const courses = await withSignedCoverUrls(coursesRaw);
+  const coursesSigned = await withSignedCoverUrls(coursesRaw);
+  const courses = await Promise.all(
+    coursesSigned.map(async (course) => {
+      const loc = await localizeCourseCardFields(
+        course,
+        localeCtx.contentLocale,
+      );
+      return {
+        ...course,
+        title: localeCtx.bilingual ? loc.titleSource : loc.title,
+        titleSecondary:
+          localeCtx.bilingual && loc.title !== loc.titleSource
+            ? loc.title
+            : undefined,
+        subtitle: localeCtx.bilingual ? loc.subtitleSource : loc.subtitle,
+        subtitleSecondary:
+          localeCtx.bilingual && loc.subtitle !== loc.subtitleSource
+            ? loc.subtitle
+            : undefined,
+        category: course.category
+          ? {
+              ...course.category,
+              name: loc.categoryName || course.category.name,
+            }
+          : null,
+      };
+    }),
+  );
 
   return (
     <NavPageTemplateShell type="courses">

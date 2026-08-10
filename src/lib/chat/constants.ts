@@ -1,4 +1,4 @@
-/** 会话与消息枚举：业务规则集中在此，便于以后扩展群聊/课程群 */
+/** 会话与消息枚举：业务规则集中在此，便于以后扩展 */
 
 export const CHAT_KIND = {
   DIRECT: "DIRECT",
@@ -21,26 +21,52 @@ export const CHAT_SOURCE = {
   PRODUCT_CONSULT: "PRODUCT_CONSULT",
   MEETUP_CONSULT: "MEETUP_CONSULT",
   GROUP: "GROUP",
+  MEETUP_GROUP: "MEETUP_GROUP",
+  COURSE_GROUP: "COURSE_GROUP",
 } as const;
 
 export type ChatSource = (typeof CHAT_SOURCE)[keyof typeof CHAT_SOURCE];
 
 export const CHAT_MEMBER_ROLE = {
+  OWNER: "OWNER",
+  ADMIN: "ADMIN",
+  MEMBER: "MEMBER",
   REQUESTER: "REQUESTER",
   RECIPIENT: "RECIPIENT",
-  MEMBER: "MEMBER",
+} as const;
+
+export const CHAT_JOIN_STATUS = {
+  ACTIVE: "ACTIVE",
+  PENDING: "PENDING",
+  REJECTED: "REJECTED",
+  LEFT: "LEFT",
 } as const;
 
 export const CHAT_MESSAGE_TYPE = {
   TEXT: "TEXT",
   IMAGE: "IMAGE",
   SYSTEM: "SYSTEM",
+  NOTICE: "NOTICE",
 } as const;
 
 export const CHAT_TEXT_MAX_LEN = 2000;
 export const CHAT_SEARCH_LIMIT = 20;
 export const CHAT_HISTORY_PAGE = 50;
+export const CHAT_GROUP_INVITE_MAX = 40;
+/** 普通成员撤回时限（毫秒），对齐常见 IM */
+export const CHAT_RECALL_WINDOW_MS = 2 * 60 * 1000;
 
 export function isChatSource(v: string): v is ChatSource {
   return (Object.values(CHAT_SOURCE) as string[]).includes(v);
+}
+
+export function parseMentionIds(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((x) => String(x)).filter(Boolean);
+  } catch {
+    return [];
+  }
 }

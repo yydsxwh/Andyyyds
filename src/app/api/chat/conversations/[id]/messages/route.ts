@@ -31,6 +31,7 @@ export async function GET(
 
 const postSchema = z.object({
   body: z.string().min(1).max(2000),
+  mentionIds: z.array(z.string().min(1)).max(20).optional(),
 });
 
 export async function POST(
@@ -48,6 +49,7 @@ export async function POST(
       conversationId: id,
       senderId: session.id,
       body: body.body,
+      mentionIds: body.mentionIds,
     });
     return NextResponse.json({ message });
   } catch (e) {

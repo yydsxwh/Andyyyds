@@ -39,9 +39,17 @@ import {
 } from "@/lib/portal";
 import { getDefaultTemplate } from "@/lib/page-templates";
 import { PRODUCT_PLAZA_ORDER_BY } from "@/lib/product-display-order";
+import { resolveContentText } from "@/lib/i18n/content-resolve";
+import { getRequestLocaleContext } from "@/lib/i18n/get-request-locale";
+import {
+  localizeCourseCardFields,
+  localizeMeetupCardFields,
+} from "@/lib/i18n/localize-entities";
+import { translateMessage } from "@/lib/i18n/messages";
 import {
   getDecorateConfig,
   getHideAllPricesFlag,
+  getHideSocialChatFlag,
   getPageTemplatesConfig,
   getPortalConfig,
 } from "@/lib/site-settings";
@@ -71,7 +79,31 @@ function ContactSection({ contact }: { contact: PortalContact }) {
   );
 }
 
-function HeroSection({ decorate }: { decorate: DecorateConfig }) {
+function HeroSection({
+  decorate,
+  heroHeadline,
+  heroHeadlineEn,
+  heroSubtext,
+  heroSubtextEn,
+  brandName,
+  brandNameEn,
+  primaryLabel,
+  primaryLabelEn,
+  secondaryLabel,
+  secondaryLabelEn,
+}: {
+  decorate: DecorateConfig;
+  heroHeadline: string;
+  heroHeadlineEn?: string;
+  heroSubtext: string;
+  heroSubtextEn?: string;
+  brandName: string;
+  brandNameEn?: string;
+  primaryLabel: string;
+  primaryLabelEn?: string;
+  secondaryLabel: string;
+  secondaryLabelEn?: string;
+}) {
   const logoUrl = decorate.logoUrl || DEFAULT_LOGO_URL;
   const heroImage = resolveHeroImage(decorate);
   const heroBanner = decorate.banners[0];
@@ -102,12 +134,12 @@ function HeroSection({ decorate }: { decorate: DecorateConfig }) {
               href={decorate.logoHref}
               openInNewTab={Boolean(decorate.logoOpenInNewTab)}
               className="inline-block max-w-full touch-manipulation"
-              ariaLabel={decorate.brandName || "品牌 Logo"}
+              ariaLabel={brandName || "品牌 Logo"}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={logoUrl}
-                alt={decorate.brandName || "歪歪艾斯"}
+                alt={brandName || "歪歪艾斯"}
                 className="h-20 w-auto max-w-[min(100%,420px)] object-contain sm:h-24 md:h-28"
               />
             </ConfigurableLink>
@@ -115,22 +147,25 @@ function HeroSection({ decorate }: { decorate: DecorateConfig }) {
               <p
                 className={`brand-mark text-[var(--ink)] ${typoRoleClass("heroTitle")}`}
                 style={typoRoleStyle("heroTitle")}
+                title={brandNameEn || undefined}
               >
-                {decorate.brandName}
+                {brandName}
               </p>
             ) : null}
           </div>
           <h1
             className={`max-w-3xl font-semibold leading-tight ${typoRoleClass("heroTitle")}`}
             style={typoRoleStyle("heroTitle")}
+            title={heroHeadlineEn || undefined}
           >
-            {decorate.heroHeadline}
+            {heroHeadline}
           </h1>
           <p
             className={`max-w-2xl leading-7 text-[var(--muted)] ${typoRoleClass("heroSubtext")}`}
             style={typoRoleStyle("heroSubtext")}
+            title={heroSubtextEn || undefined}
           >
-            {decorate.heroSubtext}
+            {heroSubtext}
           </p>
           <div className="flex flex-wrap gap-3">
             {primaryCta.href ? (
@@ -138,8 +173,9 @@ function HeroSection({ decorate }: { decorate: DecorateConfig }) {
                 href={primaryCta.href}
                 openInNewTab={Boolean(primaryCta.openInNewTab)}
                 className="btn btn-primary touch-manipulation"
+                title={primaryLabelEn || undefined}
               >
-                {primaryCta.label || DEFAULT_HERO_PRIMARY_CTA.label}
+                {primaryLabel}
               </ConfigurableLink>
             ) : null}
             {secondaryCta.href ? (
@@ -147,8 +183,9 @@ function HeroSection({ decorate }: { decorate: DecorateConfig }) {
                 href={secondaryCta.href}
                 openInNewTab={Boolean(secondaryCta.openInNewTab)}
                 className="btn btn-fire touch-manipulation"
+                title={secondaryLabelEn || undefined}
               >
-                {secondaryCta.label || DEFAULT_HERO_SECONDARY_CTA.label}
+                {secondaryLabel}
               </ConfigurableLink>
             ) : null}
           </div>
@@ -254,9 +291,13 @@ function PortalEntranceSection({ modules }: { modules: PortalNavLink[] }) {
 function HotCoursesSection({
   courses,
   hideAllPrices,
+  sectionTitle,
+  viewMore,
 }: {
   courses: CourseCardRow[];
   hideAllPrices: boolean;
+  sectionTitle: string;
+  viewMore: string;
 }) {
   if (!courses.length) return null;
   return (
@@ -268,21 +309,15 @@ function HotCoursesSection({
               className={`font-semibold ${typoRoleClass("sectionTitle")}`}
               style={typoRoleStyle("sectionTitle")}
             >
-              热门课程
+              {sectionTitle}
             </h2>
-            <p
-              className={`mt-2 text-[var(--muted)] ${typoRoleClass("sectionDesc")}`}
-              style={typoRoleStyle("sectionDesc")}
-            >
-              先学一门，感受完整购买到学习的路径
-            </p>
           </div>
           <Link
             href="/courses"
             className={`text-[var(--brand)] ${typoRoleClass("sectionDesc")}`}
             style={typoRoleStyle("sectionDesc")}
           >
-            查看全部
+            {viewMore}
           </Link>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -302,9 +337,13 @@ function HotCoursesSection({
 function HotMeetupsSection({
   meetups,
   hideAllPrices,
+  sectionTitle,
+  viewMore,
 }: {
   meetups: MeetupCardData[];
   hideAllPrices: boolean;
+  sectionTitle: string;
+  viewMore: string;
 }) {
   if (!meetups.length) return null;
   return (
@@ -316,21 +355,15 @@ function HotMeetupsSection({
               className={`font-semibold ${typoRoleClass("sectionTitle")}`}
               style={typoRoleStyle("sectionTitle")}
             >
-              热门约搭
+              {sectionTitle}
             </h2>
-            <p
-              className={`mt-2 text-[var(--muted)] ${typoRoleClass("sectionDesc")}`}
-              style={typoRoleStyle("sectionDesc")}
-            >
-              找人一起出门：活动报名、组队集合，支持免费或收费
-            </p>
           </div>
           <Link
             href="/meetup"
             className={`text-[var(--brand)] ${typoRoleClass("sectionDesc")}`}
             style={typoRoleStyle("sectionDesc")}
           >
-            查看全部
+            {viewMore}
           </Link>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -355,7 +388,10 @@ function ClassicHomeByOrder({
   courses,
   meetups,
   hideAllPrices,
+  hideSocialChat,
   loggedIn,
+  heroLocalized,
+  sectionLabels,
 }: {
   order: HomeSectionEntry[];
   contact: PortalContact;
@@ -364,20 +400,46 @@ function ClassicHomeByOrder({
   courses: CourseCardRow[];
   meetups: MeetupCardData[];
   hideAllPrices: boolean;
+  hideSocialChat: boolean;
   loggedIn: boolean;
+  heroLocalized: {
+    heroHeadline: string;
+    heroHeadlineEn?: string;
+    heroSubtext: string;
+    heroSubtextEn?: string;
+    brandName: string;
+    brandNameEn?: string;
+    primaryLabel: string;
+    primaryLabelEn?: string;
+    secondaryLabel: string;
+    secondaryLabelEn?: string;
+  };
+  sectionLabels: {
+    hotCourses: string;
+    hotMeetups: string;
+    viewMore: string;
+  };
 }) {
   // 按 CMS 顺序渲染，并跳过 visible===false 的区块（隐藏后仍保留后台位次）
   const sectionIds: HomeSectionId[] = visibleHomeSectionIds(order);
   return (
     <div>
-      {/* 找人私聊独立于 CMS 区块，始终在首页靠前展示 */}
-      <HomeUserChatSearch loggedIn={loggedIn} />
+      {/* 合规隐藏社交找人；产品/约搭咨询私信入口不在首页，不受影响 */}
+      {!hideSocialChat ? (
+        <HomeUserChatSearch loggedIn={loggedIn} />
+      ) : null}
       {sectionIds.map((sectionId) => {
         switch (sectionId) {
           case "contact":
             return <ContactSection key="contact" contact={contact} />;
           case "hero":
-            return <HeroSection key="hero" decorate={decorate} />;
+            return (
+              <HeroSection
+                key="hero"
+                decorate={decorate}
+                {...heroLocalized}
+              />
+            );
           case "banners":
             return <BannersSection key="banners" decorate={decorate} />;
           case "portal":
@@ -388,6 +450,8 @@ function ClassicHomeByOrder({
                 key="courses"
                 courses={courses}
                 hideAllPrices={hideAllPrices}
+                sectionTitle={sectionLabels.hotCourses}
+                viewMore={sectionLabels.viewMore}
               />
             );
           case "meetup":
@@ -396,6 +460,8 @@ function ClassicHomeByOrder({
                 key="meetup"
                 meetups={meetups}
                 hideAllPrices={hideAllPrices}
+                sectionTitle={sectionLabels.hotMeetups}
+                viewMore={sectionLabels.viewMore}
               />
             );
           default: {
@@ -449,12 +515,14 @@ async function loadHomeMeetups(): Promise<MeetupCardData[]> {
 export default async function HomePage() {
   const [
     coursesRaw,
-    meetups,
+    meetupsRaw,
     decorate,
     portal,
     pageTemplates,
     hideAllPrices,
+    hideSocialChat,
     session,
+    localeCtx,
   ] = await Promise.all([
       prisma.course.findMany({
         where: {
@@ -471,9 +539,18 @@ export default async function HomePage() {
       getPortalConfig(),
       getPageTemplatesConfig(),
       getHideAllPricesFlag(),
+      getHideSocialChatFlag(),
       getSession(),
+      getRequestLocaleContext(),
     ]);
   const loggedIn = Boolean(session);
+  const { locale, contentLocale, bilingual } = localeCtx;
+  const t = (key: string) => translateMessage(locale, key);
+  const sectionLabels = {
+    hotCourses: t("home.hotCourses"),
+    hotMeetups: t("home.hotMeetups"),
+    viewMore: t("home.viewMore"),
+  };
 
   const contact = portal.contact || DEFAULT_PORTAL_CONTACT;
   const homeSectionOrder = normalizeHomeSectionOrder(
@@ -484,6 +561,114 @@ export default async function HomePage() {
   const showMeetupSection = visibleHomeSectionIds(homeSectionOrder).includes(
     "meetup",
   );
+
+  const coursesSigned = await withSignedCoverUrls(coursesRaw);
+  const courses = await Promise.all(
+    coursesSigned.map(async (course) => {
+      // 站长 contentLocale=en：中文主显、英文悬浮；访客跟浏览器语言
+      const loc = await localizeCourseCardFields(course, contentLocale);
+      return {
+        ...course,
+        title: bilingual ? loc.titleSource : loc.title,
+        titleSecondary:
+          bilingual && loc.title !== loc.titleSource ? loc.title : undefined,
+        subtitle: bilingual ? loc.subtitleSource : loc.subtitle,
+        subtitleSecondary:
+          bilingual && loc.subtitle !== loc.subtitleSource
+            ? loc.subtitle
+            : undefined,
+        category: course.category
+          ? { ...course.category, name: loc.categoryName || course.category.name }
+          : null,
+      };
+    }),
+  );
+  const meetups = await Promise.all(
+    meetupsRaw.map(async (meetup) => {
+      const loc = await localizeMeetupCardFields(meetup, contentLocale);
+      return {
+        ...meetup,
+        title: bilingual ? loc.titleSource : loc.title,
+        titleSecondary:
+          bilingual && loc.title !== loc.titleSource ? loc.title : undefined,
+        place: bilingual ? loc.placeSource : loc.place,
+        placeSecondary:
+          bilingual && loc.place !== loc.placeSource ? loc.place : undefined,
+      };
+    }),
+  );
+
+  const [
+    heroHeadline,
+    heroSubtext,
+    brandName,
+    primaryLabel,
+    secondaryLabel,
+  ] = await Promise.all([
+    resolveContentText({
+      entityType: "decorate",
+      entityId: "default",
+      field: "heroHeadline",
+      source: decorate.heroHeadline || "",
+      locale: contentLocale,
+    }),
+    resolveContentText({
+      entityType: "decorate",
+      entityId: "default",
+      field: "heroSubtext",
+      source: decorate.heroSubtext || "",
+      locale: contentLocale,
+    }),
+    resolveContentText({
+      entityType: "decorate",
+      entityId: "default",
+      field: "brandName",
+      source: decorate.brandName || "",
+      locale: contentLocale,
+    }),
+    resolveContentText({
+      entityType: "decorate",
+      entityId: "default",
+      field: "heroPrimaryCta.label",
+      source:
+        decorate.heroPrimaryCta?.label || DEFAULT_HERO_PRIMARY_CTA.label,
+      locale: contentLocale,
+    }),
+    resolveContentText({
+      entityType: "decorate",
+      entityId: "default",
+      field: "heroSecondaryCta.label",
+      source:
+        decorate.heroSecondaryCta?.label || DEFAULT_HERO_SECONDARY_CTA.label,
+      locale: contentLocale,
+    }),
+  ]);
+  // 站长：默认中文；英文由 Hero 的 title 悬浮（见 HeroSection title 属性）
+  const heroLocalized = {
+    heroHeadline: bilingual ? heroHeadline.source : heroHeadline.text,
+    heroHeadlineEn:
+      bilingual && heroHeadline.text !== heroHeadline.source
+        ? heroHeadline.text
+        : "",
+    heroSubtext: bilingual ? heroSubtext.source : heroSubtext.text,
+    heroSubtextEn:
+      bilingual && heroSubtext.text !== heroSubtext.source
+        ? heroSubtext.text
+        : "",
+    brandName: bilingual ? brandName.source : brandName.text,
+    brandNameEn:
+      bilingual && brandName.text !== brandName.source ? brandName.text : "",
+    primaryLabel: bilingual ? primaryLabel.source : primaryLabel.text,
+    primaryLabelEn:
+      bilingual && primaryLabel.text !== primaryLabel.source
+        ? primaryLabel.text
+        : "",
+    secondaryLabel: bilingual ? secondaryLabel.source : secondaryLabel.text,
+    secondaryLabelEn:
+      bilingual && secondaryLabel.text !== secondaryLabel.source
+        ? secondaryLabel.text
+        : "",
+  };
 
   // 仅「已设为默认」且含模块的首页 DIY 才接管；否则用系统经典首页（介绍文案等）
   const diyHome = getDefaultTemplate(pageTemplates, "home");
@@ -499,7 +684,9 @@ export default async function HomePage() {
             <ContactUsPanel contact={contact} variant="hero" />
           </div>
         ) : null}
-        <HomeUserChatSearch loggedIn={loggedIn} />
+        {!hideSocialChat ? (
+          <HomeUserChatSearch loggedIn={loggedIn} />
+        ) : null}
         <PageModulesView
           template={diyHome!}
           hideAllPrices={hideAllPrices}
@@ -509,6 +696,8 @@ export default async function HomePage() {
           <HotMeetupsSection
             meetups={meetups}
             hideAllPrices={hideAllPrices}
+            sectionTitle={sectionLabels.hotMeetups}
+            viewMore={sectionLabels.viewMore}
           />
         ) : null}
         {showContact && !contactBefore ? (
@@ -519,8 +708,6 @@ export default async function HomePage() {
       </div>
     );
   }
-
-  const courses = await withSignedCoverUrls(coursesRaw);
 
   const modules = portal.nav.filter(
     (item) => item.enabled !== false && item.key !== "home",
@@ -535,7 +722,10 @@ export default async function HomePage() {
       courses={courses}
       meetups={meetups}
       hideAllPrices={hideAllPrices}
+      hideSocialChat={hideSocialChat}
       loggedIn={loggedIn}
+      heroLocalized={heroLocalized}
+      sectionLabels={sectionLabels}
     />
   );
 }

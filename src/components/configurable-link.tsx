@@ -20,6 +20,8 @@ type Props = {
   className?: string;
   children: React.ReactNode;
   ariaLabel?: string;
+  /** 悬浮提示（如站长双语英文） */
+  title?: string;
 };
 
 export function ConfigurableLink({
@@ -28,12 +30,17 @@ export function ConfigurableLink({
   className,
   children,
   ariaLabel,
+  title,
 }: Props) {
   const trimmed = normalizeLinkHref(href);
   if (!trimmed) {
     // 无链接时仍挂上 className，避免主图圆角/surface 等外壳样式丢失
     if (className) {
-      return <div className={className}>{children}</div>;
+      return (
+        <div className={className} title={title}>
+          {children}
+        </div>
+      );
     }
     return <>{children}</>;
   }
@@ -46,6 +53,7 @@ export function ConfigurableLink({
         rel="noopener noreferrer"
         className={className}
         aria-label={ariaLabel}
+        title={title}
       >
         {children}
       </a>
@@ -54,14 +62,24 @@ export function ConfigurableLink({
 
   if (isExternalHref(trimmed)) {
     return (
-      <a href={trimmed} className={className} aria-label={ariaLabel}>
+      <a
+        href={trimmed}
+        className={className}
+        aria-label={ariaLabel}
+        title={title}
+      >
         {children}
       </a>
     );
   }
 
   return (
-    <Link href={trimmed} className={className} aria-label={ariaLabel}>
+    <Link
+      href={trimmed}
+      className={className}
+      aria-label={ariaLabel}
+      title={title}
+    >
       {children}
     </Link>
   );
