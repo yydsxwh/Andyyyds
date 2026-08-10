@@ -322,7 +322,7 @@ function explainOssHttpError(status: number, body: string): string {
 }
 
 async function ossRequest(input: {
-  method: "GET" | "PUT" | "DELETE" | "HEAD";
+  method: "GET" | "PUT" | "POST" | "DELETE" | "HEAD";
   host: string;
   path: string;
   resource: string;
@@ -702,14 +702,19 @@ export async function ensureOssBucket(settings?: SiteSettingsRow) {
     );
   }
 
+  // 浏览器直传需要 PUT/POST + ETag；仅 GET 会导致素材中心大文件跨域失败
   const corsBody = `<?xml version="1.0" encoding="UTF-8"?>
 <CORSConfiguration>
   <CORSRule>
     <AllowedOrigin>*</AllowedOrigin>
     <AllowedMethod>GET</AllowedMethod>
     <AllowedMethod>HEAD</AllowedMethod>
+    <AllowedMethod>PUT</AllowedMethod>
+    <AllowedMethod>POST</AllowedMethod>
+    <AllowedMethod>DELETE</AllowedMethod>
     <AllowedHeader>*</AllowedHeader>
     <ExposeHeader>ETag</ExposeHeader>
+    <ExposeHeader>x-oss-request-id</ExposeHeader>
     <MaxAgeSeconds>600</MaxAgeSeconds>
   </CORSRule>
 </CORSConfiguration>`;
@@ -741,4 +746,171 @@ export async function ensureOssBucket(settings?: SiteSettingsRow) {
     publicBase,
     message: `Bucket「${creds.bucket}」已就绪（私有 + CORS）。预览/播放由站点签发临时链接，无需公共读`,
   };
+}
+
+export function ossStorageConfigured(settings: SiteSettingsRow) {
+  return (
+    settings.storageProvider === "ALIYUN_OSS" &&
+    Boolean(
+      settings.ossAccessKeyId?.trim() &&
+        settings.ossAccessKeySecret?.trim() &&
+        settings.ossBucket?.trim(),
+    )
+  );
+}
+
+/** 为浏览器直传补齐 Bucket CORS（幂等）；失败不阻断，由前端错误提示排查 */
+export async function ensureOssBrowserUploadCors() {
+  const settings = await getSiteSettings();
+  if (!ossStorageConfigured(settings)) return;
+  const creds = getOssCreds(settings);
+  const host = ossVirtualHost(creds);
+  const corsBody = `<?xml version="1.0" encoding="UTF-8"?>
+<CORSConfiguration>
+  <CORSRule>
+    <AllowedOrigin>*</AllowedOrigin>
+    <AllowedMethod>GET</AllowedMethod>
+    <AllowedMethod>HEAD</AllowedMethod>
+    <AllowedMethod>PUT</AllowedMethod>
+    <AllowedMethod>POST</AllowedMethod>
+    <AllowedMethod>DELETE</AllowedMethod>
+    <AllowedHeader>*</AllowedHeader>
+    <ExposeHeader>ETag</ExposeHeader>
+    <ExposeHeader>x-oss-request-id</ExposeHeader>
+    <MaxAgeSeconds>600</MaxAgeSeconds>
+  </CORSRule>
+</CORSConfiguration>`;
+  await ossRequest({
+    method: "PUT",
+    host,
+    path: "/?cors",
+    resource: `/${creds.bucket}/?cors`,
+    accessKeyId: creds.accessKeyId,
+    accessKeySecret: creds.accessKeySecret,
+    contentType: "application/xml",
+    body: corsBody,
+  });
+}
+
+const OSS_MULTIPART_PART_BYTES = 8 * 1024 * 1024;
+
+function encodeOssObjectKey(objectKey: string) {
+  return objectKey
+    .split("/")
+    .map((seg) => encodeURIComponent(seg))
+    .join("/");
+}
+
+/** 浏览器直传：服务端发起分片，只签发预签名 URL，永不把长期 Secret 交给前端 */
+export async function createOssBrowserMultipart(input: {
+  ownerId: string;
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  subPath?: string;
+}): Promise<{
+  uploadId: string;
+  objectKey: string;
+  host: string;
+  fileUrl: string;
+  partSize: number;
+  parts: Array<{ partNumber: number; url: string }>;
+}> {
+  if (input.fileSize <= 0) throw new Error("文件大小无效");
+  if (input.fileSize > 2 * 1024 * 1024 * 1024) {
+    throw new Error("文件不能超过 2GB");
+  }
+  const settings = await getSiteSettings();
+  const creds = getOssCreds(settings);
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const sub = safeStorageSubPath(input.subPath);
+  const objectKey = sub
+    ? `${creds.prefix}/${input.ownerId}/${sub}/${stamp}-${safeFileName(input.fileName)}`
+    : `${creds.prefix}/${input.ownerId}/${stamp}-${safeFileName(input.fileName)}`;
+  const host = ossVirtualHost(creds);
+  const contentType = input.mimeType || "application/octet-stream";
+
+  const init = await ossRequest({
+    method: "POST",
+    host,
+    path: `/${encodeOssObjectKey(objectKey)}?uploads`,
+    resource: `/${creds.bucket}/${objectKey}?uploads`,
+    accessKeyId: creds.accessKeyId,
+    accessKeySecret: creds.accessKeySecret,
+    contentType,
+    body: "",
+  });
+  if (!init.ok) {
+    throw new Error(`OSS 初始化分片失败: ${explainOssHttpError(init.status, init.text)}`);
+  }
+  const uploadId = xmlTag(init.text, "UploadId");
+  if (!uploadId) throw new Error("OSS 未返回 UploadId");
+
+  const partCount = Math.max(1, Math.ceil(input.fileSize / OSS_MULTIPART_PART_BYTES));
+  const expires = Math.floor(Date.now() / 1000) + 60 * 60 * 6; // 大文件上传给足时间
+  const parts: Array<{ partNumber: number; url: string }> = [];
+  for (let partNumber = 1; partNumber <= partCount; partNumber++) {
+    const resource = `/${creds.bucket}/${objectKey}?partNumber=${partNumber}&uploadId=${uploadId}`;
+    const stringToSign = `PUT\n\n\n${expires}\n${resource}`;
+    const signature = crypto
+      .createHmac("sha1", creds.accessKeySecret)
+      .update(stringToSign)
+      .digest("base64");
+    const params = new URLSearchParams({
+      partNumber: String(partNumber),
+      uploadId,
+      OSSAccessKeyId: creds.accessKeyId,
+      Expires: String(expires),
+      Signature: signature,
+    });
+    parts.push({
+      partNumber,
+      url: `https://${host}/${encodeOssObjectKey(objectKey)}?${params.toString()}`,
+    });
+  }
+
+  const publicBase = (creds.publicBaseUrl || `https://${host}`).replace(/\/$/, "");
+  return {
+    uploadId,
+    objectKey,
+    host,
+    fileUrl: `${publicBase}/${objectKey}`,
+    partSize: OSS_MULTIPART_PART_BYTES,
+    parts,
+  };
+}
+
+export async function completeOssBrowserMultipart(input: {
+  objectKey: string;
+  uploadId: string;
+  parts: Array<{ partNumber: number; etag: string }>;
+}) {
+  const settings = await getSiteSettings();
+  const creds = getOssCreds(settings);
+  const host = ossVirtualHost(creds);
+  const sorted = [...input.parts].sort((a, b) => a.partNumber - b.partNumber);
+  const body =
+    `<CompleteMultipartUpload>` +
+    sorted
+      .map(
+        (p) =>
+          `<Part><PartNumber>${p.partNumber}</PartNumber><ETag>"${p.etag.replace(/"/g, "")}"</ETag></Part>`,
+      )
+      .join("") +
+    `</CompleteMultipartUpload>`;
+  const result = await ossRequest({
+    method: "POST",
+    host,
+    path: `/${encodeOssObjectKey(input.objectKey)}?uploadId=${encodeURIComponent(input.uploadId)}`,
+    resource: `/${creds.bucket}/${input.objectKey}?uploadId=${input.uploadId}`,
+    accessKeyId: creds.accessKeyId,
+    accessKeySecret: creds.accessKeySecret,
+    contentType: "application/xml",
+    body,
+  });
+  if (!result.ok) {
+    throw new Error(
+      `OSS 完成分片失败: ${explainOssHttpError(result.status, result.text)}`,
+    );
+  }
 }

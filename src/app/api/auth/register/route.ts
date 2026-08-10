@@ -29,7 +29,9 @@ const schema = z.object({
 export async function POST(req: Request) {
   try {
     const body = schema.parse(await req.json());
-    const exists = await prisma.user.findUnique({ where: { email: body.email } });
+    // 与登录一致：统一小写，避免 Email/email 在 SQLite 下各存一条、登录对不上
+    const email = body.email.trim().toLowerCase();
+    const exists = await prisma.user.findUnique({ where: { email } });
     if (exists) {
       return NextResponse.json({ error: "该邮箱已注册" }, { status: 400 });
     }
@@ -53,7 +55,7 @@ export async function POST(req: Request) {
     const user = await prisma.user.create({
       data: {
         name: body.name,
-        email: body.email,
+        email,
         passwordHash: await hashPassword(body.password),
         referralCode: makeReferralCode(),
         referredById,

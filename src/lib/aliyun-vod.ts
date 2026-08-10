@@ -252,14 +252,143 @@ type UploadAuth = {
   SecurityToken: string;
 };
 
-/** 上传视频到阿里云点播，返回 VideoId */
-export async function uploadVideoToVod(input: {
+export type VodDirectUploadCredential = {
+  videoId: string;
+  fileUrl: string;
+  host: string;
+  bucket: string;
+  objectKey: string;
+  accessKeyId: string;
+  accessKeySecret: string;
+  securityToken: string;
+};
+
+/** 点播临时桶虚拟主机；Endpoint 已带 bucket 前缀时不再拼接，避免签错域 */
+function resolveVodOssHost(bucket: string, endpointRaw: string) {
+  const endpoint = endpointRaw.replace(/^https?:\/\//, "").replace(/\/$/, "");
+  if (!endpoint) throw new Error("点播未返回 OSS Endpoint");
+  if (endpoint === bucket || endpoint.startsWith(`${bucket}.`)) {
+    return endpoint;
+  }
+  return `${bucket}.${endpoint}`;
+}
+
+function encodeOssObjectKey(objectKey: string) {
+  return objectKey
+    .split("/")
+    .map((seg) => encodeURIComponent(seg))
+    .join("/");
+}
+
+function xmlTag(text: string, tag: string) {
+  const m = text.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, "i"));
+  return m?.[1]?.trim() || "";
+}
+
+/**
+ * 服务端用 STS 签 URL（Query 签名）。
+ * 浏览器不能可靠设置 Date，前端自签易 SignatureDoesNotMatch；预签名可彻底避开。
+ */
+function buildVodStsSignedUrl(input: {
+  method: "PUT" | "POST";
+  host: string;
+  bucket: string;
+  objectKey: string;
+  accessKeyId: string;
+  accessKeySecret: string;
+  securityToken: string;
+  expires: number;
+  contentType?: string;
+  subresources?: Record<string, string>;
+}) {
+  const subs: Record<string, string> = {
+    "security-token": input.securityToken,
+    ...(input.subresources || {}),
+  };
+  const canonicalQuery = Object.keys(subs)
+    .sort()
+    .map((k) => `${k}=${subs[k]}`)
+    .join("&");
+  const resource = `/${input.bucket}/${input.objectKey}?${canonicalQuery}`;
+  const stringToSign = `${input.method}\n\n${input.contentType || ""}\n${input.expires}\n${resource}`;
+  const signature = crypto
+    .createHmac("sha1", input.accessKeySecret)
+    .update(stringToSign)
+    .digest("base64");
+
+  const params = new URLSearchParams();
+  for (const key of Object.keys(subs).sort()) {
+    params.set(key, subs[key]!);
+  }
+  params.set("OSSAccessKeyId", input.accessKeyId);
+  params.set("Expires", String(input.expires));
+  params.set("Signature", signature);
+  return `https://${input.host}/${encodeOssObjectKey(input.objectKey)}?${params.toString()}`;
+}
+
+async function vodOssHeaderRequest(input: {
+  method: "GET" | "PUT" | "POST" | "DELETE";
+  host: string;
+  path: string;
+  resource: string;
+  accessKeyId: string;
+  accessKeySecret: string;
+  securityToken: string;
+  contentType?: string;
+  body?: string;
+}) {
+  const date = new Date().toUTCString();
+  const contentType = input.contentType || "";
+  const headers: Record<string, string> = {
+    Date: date,
+    "x-oss-security-token": input.securityToken,
+  };
+  if (contentType) headers["Content-Type"] = contentType;
+  const ossHeaders = Object.keys(headers)
+    .filter((k) => k.toLowerCase().startsWith("x-oss-"))
+    .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
+    .map((k) => `${k.toLowerCase()}:${headers[k]!.trim()}`)
+    .join("\n");
+  const canonicalHeaders = ossHeaders ? `${ossHeaders}\n` : "";
+  const stringToSign = `${input.method}\n\n${contentType}\n${date}\n${canonicalHeaders}${input.resource}`;
+  const signature = crypto
+    .createHmac("sha1", input.accessKeySecret)
+    .update(stringToSign)
+    .digest("base64");
+  headers.Authorization = `OSS ${input.accessKeyId}:${signature}`;
+
+  const res = await fetch(`https://${input.host}${input.path}`, {
+    method: input.method,
+    headers,
+    body: input.body ?? "",
+  });
+  const text = await res.text();
+  return { ok: res.ok, status: res.status, text };
+}
+
+export type VodBrowserMultipartCredential = {
+  videoId: string;
+  fileUrl: string;
+  host: string;
+  bucket: string;
+  objectKey: string;
+  accessKeyId: string;
+  accessKeySecret: string;
+  securityToken: string;
+  uploadId: string;
+  partSize: number;
+  parts: Array<{ partNumber: number; url: string }>;
+};
+
+/**
+ * 仅向点播申请上传凭证，不把文件经本机中转。
+ * 浏览器拿 STS 直传阿里云 OSS（点播侧 Bucket），避免 Next/nginx 大包缓冲与 OOM。
+ */
+export async function createVodDirectUpload(input: {
   title: string;
   fileName: string;
-  buffer: Buffer;
-  mimeType: string;
   settings?: SiteSettingsRow;
-}): Promise<{ videoId: string; fileUrl: string; provider: "ALIYUN_VOD" }> {
+}): Promise<VodDirectUploadCredential> {
   const settings = input.settings || (await getSiteSettings());
   if (!vodConfigured(settings)) {
     throw new Error("请先在系统设置中填写阿里云点播 AccessKey");
@@ -299,26 +428,123 @@ export async function uploadVideoToVod(input: {
     Buffer.from(created.UploadAuth, "base64").toString("utf8"),
   ) as UploadAuth;
 
-  const endpoint = address.Endpoint.replace(/^https?:\/\//, "");
-  const host = `${address.Bucket}.${endpoint}`;
+  const bucket = address.Bucket;
   const objectKey = address.FileName.replace(/^\//, "");
+  return {
+    videoId: created.VideoId,
+    fileUrl: vodUrlFromVideoId(created.VideoId),
+    host: resolveVodOssHost(bucket, address.Endpoint),
+    bucket,
+    objectKey,
+    accessKeyId: auth.AccessKeyId,
+    accessKeySecret: auth.AccessKeySecret,
+    securityToken: auth.SecurityToken,
+  };
+}
+
+/**
+ * 点播浏览器直传：只签发「单次预签名 PUT」（已在生产探测 PUT=200）。
+ * 故意不用 InitMultipart——点播临时桶上分片初始化易 SignatureDoesNotMatch，
+ * 单次 PUT 官方上限 5GB，站点上限 2GB，足够且路径更稳。
+ */
+export async function createVodBrowserMultipart(input: {
+  title: string;
+  fileName: string;
+  fileSize: number;
+  mimeType?: string;
+  settings?: SiteSettingsRow;
+}): Promise<VodBrowserMultipartCredential> {
+  if (input.fileSize <= 0) throw new Error("文件大小无效");
+  if (input.fileSize > 2 * 1024 * 1024 * 1024) {
+    throw new Error("文件不能超过 2GB");
+  }
+
+  const cred = await createVodDirectUpload(input);
+  const expires = Math.floor(Date.now() / 1000) + 60 * 60 * 6;
+  const url = buildVodStsSignedUrl({
+    method: "PUT",
+    host: cred.host,
+    bucket: cred.bucket,
+    objectKey: cred.objectKey,
+    accessKeyId: cred.accessKeyId,
+    accessKeySecret: cred.accessKeySecret,
+    securityToken: cred.securityToken,
+    expires,
+    contentType: "",
+  });
+  return {
+    ...cred,
+    uploadId: "",
+    partSize: Math.max(input.fileSize, 1),
+    parts: [{ partNumber: 1, url }],
+  };
+}
+
+/** 浏览器分片上传完成后，由服务端持 STS 合并（Node 可设 Date） */
+export async function completeVodBrowserMultipart(input: {
+  host: string;
+  bucket: string;
+  objectKey: string;
+  accessKeyId: string;
+  accessKeySecret: string;
+  securityToken: string;
+  uploadId: string;
+  parts: Array<{ partNumber: number; etag: string }>;
+}) {
+  const sorted = [...input.parts].sort((a, b) => a.partNumber - b.partNumber);
+  const body =
+    `<CompleteMultipartUpload>` +
+    sorted
+      .map(
+        (p) =>
+          `<Part><PartNumber>${p.partNumber}</PartNumber><ETag>"${p.etag.replace(/"/g, "")}"</ETag></Part>`,
+      )
+      .join("") +
+    `</CompleteMultipartUpload>`;
+  const result = await vodOssHeaderRequest({
+    method: "POST",
+    host: input.host,
+    path: `/${encodeOssObjectKey(input.objectKey)}?uploadId=${encodeURIComponent(input.uploadId)}`,
+    resource: `/${input.bucket}/${input.objectKey}?uploadId=${input.uploadId}`,
+    accessKeyId: input.accessKeyId,
+    accessKeySecret: input.accessKeySecret,
+    securityToken: input.securityToken,
+    contentType: "application/xml",
+    body,
+  });
+  if (!result.ok) {
+    throw new Error(
+      `点播合并分片失败（${result.status}）：${result.text.slice(0, 160)}`,
+    );
+  }
+}
+
+/** 上传视频到阿里云点播，返回 VideoId（服务端代理路径；大文件请用直传） */
+export async function uploadVideoToVod(input: {
+  title: string;
+  fileName: string;
+  buffer: Buffer;
+  mimeType: string;
+  settings?: SiteSettingsRow;
+}): Promise<{ videoId: string; fileUrl: string; provider: "ALIYUN_VOD" }> {
+  const cred = await createVodDirectUpload(input);
   const contentType = input.mimeType || "application/octet-stream";
   const date = new Date().toUTCString();
   const signature = signOssPut({
-    accessKeySecret: auth.AccessKeySecret,
+    accessKeySecret: cred.accessKeySecret,
     contentType,
     date,
-    securityToken: auth.SecurityToken,
-    resource: `/${address.Bucket}/${objectKey}`,
+    securityToken: cred.securityToken,
+    resource: `/${cred.bucket}/${cred.objectKey}`,
   });
 
-  const putRes = await fetch(`https://${host}/${objectKey}`, {
+  const putRes = await fetch(`https://${cred.host}/${cred.objectKey}`, {
     method: "PUT",
     headers: {
       "Content-Type": contentType,
       Date: date,
-      "x-oss-security-token": auth.SecurityToken,
-      Authorization: `OSS ${auth.AccessKeyId}:${signature}`,
+      "x-oss-security-token": cred.securityToken,
+      Authorization: `OSS ${cred.accessKeyId}:${signature}`,
     },
     body: new Blob([Uint8Array.from(input.buffer)]),
   });
@@ -331,8 +557,8 @@ export async function uploadVideoToVod(input: {
   }
 
   return {
-    videoId: created.VideoId,
-    fileUrl: vodUrlFromVideoId(created.VideoId),
+    videoId: cred.videoId,
+    fileUrl: cred.fileUrl,
     provider: "ALIYUN_VOD",
   };
 }

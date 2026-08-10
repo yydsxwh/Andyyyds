@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import {
   ASSET_DESC_MAX,
   ASSET_NAME_MAX,
+  MAX_UPLOAD_BYTES,
+  MAX_UPLOAD_LABEL,
   MEDIA_CATEGORY_NAME_MAX,
   MEDIA_KINDS,
   MEDIA_KIND_LABEL,
@@ -13,6 +15,10 @@ import {
   formatBytes,
   isMediaKind,
 } from "@/lib/media";
+import {
+  uploadFileToOssDirect,
+  uploadFileWithSignedParts,
+} from "@/lib/browser-oss-multipart";
 
 type Category = {
   id: string;
@@ -114,6 +120,190 @@ function uploadWithProgress(
     };
     xhr.send(form);
   });
+}
+
+type PrepareResponse = {
+  mode: "vod_multipart" | "vod_direct" | "oss_multipart" | "proxy";
+  mediaKind?: string;
+  mimeType?: string;
+  error?: string;
+  vod?: {
+    videoId: string;
+    fileUrl: string;
+    host: string;
+    bucket: string;
+    objectKey: string;
+    accessKeyId: string;
+    accessKeySecret: string;
+    securityToken: string;
+    uploadId?: string;
+    partSize?: number;
+    parts?: Array<{ partNumber: number; url: string }>;
+  };
+  oss?: {
+    uploadId: string;
+    objectKey: string;
+    fileUrl: string;
+    partSize: number;
+    parts: Array<{ partNumber: number; url: string }>;
+  };
+};
+
+async function uploadFileDirect(input: {
+  file: File;
+  name: string;
+  description: string;
+  categoryId: string;
+  onProgress: (loaded: number, total: number) => void;
+}): Promise<{ ok: boolean; data: { asset?: Asset; error?: string } }> {
+  if (input.file.size > MAX_UPLOAD_BYTES) {
+    return {
+      ok: false,
+      data: { error: `文件不能超过 ${MAX_UPLOAD_LABEL}` },
+    };
+  }
+
+  const prepareRes = await fetch("/api/studio/media/prepare", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: input.name,
+      fileName: input.file.name,
+      mimeType: input.file.type || "",
+      sizeBytes: input.file.size,
+      categoryId: input.categoryId || undefined,
+      description: input.description || undefined,
+    }),
+  });
+  const prepare = (await prepareRes.json().catch(() => ({}))) as PrepareResponse;
+  if (!prepareRes.ok) {
+    return {
+      ok: false,
+      data: { error: prepare.error || "无法获取直传凭证" },
+    };
+  }
+
+  // 未配云存储时回退旧代理（仅小文件）
+  if (prepare.mode === "proxy") {
+    const form = new FormData();
+    form.set("name", input.name);
+    form.set("description", input.description);
+    if (input.categoryId) form.set("categoryId", input.categoryId);
+    form.set("file", input.file);
+    const result = await uploadWithProgress(form, input.onProgress);
+    return { ok: result.ok, data: result.data };
+  }
+
+  try {
+    // 点播：服务端预签名分片 URL（vod_multipart）；旧 vod_direct 仅作兼容回退
+    if (
+      (prepare.mode === "vod_multipart" || prepare.mode === "vod_direct") &&
+      prepare.vod
+    ) {
+      const vod = prepare.vod;
+      let uploadedParts: Array<{ partNumber: number; etag: string }> = [];
+      if (vod.parts?.length && vod.partSize) {
+        uploadedParts = await uploadFileWithSignedParts({
+          file: input.file,
+          partSize: vod.partSize,
+          parts: vod.parts,
+          onProgress: input.onProgress,
+          // 无 uploadId 表示单次 PUT，不依赖 CORS 暴露 ETag
+          requireEtag: Boolean(vod.uploadId),
+        });
+      } else {
+        await uploadFileToOssDirect({
+          file: input.file,
+          contentType: prepare.mimeType || input.file.type || "video/mp4",
+          creds: {
+            host: vod.host,
+            bucket: vod.bucket,
+            objectKey: vod.objectKey,
+            accessKeyId: vod.accessKeyId,
+            accessKeySecret: vod.accessKeySecret,
+            securityToken: vod.securityToken,
+          },
+          onProgress: input.onProgress,
+        });
+      }
+      const completeRes = await fetch("/api/studio/media/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: input.name,
+          description: input.description,
+          categoryId: input.categoryId || undefined,
+          fileName: input.file.name,
+          mimeType: prepare.mimeType || input.file.type || "",
+          sizeBytes: input.file.size,
+          mediaKind: prepare.mediaKind || "VIDEO",
+          provider: "ALIYUN_VOD",
+          vodVideoId: vod.videoId,
+          fileUrl: vod.fileUrl,
+          vod: {
+            host: vod.host,
+            bucket: vod.bucket,
+            objectKey: vod.objectKey,
+            accessKeyId: vod.accessKeyId,
+            accessKeySecret: vod.accessKeySecret,
+            securityToken: vod.securityToken,
+            uploadId: vod.uploadId || undefined,
+            parts: vod.uploadId ? uploadedParts : undefined,
+          },
+        }),
+      });
+      const completeData = await completeRes.json().catch(() => ({}));
+      if (!completeRes.ok || !completeData.asset) {
+        return {
+          ok: false,
+          data: { error: completeData.error || "点播直传后入库失败" },
+        };
+      }
+      return { ok: true, data: { asset: completeData.asset as Asset } };
+    }
+
+    if (prepare.mode === "oss_multipart" && prepare.oss) {
+      const parts = await uploadFileWithSignedParts({
+        file: input.file,
+        partSize: prepare.oss.partSize,
+        parts: prepare.oss.parts,
+        onProgress: input.onProgress,
+      });
+      const completeRes = await fetch("/api/studio/media/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: input.name,
+          description: input.description,
+          categoryId: input.categoryId || undefined,
+          fileName: input.file.name,
+          mimeType: prepare.mimeType || input.file.type || "",
+          sizeBytes: input.file.size,
+          mediaKind: prepare.mediaKind,
+          provider: "ALIYUN_OSS",
+          fileUrl: prepare.oss.fileUrl,
+          oss: {
+            objectKey: prepare.oss.objectKey,
+            uploadId: prepare.oss.uploadId,
+            parts,
+          },
+        }),
+      });
+      const completeData = await completeRes.json().catch(() => ({}));
+      if (!completeRes.ok || !completeData.asset) {
+        return {
+          ok: false,
+          data: { error: completeData.error || "OSS 直传后入库失败" },
+        };
+      }
+      return { ok: true, data: { asset: completeData.asset as Asset } };
+    }
+
+    return { ok: false, data: { error: "未知的上传模式" } };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "直传失败";
+    return { ok: false, data: { error: shortUploadError(msg) } };
+  }
 }
 
 export function MediaCenter({
@@ -357,12 +547,6 @@ export function MediaCenter({
     if (files.length > 0) {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        const form = new FormData();
-        form.set("name", assetNameForFile(file, i, files.length));
-        form.set("description", description);
-        if (categoryId) form.set("categoryId", categoryId);
-        form.set("file", file);
-
         let lastLoaded = 0;
         let lastAt = Date.now();
         let speedBps = 0;
@@ -376,26 +560,33 @@ export function MediaCenter({
           total: file.size,
           speedBps: 0,
         });
-        setMessage(`正在上传 ${i + 1}/${files.length}：${file.name}`);
+        setMessage(`正在直传 ${i + 1}/${files.length}：${file.name}`);
 
-        const result = await uploadWithProgress(form, (loaded, total) => {
-          const now = Date.now();
-          const dt = (now - lastAt) / 1000;
-          if (dt >= 0.25) {
-            speedBps = Math.max(0, (loaded - lastLoaded) / dt);
-            lastLoaded = loaded;
-            lastAt = now;
-          }
-          const percent = total > 0 ? Math.min(100, Math.round((loaded / total) * 100)) : 0;
-          setUploadProgress({
-            fileIndex: i + 1,
-            fileCount: files.length,
-            fileName: file.name,
-            percent,
-            loaded,
-            total,
-            speedBps,
-          });
+        const result = await uploadFileDirect({
+          file,
+          name: assetNameForFile(file, i, files.length),
+          description,
+          categoryId,
+          onProgress: (loaded, total) => {
+            const now = Date.now();
+            const dt = (now - lastAt) / 1000;
+            if (dt >= 0.25) {
+              speedBps = Math.max(0, (loaded - lastLoaded) / dt);
+              lastLoaded = loaded;
+              lastAt = now;
+            }
+            const percent =
+              total > 0 ? Math.min(100, Math.round((loaded / total) * 100)) : 0;
+            setUploadProgress({
+              fileIndex: i + 1,
+              fileCount: files.length,
+              fileName: file.name,
+              percent,
+              loaded,
+              total,
+              speedBps,
+            });
+          },
         });
 
         if (!result.ok || !result.data.asset) {
@@ -519,7 +710,7 @@ export function MediaCenter({
         <div>
           <h1 className="text-3xl font-semibold">素材中心</h1>
           <p className="mt-2 text-sm text-[var(--muted)]">
-            上传视频/图片/音频/文档，自动识别媒体类型；用户分类可自行整理（最多{" "}
+            上传视频/图片/音频/文档（最大 {MAX_UPLOAD_LABEL}，大文件直传云端不经本机中转）；自动识别媒体类型；用户分类可自行整理（最多{" "}
             {ASSET_NAME_MAX} 字命名）
             {canCreateSellable
               ? "，再多选做成可售单课、专栏或资料。"

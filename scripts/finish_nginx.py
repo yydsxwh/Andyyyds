@@ -46,7 +46,15 @@ server {{
     listen [::]:80 default_server;
     server_name {DOMAIN} yydsxwh.com {HOST} _;
 
-    client_max_body_size 320m;
+    client_max_body_size 2048m;
+
+    # 运行时上传/推文转存图：Next production 不服务 build 后写入的 public 文件
+    location ^~ /uploads/ {{
+        root /var/www/yyds-course-platform/public;
+        access_log off;
+        expires 30d;
+        add_header Cache-Control "public";
+    }}
 
     location / {{
         proxy_pass http://127.0.0.1:3000;
@@ -58,8 +66,8 @@ server {{
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_cache_bypass $http_upgrade;
-        proxy_read_timeout 300s;
-        proxy_send_timeout 300s;
+        proxy_read_timeout 900s;
+        proxy_send_timeout 900s;
     }}
 }}
 """

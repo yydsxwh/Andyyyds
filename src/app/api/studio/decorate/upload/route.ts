@@ -5,13 +5,13 @@ import { requireAdmin, studioErrorResponse } from "@/lib/studio";
 export const runtime = "nodejs";
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+// 不收 SVG：以 image/svg+xml 回源时可嵌脚本，装修图只允许位图
 const ALLOWED_IMAGE_MIME = new Set([
   "image/png",
   "image/jpeg",
   "image/jpg",
   "image/webp",
   "image/gif",
-  "image/svg+xml",
 ]);
 
 export async function POST(req: Request) {
@@ -27,9 +27,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "图片不能超过 8MB" }, { status: 400 });
     }
     const mime = file.type || "application/octet-stream";
-    if (!ALLOWED_IMAGE_MIME.has(mime) && !/\.(png|jpe?g|webp|gif|svg)$/i.test(file.name)) {
+    if (
+      mime === "image/svg+xml" ||
+      /\.svg$/i.test(file.name) ||
+      (!ALLOWED_IMAGE_MIME.has(mime) && !/\.(png|jpe?g|webp|gif)$/i.test(file.name))
+    ) {
       return NextResponse.json(
-        { error: "仅支持 png / jpg / webp / gif / svg" },
+        { error: "仅支持 png / jpg / webp / gif" },
         { status: 400 },
       );
     }

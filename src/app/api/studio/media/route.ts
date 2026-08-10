@@ -5,6 +5,8 @@ import {
   ASSET_DESC_MAX,
   ASSET_NAME_MAX,
   MAX_UPLOAD_BYTES,
+  MAX_UPLOAD_LABEL,
+  MAX_PROXY_UPLOAD_BYTES,
   classifyMediaKind,
   inferMimeType,
   isAllowedUpload,
@@ -98,7 +100,19 @@ export async function POST(req: Request) {
 
     if (file instanceof File && file.size > 0) {
       if (file.size > MAX_UPLOAD_BYTES) {
-        return NextResponse.json({ error: "文件不能超过 300MB" }, { status: 400 });
+        return NextResponse.json(
+          { error: `文件不能超过 ${MAX_UPLOAD_LABEL}` },
+          { status: 400 },
+        );
+      }
+      // 代理整包进 Node 易 OOM；大文件应走 /prepare 直传
+      if (file.size > MAX_PROXY_UPLOAD_BYTES) {
+        return NextResponse.json(
+          {
+            error: `超过 ${Math.round(MAX_PROXY_UPLOAD_BYTES / 1024 / 1024)}MB 请使用直传通道（前端会自动切换）`,
+          },
+          { status: 400 },
+        );
       }
       fileName = file.name || "upload.bin";
       mimeType = inferMimeType(file.type || "", fileName);

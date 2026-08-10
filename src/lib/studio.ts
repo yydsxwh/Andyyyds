@@ -163,8 +163,28 @@ export function studioErrorResponse(error: unknown) {
 
   if (error instanceof Error && error.message && error.message !== "UNKNOWN") {
     const msg = error.message.slice(0, 180);
+    // FormData 截断（middleware/proxy 默认 10MB）时 body 损坏，给可操作提示
+    if (/Failed to parse body as FormData|Unexpected end of form|formdata/i.test(msg)) {
+      return {
+        status: 400 as const,
+        error: "上传内容过大或被网关截断，请改用直传或缩小文件后重试",
+      };
+    }
+    if (/body.*exceed|Payload Too Large|entity too large|413/i.test(msg)) {
+      return {
+        status: 413 as const,
+        error: "文件过大，请使用云直传通道或缩小后重试",
+      };
+    }
     if (/Cannot find module|ENOENT|EACCES|SQLITE/i.test(msg)) {
       return { status: 500 as const, error: `服务异常：${msg}` };
+    }
+    // 业务/存储抛出的中文或短英文错误直接回传，避免前端只看到「请求失败」
+    if (
+      /[\u4e00-\u9fff]/.test(msg) ||
+      /^(点播|OSS|上传|文件|分类|参数|请)/.test(msg)
+    ) {
+      return { status: 400 as const, error: msg };
     }
   }
 

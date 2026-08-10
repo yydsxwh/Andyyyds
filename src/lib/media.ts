@@ -130,7 +130,14 @@ const EXT_TO_MIME: Record<string, string> = {
   txt: "text/plain",
 };
 
-export const MAX_UPLOAD_BYTES = 300 * 1024 * 1024; // 300MB
+/** 素材中心单文件上限（直传云端，不经 Next 缓冲整包） */
+export const MAX_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024; // 2GB
+export const MAX_UPLOAD_LABEL = "2GB";
+/**
+ * 走本机代理上传的软上限。
+ * 须低于 Next 默认约 10MB 的 body 克隆阈值，避免 FormData 被截断却只报「请求失败」。
+ */
+export const MAX_PROXY_UPLOAD_BYTES = 8 * 1024 * 1024; // 8MB
 
 export const MEDIA_UPLOAD_ACCEPT = [
   "video/mp4",
