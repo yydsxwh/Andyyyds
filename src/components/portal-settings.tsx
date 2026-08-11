@@ -189,7 +189,7 @@ export function PortalNavSettings({ value, onChange }: Props) {
           <button
             type="button"
             draggable
-            className="flex h-10 w-10 cursor-grab items-center justify-center self-center rounded-xl border border-[var(--line)] bg-white/80 text-[var(--muted)] active:cursor-grabbing"
+            className="flex h-11 w-11 cursor-grab items-center justify-center self-center rounded-xl border border-[var(--line)] bg-white/80 text-[var(--muted)] touch-manipulation active:cursor-grabbing"
             aria-label={`拖拽调整「${item.label || "导航项"}」顺序`}
             title="按住拖动调整顺序"
             onDragStart={(e) => {
@@ -229,7 +229,7 @@ export function PortalNavSettings({ value, onChange }: Props) {
           <div className="flex items-center gap-1 self-end sm:self-center sm:pt-5">
             <button
               type="button"
-              className="btn btn-secondary min-h-10 px-2.5 py-2 text-sm disabled:opacity-40"
+              className="btn btn-secondary min-h-11 min-w-11 touch-manipulation px-2.5 py-2 text-sm disabled:opacity-40"
               disabled={index === 0}
               aria-label={`上移「${item.label || "导航项"}」`}
               title="上移"
@@ -239,7 +239,7 @@ export function PortalNavSettings({ value, onChange }: Props) {
             </button>
             <button
               type="button"
-              className="btn btn-secondary min-h-10 px-2.5 py-2 text-sm disabled:opacity-40"
+              className="btn btn-secondary min-h-11 min-w-11 touch-manipulation px-2.5 py-2 text-sm disabled:opacity-40"
               disabled={index === nav.length - 1}
               aria-label={`下移「${item.label || "导航项"}」`}
               title="下移"

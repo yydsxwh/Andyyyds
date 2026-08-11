@@ -77,14 +77,18 @@ export async function StudioNav({
         : current;
 
   return (
-    <div className="flex flex-wrap gap-2">
+    // 窄屏横向滑动，避免站长 Tab 换行占满首屏；微信内同样可滑可点
+    <nav
+      className="flex gap-2 overflow-x-auto overscroll-x-contain pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      aria-label={area === "admin" ? "站长管理导航" : "创作者中心导航"}
+    >
       {links.map((link) => {
         const active = activeKey === link.key;
         return (
           <Link
             key={link.key}
             href={link.href}
-            className={`chip whitespace-nowrap text-base ${
+            className={`chip shrink-0 touch-manipulation whitespace-nowrap text-base ${
               active ? "chip-active" : "chip-idle"
             }`}
           >
@@ -92,6 +96,6 @@ export async function StudioNav({
           </Link>
         );
       })}
-    </div>
+    </nav>
   );
 }

@@ -453,8 +453,10 @@ function PreviewModule({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
-      className={`relative touch-none text-left ${ring} rounded-lg ${
-        layout.mode === "absolute" ? "cursor-move" : "w-full"
+      className={`relative text-left ${ring} rounded-lg ${
+        layout.mode === "absolute"
+          ? "cursor-move touch-none"
+          : "w-full touch-manipulation"
       }`}
       style={
         layout.mode === "absolute"
@@ -1713,12 +1715,13 @@ export function PageTemplateEditor({ initial }: Props) {
   }
 
   return (
-    <div className="space-y-4">
+    // 底部留白给手机固定保存条，避免挡住模块库
+    <div className="space-y-4 pb-24 lg:pb-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <Link
             href="/studio/templates"
-            className="text-sm text-[var(--brand)]"
+            className="inline-flex min-h-11 items-center text-sm text-[var(--brand)] touch-manipulation"
           >
             ← 返回模板列表
           </Link>
@@ -1730,12 +1733,15 @@ export function PageTemplateEditor({ initial }: Props) {
             {template.type === "custom"
               ? ` · ${publicTemplatePath(template)}`
               : ""}
+            <span className="mt-1 block lg:hidden">
+              手机上可直接点选模块，用「上移 / 下移」调序；自由定位模块可拖动。
+            </span>
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="hidden flex-wrap gap-2 lg:flex">
           <button
             type="button"
-            className="btn min-h-11 border border-[var(--line)] bg-white"
+            className="btn min-h-11 border border-[var(--line)] bg-white touch-manipulation"
             onClick={() => {
               setShowCoverPicker((v) => !v);
               setShowBgPicker(false);
@@ -1745,7 +1751,7 @@ export function PageTemplateEditor({ initial }: Props) {
           </button>
           <button
             type="button"
-            className="btn min-h-11 border border-[var(--line)] bg-white"
+            className="btn min-h-11 border border-[var(--line)] bg-white touch-manipulation"
             onClick={() => {
               setShowBgPicker((v) => !v);
               setShowCoverPicker(false);
@@ -1755,7 +1761,7 @@ export function PageTemplateEditor({ initial }: Props) {
           </button>
           <button
             type="button"
-            className="btn min-h-11 border border-[var(--brand)]/40 bg-[var(--brand-soft)] text-[var(--brand)]"
+            className="btn min-h-11 border border-[var(--brand)]/40 bg-[var(--brand-soft)] text-[var(--brand)] touch-manipulation"
             disabled={duplicating}
             onClick={() => void duplicateTemplate()}
           >
@@ -1763,7 +1769,7 @@ export function PageTemplateEditor({ initial }: Props) {
           </button>
           <button
             type="button"
-            className="btn btn-primary min-h-11"
+            className="btn btn-primary min-h-11 touch-manipulation"
             disabled={saving}
             onClick={() => void save()}
           >
@@ -1771,6 +1777,38 @@ export function PageTemplateEditor({ initial }: Props) {
           </button>
           <SaveFeedback status={feedback} />
         </div>
+      </div>
+
+      {/* 手机/微信：顶栏操作收进可横滑条，保存始终可见 */}
+      <div className="flex gap-2 overflow-x-auto overscroll-x-contain pb-1 lg:hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <button
+          type="button"
+          className="btn min-h-11 shrink-0 border border-[var(--line)] bg-white touch-manipulation"
+          onClick={() => {
+            setShowCoverPicker((v) => !v);
+            setShowBgPicker(false);
+          }}
+        >
+          封面图
+        </button>
+        <button
+          type="button"
+          className="btn min-h-11 shrink-0 border border-[var(--line)] bg-white touch-manipulation"
+          onClick={() => {
+            setShowBgPicker((v) => !v);
+            setShowCoverPicker(false);
+          }}
+        >
+          背景图
+        </button>
+        <button
+          type="button"
+          className="btn min-h-11 shrink-0 border border-[var(--brand)]/40 bg-[var(--brand-soft)] text-[var(--brand)] touch-manipulation"
+          disabled={duplicating}
+          onClick={() => void duplicateTemplate()}
+        >
+          {duplicating ? "复制中…" : "复制"}
+        </button>
       </div>
 
       {showCoverPicker || showBgPicker ? (
@@ -1793,15 +1831,19 @@ export function PageTemplateEditor({ initial }: Props) {
       ) : null}
 
       <div className="grid gap-4 lg:grid-cols-[minmax(280px,360px)_1fr]">
-        <div className="surface rounded-[28px] p-4">
+        <div className="surface rounded-[28px] p-3 sm:p-4">
           <div className="mb-3 text-sm font-medium text-[var(--muted)]">
-            手机预览（点选编辑；自由定位可拖动）
+            <span className="lg:hidden">画布预览（点选编辑；自由定位可拖动）</span>
+            <span className="hidden lg:inline">
+              手机预览（点选编辑；自由定位可拖动）
+            </span>
           </div>
-          <div className="mx-auto w-full max-w-[320px] rounded-[32px] border-[10px] border-slate-800 bg-white shadow-xl">
-            <div className="mx-auto mt-2 h-1.5 w-20 rounded-full bg-slate-300" />
+          {/* 真机编辑时去掉「手机套手机」边框，画布铺满可用宽度 */}
+          <div className="mx-auto w-full max-w-none overflow-hidden rounded-2xl border border-[var(--line)] bg-white lg:max-w-[320px] lg:rounded-[32px] lg:border-[10px] lg:border-slate-800 lg:shadow-xl">
+            <div className="mx-auto mt-2 hidden h-1.5 w-20 rounded-full bg-slate-300 lg:block" />
             <div
               ref={canvasRef}
-              className="relative max-h-[560px] overflow-y-auto overscroll-contain py-2"
+              className="relative max-h-[min(70vh,640px)] overflow-y-auto overscroll-contain py-2 lg:max-h-[560px]"
               style={{
                 minHeight: Math.max(420, absMaxY),
                 ...(template.backgroundUrl
@@ -1856,7 +1898,7 @@ export function PageTemplateEditor({ initial }: Props) {
                 )}
               </div>
             </div>
-            <div className="mx-auto my-2 h-1 w-24 rounded-full bg-slate-300" />
+            <div className="mx-auto my-2 hidden h-1 w-24 rounded-full bg-slate-300 lg:block" />
           </div>
         </div>
 
@@ -1922,35 +1964,35 @@ export function PageTemplateEditor({ initial }: Props) {
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
-                    className="btn min-h-10 border border-[var(--line)] bg-white text-sm"
+                    className="btn min-h-11 border border-[var(--line)] bg-white text-sm touch-manipulation"
                     onClick={() => moveModule(selected.id, -1)}
                   >
                     上移
                   </button>
                   <button
                     type="button"
-                    className="btn min-h-10 border border-[var(--line)] bg-white text-sm"
+                    className="btn min-h-11 border border-[var(--line)] bg-white text-sm touch-manipulation"
                     onClick={() => moveModule(selected.id, 1)}
                   >
                     下移
                   </button>
                   <button
                     type="button"
-                    className="btn min-h-10 border border-[var(--line)] bg-white text-sm"
+                    className="btn min-h-11 border border-[var(--line)] bg-white text-sm touch-manipulation"
                     onClick={() => shiftHorizontal(selected.id, -1)}
                   >
                     左移
                   </button>
                   <button
                     type="button"
-                    className="btn min-h-10 border border-[var(--line)] bg-white text-sm"
+                    className="btn min-h-11 border border-[var(--line)] bg-white text-sm touch-manipulation"
                     onClick={() => shiftHorizontal(selected.id, 1)}
                   >
                     右移
                   </button>
                   <button
                     type="button"
-                    className="btn min-h-10 border border-[var(--brand)]/30 bg-[var(--brand-soft)] text-sm text-[var(--brand)]"
+                    className="btn min-h-11 border border-[var(--brand)]/30 bg-[var(--brand-soft)] text-sm text-[var(--brand)] touch-manipulation"
                     onClick={() => toggleAbsolute(selected.id)}
                   >
                     {selectedLayout.mode === "absolute"
@@ -1959,7 +2001,7 @@ export function PageTemplateEditor({ initial }: Props) {
                   </button>
                   <button
                     type="button"
-                    className="btn min-h-10 border border-[var(--fire)]/30 bg-[var(--fire-soft)] text-sm text-[var(--fire-strong)]"
+                    className="btn min-h-11 border border-[var(--fire)]/30 bg-[var(--fire-soft)] text-sm text-[var(--fire-strong)] touch-manipulation"
                     onClick={() => removeModule(selected.id)}
                   >
                     删除模块
@@ -2073,7 +2115,7 @@ export function PageTemplateEditor({ initial }: Props) {
             <button
               key={item.type}
               type="button"
-              className="min-h-[72px] rounded-2xl border border-[var(--line)] bg-white/80 px-2 py-3 text-center transition hover:border-[var(--brand)] active:scale-[0.98]"
+              className="min-h-[72px] rounded-2xl border border-[var(--line)] bg-white/80 px-2 py-3 text-center touch-manipulation transition hover:border-[var(--brand)] active:scale-[0.98]"
               onClick={() => addModule(item.type)}
             >
               <div className="text-sm font-medium">{item.label}</div>
@@ -2082,6 +2124,21 @@ export function PageTemplateEditor({ initial }: Props) {
               </div>
             </button>
           ))}
+        </div>
+      </div>
+
+      {/* 手机固定保存条：滚动编辑时始终能保存，与装扮页一致 */}
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--line)] bg-[var(--card)] px-3 py-3 shadow-[0_-8px_28px_rgba(0,0,0,0.12)] lg:hidden">
+        <div className="mx-auto flex max-w-3xl items-center gap-2">
+          <SaveFeedback status={feedback} />
+          <button
+            type="button"
+            className="btn btn-primary ml-auto min-h-12 min-w-[8rem] flex-1 touch-manipulation sm:flex-none"
+            disabled={saving}
+            onClick={() => void save()}
+          >
+            {saving ? "保存中…" : "保存模板"}
+          </button>
         </div>
       </div>
     </div>
