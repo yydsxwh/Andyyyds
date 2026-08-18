@@ -2,6 +2,7 @@ import Link from "next/link";
 import { HomeUserChatSearch } from "@/components/chat/home-user-chat-search";
 import { ConfigurableLink } from "@/components/configurable-link";
 import { ContactUsPanel } from "@/components/contact-us-panel";
+import { HomeContactAndDownloads } from "@/components/client-downloads-panel";
 import { CourseCard } from "@/components/course-card";
 import { getSession } from "@/lib/auth";
 import {
@@ -71,10 +72,9 @@ type CourseCardRow = Course & {
 function ContactSection({ contact }: { contact: PortalContact }) {
   return (
     <section className="pt-4 sm:pt-6">
-      {/* 不用居中 container 的视觉「中间条」，改为贴左内边距，卡片更靠左 */}
-      <div className="w-full max-w-6xl px-3 sm:px-5 lg:px-8">
-        <ContactUsPanel contact={contact} variant="hero" />
-      </div>
+      <HomeContactAndDownloads
+        contactPanel={<ContactUsPanel contact={contact} variant="hero" />}
+      />
     </section>
   );
 }
@@ -680,9 +680,9 @@ export default async function HomePage() {
     return (
       <div className="space-y-4 py-4 sm:py-6">
         {contactBefore ? (
-          <div className="w-full max-w-6xl px-3 sm:px-5 lg:px-8">
-            <ContactUsPanel contact={contact} variant="hero" />
-          </div>
+          <HomeContactAndDownloads
+            contactPanel={<ContactUsPanel contact={contact} variant="hero" />}
+          />
         ) : null}
         {!hideSocialChat ? (
           <HomeUserChatSearch loggedIn={loggedIn} />
@@ -701,9 +701,9 @@ export default async function HomePage() {
           />
         ) : null}
         {showContact && !contactBefore ? (
-          <div className="w-full max-w-6xl px-3 sm:px-5 lg:px-8">
-            <ContactUsPanel contact={contact} variant="hero" />
-          </div>
+          <HomeContactAndDownloads
+            contactPanel={<ContactUsPanel contact={contact} variant="hero" />}
+          />
         ) : null}
       </div>
     );
