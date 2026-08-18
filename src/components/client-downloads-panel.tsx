@@ -1,6 +1,6 @@
 /**
  * 首页「客户端下载」入口：放在联系我们右侧偏中上。
- * Android 已有 APK；Windows / iOS / Mac / 鸿蒙先占位，避免以后改布局。
+ * Android / Windows 安装包落在 public/app；其余平台先占位。
  */
 
 import type { ReactNode } from "react";
@@ -16,16 +16,19 @@ type ClientSlot = {
   available: boolean;
 };
 
-function androidApkReady() {
+function appAssetReady(fileName: string) {
   try {
-    return existsSync(path.join(process.cwd(), "public", "app", "yyds.apk"));
+    return existsSync(path.join(process.cwd(), "public", "app", fileName));
   } catch {
     return false;
   }
 }
 
 function buildSlots(): ClientSlot[] {
-  const apkOk = androidApkReady();
+  const apkOk = appAssetReady("yyds.apk");
+  // zip 或 exe 任一即可开放入口（推荐 zip，减少浏览器拦截）
+  const winOk =
+    appAssetReady("yyds-windows.zip") || appAssetReady("yyds-windows.exe");
   return [
     {
       id: "android",
@@ -37,8 +40,9 @@ function buildSlots(): ClientSlot[] {
     {
       id: "windows",
       label: "Windows",
-      hint: "电脑客户端 · 即将推出",
-      available: false,
+      hint: winOk ? "电脑客户端" : "准备中",
+      href: winOk ? "/app/windows" : undefined,
+      available: winOk,
     },
     {
       id: "ios",

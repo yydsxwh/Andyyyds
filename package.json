@@ -12,13 +12,20 @@
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:reset": "prisma db push --force-reset && tsx prisma/seed.ts",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "app:sync": "npx cap sync android",
+    "app:open": "npx cap open android",
+    "app:build": "npx cap sync android && node scripts/build-android-apk.mjs",
+    "app:build:windows": "node scripts/build-windows-client.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@alicloud/pop-core": "^1.8.0",
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/cli": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
     "@prisma/client": "^5.22.0",
     "@tailwindcss/postcss": "^4",
     "bcryptjs": "^3.0.3",

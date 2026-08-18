@@ -1,0 +1,46 @@
+{
+  "name": "yyds-windows-client",
+  "version": "1.1.1",
+  "private": true,
+  "description": "歪歪滴艾斯 Windows 客户端：网易云风格桌面壳 + 官网完整功能",
+  "main": "main.cjs",
+  "author": "YYDS",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --win portable --x64 --publish never"
+  },
+  "build": {
+    "appId": "com.yydsxwh.app",
+    "productName": "歪歪滴艾斯",
+    "copyright": "Copyright © YYDS",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.cjs",
+      "preload-shell.cjs",
+      "preload-view.cjs",
+      "preload.cjs",
+      "icon.png",
+      "shell/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "icon.png",
+      "artifactName": "yyds-windows.${ext}"
+    },
+    "portable": {
+      "artifactName": "yyds-windows.exe"
+    },
+    "asar": true
+  },
+  "devDependencies": {
+    "electron": "^37.2.6",
+    "electron-builder": "^26.0.12"
+  }
+}

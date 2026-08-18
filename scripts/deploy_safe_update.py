@@ -32,6 +32,11 @@ EXCLUDE_DIRS = {
     "assets",
     ".cursor",
     "tmp",
+    # Android / Electron 工程与构建缓存体积大，站点只需 public/app 安装包
+    "android",
+    "desktop",
+    "www",
+    "exports",
 }
 EXCLUDE_FILES = {".env", "dev.db", "dev.db-journal", "prod.db", "prod.db-journal"}
 

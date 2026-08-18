@@ -50,3 +50,24 @@ next-env.d.ts
 # uploaded media
 /public/uploads
 /uploads
+
+# Capacitor / Android local
+/android/local.properties
+/android/.gradle
+/android/app/build
+/android/build
+/android/captures
+/android/.idea
+/android/app/release
+*.apk
+*.jks
+*.keystore
+
+# Electron Windows client local build
+/desktop/node_modules
+/desktop/dist
+/desktop/*.exe
+# 站点下载包保留在 public/app，由构建脚本生成；本地大文件可不提交
+/public/app/*.exe
+/public/app/*.zip
+/public/app/*.apk
