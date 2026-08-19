@@ -30,7 +30,7 @@
 
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { createCommissionsForOrder } from "./distribution";
-import { isRole, type Role } from "./roles";
+import { hasRole, isRole, type Role } from "./roles";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -198,6 +198,7 @@ export async function settlePaidOrderSplit(
         select: {
           id: true,
           role: true,
+          roles: true,
           merchant: { select: { agentId: true } },
         },
       },
@@ -208,7 +209,7 @@ export async function settlePaidOrderSplit(
   const teacher = course?.teacher;
 
   // —— 入驻商家课：平台抽成 + 发展商家的代理再分 ——
-  if (teacher?.role === "MERCHANT") {
+  if (teacher && hasRole({ role: teacher.role, roles: teacher.roles || "" }, "MERCHANT")) {
     const cutPct = settings.merchantPlatformCutPercent;
     const platformCut = Math.floor((order.amount * cutPct) / 100);
     settlement.platformCutPercent = cutPct;
@@ -220,9 +221,9 @@ export async function settlePaidOrderSplit(
     if (agentId && platformCut > 0) {
       const agent = await db.user.findUnique({
         where: { id: agentId },
-        select: { id: true, role: true },
+        select: { id: true, role: true, roles: true },
       });
-      if (agent?.role === "AGENT") {
+      if (agent && hasRole({ role: agent.role, roles: agent.roles || "" }, "AGENT")) {
         const sharePct = settings.agentShareOfPlatformCutPercent;
         settlement.agentMerchantId = agent.id;
         settlement.agentMerchantShareAmount = Math.floor(

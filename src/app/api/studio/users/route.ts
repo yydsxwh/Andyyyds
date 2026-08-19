@@ -1,8 +1,8 @@
-/**
+﻿/**
  * GET/PATCH /api/studio/users —— 站长用户管理
  *
  * - GET：列表（?pending=1 仅待审申请）
- * - PATCH { userId, role }：直接改角色
+ * - PATCH { userId, roles: Role[] } 或 { userId, role }：设置多角色 / 单角色
  * - PATCH { userId, referralCode }：设置邀请码（含站长自己）
  * - PATCH { userId, applicationAction: approve|reject, note? }：审核注册申请
  * - PATCH { userId, unbindWechat: true }：清空微信 openid/unionid，便于用户重新绑定
@@ -23,7 +23,10 @@ import {
   normalizeReferralCode,
 } from "@/lib/referral-code";
 import {
+  hasRole,
   isElevatedApplyRole,
+  normalizeRoles,
+  roleLabels,
   ROLES,
   type Role,
 } from "@/lib/roles";
@@ -34,6 +37,7 @@ const userSelect = {
   name: true,
   email: true,
   role: true,
+  roles: true,
   requestedRole: true,
   roleApplicationStatus: true,
   roleApplicationNote: true,
@@ -41,9 +45,18 @@ const userSelect = {
   referralCode: true,
 } as const;
 
-function serializeUser<T extends { roleReviewedAt: Date | null }>(u: T) {
+function serializeUser<
+  T extends {
+    role: string;
+    roles: string;
+    roleReviewedAt: Date | null;
+  },
+>(u: T) {
+  const roles = normalizeRoles({ role: u.role, roles: u.roles });
   return {
     ...u,
+    roles,
+    rolesLabel: roleLabels(roles),
     roleReviewedAt: u.roleReviewedAt?.toISOString() ?? null,
   };
 }
@@ -67,9 +80,6 @@ export async function GET(req: Request) {
                 ],
               }
             : {},
-          role && (ROLES as readonly string[]).includes(role)
-            ? { role: role as Role }
-            : {},
           pendingOnly ? { roleApplicationStatus: "PENDING" } : {},
         ],
       },
@@ -87,6 +97,7 @@ export async function GET(req: Request) {
             email: true,
             referralCode: true,
             role: true,
+            roles: true,
             createdAt: true,
           },
           orderBy: { createdAt: "desc" },
@@ -107,12 +118,21 @@ export async function GET(req: Request) {
       take: 200,
     });
 
+    const filtered =
+      role && (ROLES as readonly string[]).includes(role)
+        ? users.filter((u) =>
+            hasRole({ role: u.role, roles: u.roles }, role as Role),
+          )
+        : users;
+
     return NextResponse.json({
-      users: users.map((u) => ({
+      users: filtered.map((u) => ({
         id: u.id,
         name: u.name,
         email: u.email,
         role: u.role,
+        roles: normalizeRoles({ role: u.role, roles: u.roles }),
+        rolesLabel: roleLabels({ role: u.role, roles: u.roles }),
         requestedRole: u.requestedRole,
         roleApplicationStatus: u.roleApplicationStatus,
         roleApplicationNote: u.roleApplicationNote,
@@ -135,6 +155,7 @@ export async function GET(req: Request) {
           email: r.email,
           referralCode: r.referralCode,
           role: r.role,
+          roles: normalizeRoles({ role: r.role, roles: r.roles }),
           createdAt: r.createdAt.toISOString(),
         })),
       })),
@@ -144,6 +165,11 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: mapped.error }, { status: mapped.status });
   }
 }
+
+const setRolesSchema = z.object({
+  userId: z.string().min(1),
+  roles: z.array(z.enum(ROLES)).min(1).max(ROLES.length),
+});
 
 const setRoleSchema = z.object({
   userId: z.string().min(1),
@@ -171,7 +197,6 @@ export async function PATCH(req: Request) {
     const admin = await requireAdmin();
     const raw = await req.json();
 
-    // —— 站长解绑微信（绑错时可清空，用户再到个人中心重绑） ——
     if (raw?.unbindWechat === true) {
       const body = unbindWechatSchema.parse(raw);
       const target = await prisma.user.findUnique({
@@ -193,7 +218,6 @@ export async function PATCH(req: Request) {
       ) {
         return NextResponse.json({ error: "该用户未绑定微信" }, { status: 400 });
       }
-      // 同时清空公众号 / 网站应用 openid 与 unionid，避免解绑后仍被扫码识别
       await prisma.user.update({
         where: { id: body.userId },
         data: { wechatOpenId: "", wechatWebOpenId: "", wechatUnionId: "" },
@@ -205,8 +229,12 @@ export async function PATCH(req: Request) {
       });
     }
 
-    // —— 站长设置邀请码（含自己） ——
-    if ("referralCode" in raw && !("role" in raw) && !("applicationAction" in raw)) {
+    if (
+      "referralCode" in raw &&
+      !("role" in raw) &&
+      !("roles" in raw) &&
+      !("applicationAction" in raw)
+    ) {
       const body = setReferralSchema.parse(raw);
       const code = normalizeReferralCode(body.referralCode);
       if (!isValidReferralCode(code)) {
@@ -250,7 +278,6 @@ export async function PATCH(req: Request) {
       });
     }
 
-    // —— 审核注册时的角色申请 ——
     if ("applicationAction" in raw) {
       const body = applicationSchema.parse(raw);
       const target = await prisma.user.findUnique({ where: { id: body.userId } });
@@ -271,12 +298,13 @@ export async function PATCH(req: Request) {
             target.requestedRole,
             admin.id,
             body.note,
+            { role: target.role, roles: target.roles },
           ),
           select: userSelect,
         });
         return NextResponse.json({
           user: serializeUser(updated),
-          message: approveSuccessMessage(updated.role),
+          message: approveSuccessMessage(target.requestedRole),
         });
       }
 
@@ -291,22 +319,33 @@ export async function PATCH(req: Request) {
       });
     }
 
-    // —— 站长直接改角色 ——
-    const body = setRoleSchema.parse(raw);
-    const target = await prisma.user.findUnique({ where: { id: body.userId } });
+    const nextRoles: Role[] = Array.isArray(raw?.roles)
+      ? setRolesSchema.parse(raw).roles
+      : [setRoleSchema.parse(raw).role];
+
+    const bodyUserId = String(raw.userId || "");
+    const target = await prisma.user.findUnique({ where: { id: bodyUserId } });
     if (!target) {
       return NextResponse.json({ error: "用户不存在" }, { status: 404 });
     }
 
-    if (target.id === admin.id && body.role !== "ADMIN") {
+    const list = normalizeRoles(nextRoles);
+    if (target.id === admin.id && !list.includes("ADMIN")) {
       return NextResponse.json(
         { error: "不能取消自己的站长身份" },
         { status: 400 },
       );
     }
 
-    if (target.role === "ADMIN" && body.role !== "ADMIN") {
-      const adminCount = await prisma.user.count({ where: { role: "ADMIN" } });
+    if (
+      hasRole({ role: target.role, roles: target.roles }, "ADMIN") &&
+      !list.includes("ADMIN")
+    ) {
+      const adminCount = await prisma.user.count({
+        where: {
+          OR: [{ role: "ADMIN" }, { roles: { contains: "ADMIN" } }],
+        },
+      });
       if (adminCount <= 1) {
         return NextResponse.json(
           { error: "至少保留一位站长" },
@@ -316,12 +355,15 @@ export async function PATCH(req: Request) {
     }
 
     const updated = await prisma.user.update({
-      where: { id: body.userId },
-      data: fieldsAfterManualRoleChange(body.role, admin.id),
+      where: { id: bodyUserId },
+      data: fieldsAfterManualRoleChange(list, admin.id),
       select: userSelect,
     });
 
-    return NextResponse.json({ user: serializeUser(updated) });
+    return NextResponse.json({
+      user: serializeUser(updated),
+      message: `角色已更新为：${roleLabels(list)}`,
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: "参数无效" }, { status: 400 });

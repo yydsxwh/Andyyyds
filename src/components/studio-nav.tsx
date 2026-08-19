@@ -8,6 +8,7 @@ import {
   AGENT_STUDIO_NAV_KEYS,
   canAccessStudio,
   canManageMarketing,
+  hasRole,
   isAdmin,
 } from "@/lib/roles";
 
@@ -42,28 +43,30 @@ export async function StudioNav({
   area?: "creator" | "admin";
 }) {
   const [session, nav] = await Promise.all([getSession(), getStudioNavConfig()]);
-  const role = session?.role || "STUDENT";
+  // 用完整会话做权限：一人多角色时按「任一身份」判定
+  const roles = session || "STUDENT";
 
   let links =
     area === "admin"
-      ? isAdmin(role)
+      ? isAdmin(roles)
         ? [...nav.topAdmin]
         : []
       : [...nav.topBase];
 
   if (area === "creator") {
-    if (role === "AGENT") {
+    // 加盟代理导航收窄；若同时是站长则走站长全量导航
+    if (hasRole(roles, "AGENT") && !isAdmin(roles)) {
       const allowed = new Set<string>(AGENT_STUDIO_NAV_KEYS);
       links = nav.topBase.filter((item) => allowed.has(item.key));
-    } else if (!canAccessStudio(role)) {
+    } else if (!canAccessStudio(roles)) {
       links = [];
-    } else if (!isAdmin(role)) {
+    } else if (!isAdmin(roles)) {
       // 非站长：创作者导航不含「订单查看」等站长侧入口
       links = links.filter((item) => !CREATOR_ADMIN_ONLY.has(item.key));
     }
 
     // 老师不可售：隐藏营销入口（菜单在 topBase，需按角色再滤一次）
-    if (!canManageMarketing(role)) {
+    if (!canManageMarketing(roles)) {
       links = links.filter((item) => item.key !== "marketing");
     }
   }

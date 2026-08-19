@@ -21,7 +21,10 @@ model User {
   /// 手机号登录用；空表示未绑定。非空时应用层保证唯一
   phone        String             @default("")
   /// ADMIN 站长 | AGENT 加盟代理 | MERCHANT 入驻商家 | TEACHER 老师 | STUDENT 用户（见 src/lib/roles.ts）
+  /// 主角色（权限优先级最高的那一个）；与 roles 同步，兼容旧逻辑
   role         String             @default("STUDENT")
+  /// 多角色：逗号分隔，如 "TEACHER,MERCHANT"；空则仅用 role。站长可给同一用户叠多种身份
+  roles        String             @default("")
   /// 注册申请角色：AGENT | MERCHANT | TEACHER；空表示未申请或已处理为普通用户路径
   requestedRole String            @default("")
   /// NONE | PENDING | ACTIVE | REJECTED（见 src/lib/roles.ts）
@@ -34,7 +37,9 @@ model User {
   wechatOpenId String             @default("")
   /// 开放平台「网站应用」扫码登录 openid（与公众号 openid 不同，勿混用以免 JSAPI 失败）
   wechatWebOpenId String          @default("")
-  /// 开放平台 unionid（公众号/网站应用绑同一开放平台时才有；跨应用识别同一微信用户）
+  /// 开放平台「移动应用」App 微信登录 openid（与网站应用 openid 不同）
+  wechatMobileOpenId String       @default("")
+  /// 开放平台 unionid（公众号/网站/移动应用绑同一开放平台时才有；跨应用识别同一微信用户）
   wechatUnionId String            @default("")
   referralCode String             @unique
   referredById String?
@@ -59,6 +64,8 @@ model User {
   chatMessagesSent     ChatMessage[]      @relation("ChatMessageSender")
   chatMessageHides     ChatMessageHide[]
   chatMessageReads     ChatMessageRead[]
+  /// 学员下载课件的审计记录（防盗链追责）
+  lessonResourceDownloads LessonResourceDownload[]
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
 
@@ -66,6 +73,7 @@ model User {
   @@index([phone])
   @@index([wechatOpenId])
   @@index([wechatWebOpenId])
+  @@index([wechatMobileOpenId])
   @@index([wechatUnionId])
   @@index([name])
 }
@@ -353,6 +361,10 @@ model SiteSettings {
   wechatWebAppId      String @default("")
   /// 开放平台「网站应用」AppSecret（扫码登录用；可与环境变量 WECHAT_WEB_APP_SECRET 二选一）
   wechatWebAppSecret  String @default("")
+  /// 开放平台「移动应用」AppID（Android App 调起微信快捷登录）
+  wechatMobileAppId     String @default("")
+  /// 开放平台「移动应用」AppSecret（服务端用 code 换 openid）
+  wechatMobileAppSecret String @default("")
   wechatMchId         String @default("")
   wechatApiV3Key      String @default("")
   wechatMchSerialNo   String @default("")
@@ -620,7 +632,40 @@ model Lesson {
   mediaAssetId String?
   mediaAsset   MediaAsset?      @relation(fields: [mediaAssetId], references: [id], onDelete: SetNull)
   progress     LessonProgress[]
+  /// 课时附属课件（讲义/PDF 等），与主媒体素材分离
+  resources    LessonResource[]
   createdAt    DateTime         @default(now())
+}
+
+/// 课时课件资料：绑定到具体 Lesson，学员须报名后经签名链下载
+model LessonResource {
+  id        String                   @id @default(cuid())
+  lessonId  String
+  title     String
+  fileName  String
+  fileUrl   String
+  mimeType  String                   @default("")
+  sizeBytes Int                      @default(0)
+  sortOrder Int                      @default(0)
+  lesson    Lesson                   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  downloads LessonResourceDownload[]
+  createdAt DateTime                 @default(now())
+
+  @@index([lessonId])
+}
+
+/// 课件下载审计：每次下载记一条，便于工作室进度页与追责
+model LessonResourceDownload {
+  id           String         @id @default(cuid())
+  resourceId   String
+  userId       String
+  enrollmentId String
+  resource     LessonResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime       @default(now())
+
+  @@index([resourceId, userId])
+  @@index([enrollmentId])
 }
 
 model Enrollment {

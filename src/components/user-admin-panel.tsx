@@ -5,7 +5,7 @@
  */
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   postSave,
@@ -16,7 +16,10 @@ import {
   ROLE_APPLICATION_STATUS_LABEL,
   ROLE_LABEL,
   ROLES,
+  hasRole,
   isElevatedApplyRole,
+  normalizeRoles,
+  roleLabels,
   type Role,
   type RoleApplicationStatus,
 } from "@/lib/roles";
@@ -27,6 +30,7 @@ export type AdminInvitee = {
   email: string;
   referralCode: string;
   role: string;
+  roles?: Role[];
   createdAt: string;
 };
 
@@ -35,6 +39,9 @@ export type AdminUserRow = {
   name: string;
   email: string;
   role: string;
+  /** 全部身份；站长可多选 */
+  roles: Role[];
+  rolesLabel?: string;
   requestedRole: string;
   roleApplicationStatus: string;
   roleApplicationNote: string;
@@ -80,7 +87,15 @@ export function UserAdminPanel({ initialUsers, initialPending }: Props) {
   const filtered = useMemo(() => {
     const keyword = q.trim().toLowerCase();
     return users.filter((u) => {
-      if (roleFilter !== "ALL" && u.role !== roleFilter) return false;
+      if (
+        roleFilter !== "ALL" &&
+        !hasRole(
+          { role: u.role, roles: u.roles?.length ? u.roles : u.role },
+          roleFilter as Role,
+        )
+      ) {
+        return false;
+      }
       if (!keyword) return true;
       const inviteeHit = (u.invitees || []).some(
         (inv) =>
@@ -116,13 +131,18 @@ export function UserAdminPanel({ initialUsers, initialPending }: Props) {
     );
   }
 
-  async function changeRole(userId: string, role: string) {
+  async function changeRoles(userId: string, nextRoles: Role[]) {
+    const list = normalizeRoles(nextRoles);
+    if (list.length === 0) {
+      setFeedback({ kind: "error", text: "至少保留一种身份" });
+      return;
+    }
     setBusyId(userId);
     setFeedback(null);
     const result = await postSave("/api/studio/users", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, role }),
+      body: JSON.stringify({ userId, roles: list }),
     });
     setBusyId("");
     if (!result.ok) {
@@ -131,26 +151,35 @@ export function UserAdminPanel({ initialUsers, initialPending }: Props) {
     }
     const user = result.data.user as {
       role: string;
+      roles?: Role[] | string;
+      rolesLabel?: string;
       requestedRole?: string;
       roleApplicationStatus?: string;
       roleApplicationNote?: string;
       roleReviewedAt?: string | null;
       referralCode?: string;
     };
-    upsertUser({
-      ...(users.find((u) => u.id === userId) || pending.find((u) => u.id === userId)!),
+    const roles = normalizeRoles({
       role: user.role,
+      roles: user.roles ?? list,
+    });
+    const base =
+      users.find((u) => u.id === userId) || pending.find((u) => u.id === userId)!;
+    upsertUser({
+      ...base,
+      role: user.role,
+      roles,
+      rolesLabel: user.rolesLabel || roleLabels(roles),
       requestedRole: user.requestedRole || "",
       roleApplicationStatus: user.roleApplicationStatus || "NONE",
       roleApplicationNote: user.roleApplicationNote || "",
       roleReviewedAt: user.roleReviewedAt ?? null,
       referralCode:
         user.referralCode ||
-        users.find((u) => u.id === userId)?.referralCode ||
-        pending.find((u) => u.id === userId)?.referralCode ||
+        base.referralCode ||
         "",
     });
-    setFeedback({ kind: "ok", text: "角色已更新成功" });
+    setFeedback({ kind: "ok", text: "身份已更新成功" });
     router.refresh();
   }
 
@@ -244,6 +273,8 @@ export function UserAdminPanel({ initialUsers, initialPending }: Props) {
     }
     const user = result.data.user as {
       role: string;
+      roles?: Role[] | string;
+      rolesLabel?: string;
       requestedRole?: string;
       roleApplicationStatus?: string;
       roleApplicationNote?: string;
@@ -253,9 +284,15 @@ export function UserAdminPanel({ initialUsers, initialPending }: Props) {
       pending.find((u) => u.id === userId) ||
       users.find((u) => u.id === userId);
     if (base) {
+      const roles = normalizeRoles({
+        role: user.role,
+        roles: user.roles ?? base.roles,
+      });
       upsertUser({
         ...base,
         role: user.role,
+        roles,
+        rolesLabel: user.rolesLabel || roleLabels(roles),
         requestedRole: user.requestedRole || "",
         roleApplicationStatus: user.roleApplicationStatus || "NONE",
         roleApplicationNote: user.roleApplicationNote || "",
@@ -521,7 +558,10 @@ export function UserAdminPanel({ initialUsers, initialPending }: Props) {
                   <div className="text-xs text-[var(--muted)]">{user.email}</div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-sm">
-                  <span>{ROLE_LABEL[user.role as Role] || user.role}</span>
+                  <span>
+                    {user.rolesLabel ||
+                      roleLabels(user.roles?.length ? user.roles : user.role)}
+                  </span>
                   {statusBadge(user.roleApplicationStatus)}
                   <span className="text-xs text-[var(--muted)]">
                     {user.hasWechat ? "微信已绑定" : "微信未绑定"}
@@ -593,21 +633,11 @@ export function UserAdminPanel({ initialUsers, initialPending }: Props) {
                     </button>
                   </div>
                 </div>
-                <label className="block text-sm">
-                  <span className="text-[var(--muted)]">调整角色</span>
-                  <select
-                    className="field mt-1.5 py-2.5"
-                    value={user.role}
-                    disabled={busyId === user.id}
-                    onChange={(e) => void changeRole(user.id, e.target.value)}
-                  >
-                    {ROLES.map((role) => (
-                      <option key={role} value={role}>
-                        {ROLE_LABEL[role]}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <RoleMultiEditor
+                  user={user}
+                  busy={busyId === user.id}
+                  onSave={(roles) => void changeRoles(user.id, roles)}
+                />
               </div>
             ))}
             {filtered.length === 0 ? (
@@ -670,7 +700,8 @@ export function UserAdminPanel({ initialUsers, initialPending }: Props) {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        {ROLE_LABEL[user.role as Role] || user.role}
+                        {user.rolesLabel ||
+                          roleLabels(user.roles?.length ? user.roles : user.role)}
                       </td>
                       <td className="px-4 py-3 text-sm text-[var(--muted)]">
                         {user.referredByName ? (
@@ -729,20 +760,12 @@ export function UserAdminPanel({ initialUsers, initialPending }: Props) {
                         {new Date(user.createdAt).toLocaleString("zh-CN")}
                       </td>
                       <td className="px-4 py-3">
-                        <select
-                          className="rounded-xl border border-[var(--line)] bg-white px-2 py-1.5 text-sm"
-                          value={user.role}
-                          disabled={busyId === user.id}
-                          onChange={(e) =>
-                            void changeRole(user.id, e.target.value)
-                          }
-                        >
-                          {ROLES.map((role) => (
-                            <option key={role} value={role}>
-                              {ROLE_LABEL[role]}
-                            </option>
-                          ))}
-                        </select>
+                        <RoleMultiEditor
+                          user={user}
+                          busy={busyId === user.id}
+                          compact
+                          onSave={(roles) => void changeRoles(user.id, roles)}
+                        />
                       </td>
                     </tr>
                   ))}
@@ -765,8 +788,86 @@ export function UserAdminPanel({ initialUsers, initialPending }: Props) {
       <p className="text-xs text-[var(--muted)]">
         {tab === "applications"
           ? `待审核 ${pending.length} 人。通过后立即开通对应角色权限；拒绝后保留原身份（注册待审账号仍为普通用户）。`
-          : `共 ${filtered.length} 人（最多展示最近 200 人）。「被谁邀请 / 邀请了谁」按注册时的邀请关系展示；点击「查看详情」可打开完整下级列表、统计并导出 Excel。修改角色后立即生效。至少保留一位站长。`}
+          : `共 ${filtered.length} 人（最多展示最近 200 人）。「被谁邀请 / 邀请了谁」按注册时的邀请关系展示；点击「查看详情」可打开完整下级列表、统计并导出 Excel。可勾选多种身份（如老师+商家），保存后立即生效。至少保留一位站长。`}
       </p>
+    </div>
+  );
+}
+
+
+/** 多选身份：勾选后点保存，避免每次勾选都打 API */
+function RoleMultiEditor({
+  user,
+  busy,
+  onSave,
+  compact = false,
+}: {
+  user: AdminUserRow;
+  busy: boolean;
+  onSave: (roles: Role[]) => void;
+  compact?: boolean;
+}) {
+  const initial = normalizeRoles(
+    user.roles?.length ? user.roles : user.role,
+  );
+  const [draft, setDraft] = useState<Role[]>(initial);
+  const [dirty, setDirty] = useState(false);
+
+  // 外部列表刷新后同步勾选（例如审核通过）
+  const key = `${user.id}:${initial.join(",")}`;
+  useEffect(() => {
+    setDraft(initial);
+    setDirty(false);
+    // key 已编码 userId + 角色列表；避免 initial 数组引用导致循环
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+
+  function toggle(role: Role) {
+    setDraft((prev) => {
+      const has = prev.includes(role);
+      const next = has ? prev.filter((r) => r !== role) : [...prev, role];
+      return normalizeRoles(next.length ? next : ["STUDENT"]);
+    });
+    setDirty(true);
+  }
+
+  return (
+    <div className={compact ? "min-w-[11rem] space-y-2" : "space-y-2"}>
+      {!compact ? (
+        <div className="text-sm text-[var(--muted)]">调整身份（可多选）</div>
+      ) : null}
+      <div className="flex flex-wrap gap-x-3 gap-y-1.5">
+        {ROLES.map((role) => (
+          <label
+            key={role}
+            className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 text-sm"
+          >
+            <input
+              type="checkbox"
+              className="h-4 w-4 accent-[var(--brand)]"
+              checked={draft.includes(role)}
+              disabled={busy}
+              onChange={() => toggle(role)}
+            />
+            <span>{ROLE_LABEL[role]}</span>
+          </label>
+        ))}
+      </div>
+      <button
+        type="button"
+        className={
+          compact
+            ? "btn btn-primary min-h-8 px-2.5 text-xs"
+            : "btn btn-primary min-h-10 w-full text-sm sm:w-auto"
+        }
+        disabled={busy || !dirty}
+        onClick={() => {
+          onSave(draft);
+          setDirty(false);
+        }}
+      >
+        {busy ? "保存中…" : "保存身份"}
+      </button>
     </div>
   );
 }

@@ -4,8 +4,9 @@ import { prisma } from "@/lib/db";
 import {
   MERCHANT_JOIN_TYPES,
   MERCHANT_STATUSES,
-  roleForMerchantStatus,
+  roleFieldsForMerchantStatus,
 } from "@/lib/merchants";
+import { hasRole } from "@/lib/roles";
 import { requireAdmin, studioErrorResponse } from "@/lib/studio";
 import type { MerchantJoinType, MerchantStatus, Role } from "@/lib/types";
 
@@ -30,6 +31,7 @@ const merchantInclude = {
       email: true,
       name: true,
       role: true,
+      roles: true,
       _count: { select: { courses: true } },
       courses: {
         select: {
@@ -103,9 +105,9 @@ async function resolveAgentId(
   }
   const agent = await prisma.user.findUnique({
     where: { id: raw },
-    select: { id: true, role: true },
+    select: { id: true, role: true, roles: true },
   });
-  if (!agent || agent.role !== "AGENT") {
+  if (!agent || !hasRole({ role: agent.role, roles: agent.roles || "" }, "AGENT")) {
     return { ok: false, error: "所选用户不是加盟代理" };
   }
   return { ok: true, agentId: agent.id };
@@ -141,17 +143,22 @@ export async function PATCH(req: Request, ctx: Ctx) {
 
     const merchant = await prisma.$transaction(async (tx) => {
       if (body.name || body.status || body.joinType) {
+        const nextRoleFields = roleFieldsForMerchantStatus(
+          nextStatus,
+          {
+            role: existing.user.role as Role,
+            roles: existing.user.roles || "",
+          },
+          nextJoinType,
+        );
         await tx.user.update({
           where: { id: existing.userId },
           data: {
             ...(body.name ? { name: body.name } : {}),
             ...(body.status || body.joinType
               ? {
-                  role: roleForMerchantStatus(
-                    nextStatus,
-                    existing.user.role as Role,
-                    nextJoinType,
-                  ),
+                  role: nextRoleFields.role,
+                  roles: nextRoleFields.roles,
                 }
               : {}),
           },

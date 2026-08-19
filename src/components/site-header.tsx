@@ -11,7 +11,7 @@ import { getRequestLocaleContext } from "@/lib/i18n/get-request-locale";
 import { translateMessage } from "@/lib/i18n/messages";
 import { navMessageKey } from "@/lib/i18n/nav-labels";
 import { typoRoleClass, typoRoleStyle } from "@/lib/site-typography";
-import { canAccessStudio, isAdmin } from "@/lib/roles";
+import { canAccessStudio, hasRole, isAdmin } from "@/lib/roles";
 import {
   getDecorateConfig,
   getPortalConfig,
@@ -110,7 +110,7 @@ export async function SiteHeader() {
       labelSecondary: bilingual ? tEn("nav.account") : undefined,
     });
     if (canAccessStudio(session.role)) {
-      const studioKey = session.role === "AGENT" ? "nav.agent" : "nav.studio";
+      const studioKey = hasRole(session, "AGENT") ? "nav.agent" : "nav.studio";
       links.push({
         href: "/studio",
         label: t(studioKey),

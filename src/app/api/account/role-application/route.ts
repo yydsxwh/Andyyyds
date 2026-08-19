@@ -27,8 +27,9 @@ export async function POST(req: Request) {
     }
 
     const body = schema.parse(await req.json());
+    // 用完整会话（含多角色），避免已有老师身份时仍被当成只能看主角色
     const check = validateAccountRoleApply(
-      session.role,
+      session,
       session.roleApplicationStatus,
       body.requestedRole,
     );

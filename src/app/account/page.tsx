@@ -18,10 +18,11 @@ import {
   canManageCourses,
   canReferForCommission,
   canViewAllStudioData,
+  hasRole,
   isAdmin,
   ROLE_APPLICATION_STATUS_LABEL,
   ROLE_LABEL,
-  roleLabel,
+  roleLabels,
   type Role,
   type RoleApplicationStatus,
 } from "@/lib/roles";
@@ -38,7 +39,7 @@ export default async function AccountPage() {
   const session = await getSession();
   if (!session) redirect("/login?next=/account");
 
-  const teacherScope = canViewAllStudioData(session.role)
+  const teacherScope = canViewAllStudioData(session)
     ? undefined
     : session.id;
 
@@ -61,8 +62,10 @@ export default async function AccountPage() {
         requestedRole: true,
         email: true,
         phone: true,
+        username: true,
         wechatOpenId: true,
         wechatWebOpenId: true,
+        wechatMobileOpenId: true,
         avatarUrl: true,
         passwordSet: true,
       },
@@ -86,7 +89,7 @@ export default async function AccountPage() {
       where: { beneficiaryId: session.id },
       _sum: { amount: true },
     }),
-    canManageCourses(session.role)
+    canManageCourses(session)
       ? prisma.course.count({
           // 个人中心「课程数」不含约搭壳/商城，与创作者中心列表口径一致
           where: {
@@ -95,7 +98,7 @@ export default async function AccountPage() {
           },
         })
       : Promise.resolve(0),
-    canManageCourses(session.role)
+    canManageCourses(session)
       ? prisma.order.aggregate({
           where: {
             status: "PAID",
@@ -109,10 +112,10 @@ export default async function AccountPage() {
           _count: true,
         })
       : Promise.resolve(null),
-    session.role === "AGENT"
+    hasRole(session, "AGENT")
       ? prisma.user.count({ where: { referredById: session.id } })
       : Promise.resolve(0),
-    session.role === "AGENT"
+    hasRole(session, "AGENT")
       ? prisma.merchant.findMany({
           where: { agentId: session.id },
           include: {
@@ -125,9 +128,9 @@ export default async function AccountPage() {
   ]);
 
   const inviteCode = user?.referralCode || "";
-  const showRefer = canReferForCommission(session.role);
+  const showRefer = canReferForCommission(session);
   const applyRoles = availableAccountApplyRoles(
-    session.role,
+    session,
     user?.roleApplicationStatus || session.roleApplicationStatus,
   );
   const status = user?.roleApplicationStatus || "NONE";
@@ -139,7 +142,7 @@ export default async function AccountPage() {
 
   const studioHref = "/studio";
   const studioLabel =
-    session.role === "AGENT"
+    hasRole(session, "AGENT")
       ? "代理中心"
       : "创作者中心";
   const avatarDisplayUrl = user?.avatarUrl
@@ -151,7 +154,7 @@ export default async function AccountPage() {
     ? accountEmail
     : user?.phone
       ? user.phone
-      : user?.wechatOpenId || user?.wechatWebOpenId
+      : user?.wechatOpenId || user?.wechatWebOpenId || user?.wechatMobileOpenId
         ? "微信登录"
         : "未绑定邮箱";
 
@@ -163,7 +166,7 @@ export default async function AccountPage() {
         <p className="text-[var(--muted)]">
           {session.name}
           <span className="mx-2 text-[var(--line)]">·</span>
-          {roleLabel(session.role)}
+          {roleLabels(session)}
           <span className="mx-2 text-[var(--line)]">·</span>
           <span className="break-all text-sm">{headerContact}</span>
         </p>
@@ -192,11 +195,11 @@ export default async function AccountPage() {
 
       {/* —— 按角色的快捷入口 —— */}
       <RoleQuickLinks
-        role={session.role}
+        roles={session.roles}
         studioHref={studioHref}
         studioLabel={studioLabel}
-        canStudio={canAccessStudio(session.role)}
-        canCreate={canCreateSellableProducts(session.role)}
+        canStudio={canAccessStudio(session)}
+        canCreate={canCreateSellableProducts(session)}
       />
 
       {/* —— 头像 / 昵称 —— */}
@@ -207,14 +210,31 @@ export default async function AccountPage() {
 
       {/* —— 邮箱 / 手机 / 微信绑定（三种登录共用同一账号） —— */}
       <AccountAuthPanel
+        username={user?.username || ""}
         email={accountEmail}
         phone={user?.phone || ""}
-        hasWechat={Boolean(user?.wechatOpenId || user?.wechatWebOpenId)}
+        hasWechatOa={Boolean(user?.wechatOpenId)}
+        hasWechatWeb={Boolean(user?.wechatWebOpenId)}
+        hasWechatMobile={Boolean(user?.wechatMobileOpenId)}
         passwordSet={user?.passwordSet !== false}
       />
 
       {/* 本机显示偏好：倾斜视差不进装扮 JSON，避免影响全站访客 */}
       <TiltParallaxToggle />
+
+      <section className="surface rounded-[28px] p-5 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold">Android 应用</h2>
+            <p className="mt-1 text-sm text-[var(--muted)]">
+              安装客户端，手机上使用与官网一致的完整功能。
+            </p>
+          </div>
+          <Link href="/app" className="btn btn-primary min-h-11 px-4 text-sm">
+            下载 APK
+          </Link>
+        </div>
+      </section>
 
       {/* —— STUDENT / 通用：学习与订单 —— */}
       <section className="surface rounded-[28px] p-5 sm:p-6">
@@ -310,7 +330,7 @@ export default async function AccountPage() {
           <div className="mt-4">
             <InviteSharePanel inviteCode={inviteCode} />
           </div>
-          {canAccessStudio(session.role) ? (
+          {canAccessStudio(session) ? (
             <Link
               href="/studio/distribution"
               className="btn btn-secondary mt-4 inline-flex min-h-10"
@@ -322,7 +342,7 @@ export default async function AccountPage() {
       ) : null}
 
       {/* —— TEACHER：素材入口 —— */}
-      {session.role === "TEACHER" ? (
+      {hasRole(session, "TEACHER") ? (
         <section className="surface rounded-[28px] p-5 sm:p-6">
           <h2 className="text-lg font-semibold">老师工作台</h2>
           <p className="mt-1 text-sm text-[var(--muted)]">
@@ -341,7 +361,7 @@ export default async function AccountPage() {
       ) : null}
 
       {/* —— MERCHANT：课程与结算摘要 —— */}
-      {session.role === "MERCHANT" ? (
+      {hasRole(session, "MERCHANT") ? (
         <section className="surface rounded-[28px] p-5 sm:p-6">
           <h2 className="text-lg font-semibold">商家经营摘要</h2>
           <p className="mt-1 text-sm text-[var(--muted)]">
@@ -365,7 +385,7 @@ export default async function AccountPage() {
             <Link href="/studio/shop" className="btn btn-secondary min-h-11">
               商城商品
             </Link>
-            {canCreateSellableProducts(session.role) ? (
+            {canCreateSellableProducts(session) ? (
               <Link
                 href="/studio/courses/compose"
                 className="btn btn-secondary min-h-11"
@@ -378,7 +398,7 @@ export default async function AccountPage() {
       ) : null}
 
       {/* —— AGENT：推广、名下商家、开课 —— */}
-      {session.role === "AGENT" ? (
+      {hasRole(session, "AGENT") ? (
         <section className="surface rounded-[28px] p-5 sm:p-6">
           <h2 className="text-lg font-semibold">加盟代理工作台</h2>
           <p className="mt-1 text-sm text-[var(--muted)]">
@@ -438,7 +458,7 @@ export default async function AccountPage() {
       ) : null}
 
       {/* —— ADMIN：站长快捷链 —— */}
-      {isAdmin(session.role) ? (
+      {isAdmin(session) ? (
         <section className="surface rounded-[28px] p-5 sm:p-6">
           <h2 className="text-lg font-semibold">站长管理</h2>
           <p className="mt-1 text-sm text-[var(--muted)]">
@@ -458,7 +478,7 @@ export default async function AccountPage() {
       ) : null}
 
       {/* —— 申请成为代理 / 商家 / 老师 —— */}
-      {!isAdmin(session.role) ? (
+      {!isAdmin(session) ? (
         <RoleApplyPanel
           availableRoles={applyRoles}
           applicationStatus={status}
@@ -492,13 +512,13 @@ function AdminLink({ href, label }: { href: string; label: string }) {
 }
 
 function RoleQuickLinks({
-  role,
+  roles,
   studioHref,
   studioLabel,
   canStudio,
   canCreate,
 }: {
-  role: Role;
+  roles: Role[];
   studioHref: string;
   studioLabel: string;
   canStudio: boolean;
@@ -514,10 +534,10 @@ function RoleQuickLinks({
   if (canCreate) {
     links.push({ href: "/studio/courses/compose", label: "开课 / 上架资料" });
   }
-  if (role === "TEACHER") {
+  if (hasRole(roles, "TEACHER")) {
     links.push({ href: "/studio/media", label: "素材管理" });
   }
-  if (isAdmin(role)) {
+  if (isAdmin(roles)) {
     links.push({ href: "/studio/users", label: "用户审核" });
   }
 

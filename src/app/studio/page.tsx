@@ -16,8 +16,10 @@ import {
   canDeleteCourses,
   canManageCourses,
   canViewAllStudioData,
+  hasRole,
   isAdmin,
   roleLabel,
+  roleLabels,
 } from "@/lib/roles";
 import { formatPrice } from "@/lib/utils";
 
@@ -26,7 +28,7 @@ export const dynamic = "force-dynamic";
 export default async function StudioPage() {
   const session = await getSession();
   if (!session) redirect("/login");
-  if (!canAccessStudio(session.role)) {
+  if (!canAccessStudio(session)) {
     return (
       <div className="container py-16">
         <div className="surface mx-auto max-w-lg rounded-[28px] p-8 text-center">
@@ -34,7 +36,7 @@ export default async function StudioPage() {
           <p className="mt-3 text-[var(--muted)]">
             {session.rolePending
               ? `账号待站长审核。你已申请「${roleLabel(session.requestedRole || session.role)}」，通过前暂不可使用后台权限，可先去学习与消费。`
-              : `当前账号是${roleLabel(session.role)}，暂无后台权限。可在个人中心申请加盟代理、商家入驻或成为老师。`}
+              : `当前账号是${roleLabels(session)}，暂无后台权限。可在个人中心申请加盟代理、商家入驻或成为老师。`}
           </p>
           <Link href="/account" className="btn btn-primary mt-6 inline-flex">
             去个人中心
@@ -44,12 +46,12 @@ export default async function StudioPage() {
     );
   }
 
-  const isAgent = session.role === "AGENT";
-  const canCreate = canCreateSellableProducts(session.role);
-  const canDelete = canDeleteCourses(session.role);
-  const teacherId = canViewAllStudioData(session.role) ? undefined : session.id;
+  const isAgent = hasRole(session, "AGENT");
+  const canCreate = canCreateSellableProducts(session);
+  const canDelete = canDeleteCourses(session);
+  const teacherId = canViewAllStudioData(session) ? undefined : session.id;
   // 约搭壳/商城商品不是课程：总览「我的课程」必须与 /studio/courses 同样排除，否则会出现「编辑章节」误入口
-  const courses = canManageCourses(session.role)
+  const courses = canManageCourses(session)
     ? await prisma.course.findMany({
         where: {
           ...(teacherId ? { teacherId } : {}),
@@ -60,7 +62,7 @@ export default async function StudioPage() {
       })
     : [];
 
-  const orders = canManageCourses(session.role)
+  const orders = canManageCourses(session)
     ? await prisma.order.findMany({
         where: {
           status: "PAID",
@@ -109,7 +111,7 @@ export default async function StudioPage() {
           <span className="ml-2 font-semibold text-[var(--brand)]">
             {user?.referralCode}
           </span>
-          <span className="ml-3 text-sm">（{roleLabel(session.role)}）</span>
+          <span className="ml-3 text-sm">（{roleLabels(session)}）</span>
         </p>
       </div>
 
@@ -334,12 +336,12 @@ export default async function StudioPage() {
             >
               <div className="text-lg font-semibold">分销管理</div>
               <p className="mt-2 text-sm text-[var(--muted)]">
-                {isAdmin(session.role)
+                {isAdmin(session)
                   ? "设置一/二/三级分销比例，查看佣金与邀请链接"
                   : "查看佣金与邀请链接"}
               </p>
             </Link>
-            {isAdmin(session.role) ? (
+            {isAdmin(session) ? (
               <Link
                 href="/studio/admin"
                 className="surface rounded-[24px] p-5 transition hover:-translate-y-0.5"

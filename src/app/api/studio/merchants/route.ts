@@ -5,8 +5,9 @@ import { prisma } from "@/lib/db";
 import {
   MERCHANT_JOIN_TYPES,
   MERCHANT_STATUSES,
-  roleForMerchantStatus,
+  roleFieldsForMerchantStatus,
 } from "@/lib/merchants";
+import { hasRole } from "@/lib/roles";
 import { requireAdmin, studioErrorResponse } from "@/lib/studio";
 import type { MerchantJoinType, MerchantStatus, Role } from "@/lib/types";
 
@@ -107,9 +108,9 @@ async function resolveAgentId(
   }
   const agent = await prisma.user.findUnique({
     where: { id: raw },
-    select: { id: true, role: true },
+    select: { id: true, role: true, roles: true },
   });
-  if (!agent || agent.role !== "AGENT") {
+  if (!agent || !hasRole({ role: agent.role, roles: agent.roles || "" }, "AGENT")) {
     return { ok: false, error: "所选用户不是加盟代理" };
   }
   return { ok: true, agentId: agent.id };
@@ -184,7 +185,7 @@ export async function POST(req: Request) {
     if (existing?.merchant) {
       return NextResponse.json({ error: "该账号已是入驻商家" }, { status: 400 });
     }
-    if (existing?.role === "ADMIN") {
+    if (existing && hasRole({ role: existing.role, roles: existing.roles || "" }, "ADMIN")) {
       return NextResponse.json({ error: "不能把站长账号设为商家" }, { status: 400 });
     }
 
@@ -212,30 +213,33 @@ export async function POST(req: Request) {
       let userId: string;
 
       if (existing) {
-        const nextRole = roleForMerchantStatus(
+        const nextRoles = roleFieldsForMerchantStatus(
           status,
-          existing.role as Role,
+          { role: existing.role as Role, roles: existing.roles || "" },
           body.joinType as MerchantJoinType,
         );
         await tx.user.update({
           where: { id: existing.id },
           data: {
             name: body.name,
-            role: nextRole,
+            role: nextRoles.role,
+            roles: nextRoles.roles,
           },
         });
         userId = existing.id;
       } else {
+        const createdRoles = roleFieldsForMerchantStatus(
+          status,
+          "STUDENT",
+          body.joinType as MerchantJoinType,
+        );
         const created = await tx.user.create({
           data: {
             email,
             name: body.name,
             passwordHash: await hashPassword(body.password!),
-            role: roleForMerchantStatus(
-              status,
-              "STUDENT",
-              body.joinType as MerchantJoinType,
-            ),
+            role: createdRoles.role,
+            roles: createdRoles.roles,
             referralCode: makeReferralCode(),
             bio: `${body.storeName} 入驻商家`,
           },
@@ -248,11 +252,17 @@ export async function POST(req: Request) {
           where: { id: userId },
           select: {
             referredById: true,
-            referredBy: { select: { role: true } },
+            referredBy: { select: { role: true, roles: true } },
           },
         });
         agentId =
-          u?.referredBy?.role === "AGENT" ? u.referredById : null;
+          u?.referredBy &&
+          hasRole(
+            { role: u.referredBy.role, roles: u.referredBy.roles || "" },
+            "AGENT",
+          )
+            ? u.referredById
+            : null;
       }
 
       return tx.merchant.create({

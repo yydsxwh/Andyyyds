@@ -11,20 +11,20 @@ import {
 export async function requireStudioUser(): Promise<SessionUser> {
   const session = await getSession();
   if (!session) throw new Error("UNAUTHORIZED");
-  if (!canAccessStudio(session.role)) {
+  if (!canAccessStudio(session)) {
     throw new Error("FORBIDDEN");
   }
   // 角色申请待审核期间即使 JWT/角色异常，也不开放后台特权
   if (session.rolePending) {
     throw new Error("ROLE_PENDING");
   }
-  if (isAdmin(session.role)) return session;
+  if (isAdmin(session)) return session;
 
   const user = await prisma.user.findUnique({
     where: { id: session.id },
     include: { merchant: true },
   });
-  if (!user || !canAccessStudio(user.role)) {
+  if (!user || !canAccessStudio({ role: user.role, roles: user.roles })) {
     throw new Error("FORBIDDEN");
   }
   // 已建档商家必须以「已入驻」才能进后台（停用立即生效）；加盟代理同理
@@ -37,7 +37,7 @@ export async function requireStudioUser(): Promise<SessionUser> {
 /** 需要课程/素材权限的接口（不含纯分销的加盟代理） */
 export async function requireCourseStudioUser(): Promise<SessionUser> {
   const session = await requireStudioUser();
-  if (!canManageCourses(session.role)) {
+  if (!canManageCourses(session)) {
     throw new Error("FORBIDDEN");
   }
   return session;
@@ -46,7 +46,7 @@ export async function requireCourseStudioUser(): Promise<SessionUser> {
 /** 新建可售课程/专栏/商品（站长、入驻商家、加盟代理） */
 export async function requireCreateSellableUser(): Promise<SessionUser> {
   const session = await requireStudioUser();
-  if (!canCreateSellableProducts(session.role)) {
+  if (!canCreateSellableProducts(session)) {
     throw new Error("CREATE_FORBIDDEN");
   }
   return session;
@@ -55,7 +55,7 @@ export async function requireCreateSellableUser(): Promise<SessionUser> {
 export async function requireAdmin(): Promise<SessionUser> {
   const session = await getSession();
   if (!session) throw new Error("UNAUTHORIZED");
-  if (!isAdmin(session.role)) {
+  if (!isAdmin(session)) {
     throw new Error("ADMIN_ONLY");
   }
   return session;
