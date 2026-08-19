@@ -279,6 +279,16 @@ export function BgMusicStudioPanel({
           QQ 空间风格悬浮播放器。无法合法免费接入三大平台全曲库；本页用免版税曲库
           + 自建上传 + 网易云 / QQ 音乐官方外链补齐。
         </p>
+        {config.enabled &&
+        config.tracks.some((t) => t.enabled) &&
+        !config.tracks.some((t) => t.enabled && t.kind === "audio") ? (
+          <p className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm leading-6 text-amber-950">
+            当前歌单只有网易云 / QQ
+            外链：电脑浏览器往往能播，但手机微信 / iPhone
+            里外链 iframe 常被拦截、完全无声。若要手机也能听，请至少上传 1
+            首本站 MP3（或用下方免版税曲库加入直链）。
+          </p>
+        ) : null}
         <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-2xl border border-[var(--line)] bg-white/80 px-3 py-3 text-sm">
           <input
             type="checkbox"

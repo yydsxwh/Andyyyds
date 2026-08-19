@@ -127,9 +127,9 @@ function HeroSection({
             "radial-gradient(ellipse 50% 40% at 20% 30%, rgba(14,165,233,0.18), transparent 70%), radial-gradient(ellipse 40% 35% at 80% 60%, rgba(244,63,94,0.1), transparent 65%)",
         }}
       />
-      <div className="container grid min-h-[78vh] items-center gap-10 py-16 lg:grid-cols-[1.05fr_0.95fr]">
-        <div className="tilt-layer-fg fade-up space-y-6">
-          <div className="space-y-3">
+      <div className="container grid min-h-0 items-center gap-6 py-8 sm:min-h-[70vh] sm:gap-10 sm:py-14 lg:min-h-[78vh] lg:grid-cols-[1.05fr_0.95fr] lg:py-16">
+        <div className="tilt-layer-fg fade-up space-y-4 sm:space-y-6">
+          <div className="space-y-2 sm:space-y-3">
             <ConfigurableLink
               href={decorate.logoHref}
               openInNewTab={Boolean(decorate.logoOpenInNewTab)}
@@ -140,7 +140,7 @@ function HeroSection({
               <img
                 src={logoUrl}
                 alt={brandName || "歪歪艾斯"}
-                className="h-20 w-auto max-w-[min(100%,420px)] object-contain sm:h-24 md:h-28"
+                className="h-14 w-auto max-w-[min(100%,280px)] object-contain sm:h-20 sm:max-w-[min(100%,420px)] md:h-28"
               />
             </ConfigurableLink>
             {decorate.showBrandText ? (
@@ -154,25 +154,25 @@ function HeroSection({
             ) : null}
           </div>
           <h1
-            className={`max-w-3xl font-semibold leading-tight ${typoRoleClass("heroTitle")}`}
+            className={`max-w-3xl font-semibold leading-[1.25] sm:leading-tight ${typoRoleClass("heroTitle")}`}
             style={typoRoleStyle("heroTitle")}
             title={heroHeadlineEn || undefined}
           >
             {heroHeadline}
           </h1>
           <p
-            className={`max-w-2xl leading-7 text-[var(--muted)] ${typoRoleClass("heroSubtext")}`}
+            className={`max-w-2xl leading-6 text-[var(--muted)] sm:leading-7 ${typoRoleClass("heroSubtext")}`}
             style={typoRoleStyle("heroSubtext")}
             title={heroSubtextEn || undefined}
           >
             {heroSubtext}
           </p>
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-2.5 sm:gap-3">
             {primaryCta.href ? (
               <ConfigurableLink
                 href={primaryCta.href}
                 openInNewTab={Boolean(primaryCta.openInNewTab)}
-                className="btn btn-primary touch-manipulation"
+                className="btn btn-primary min-h-11 touch-manipulation"
                 title={primaryLabelEn || undefined}
               >
                 {primaryLabel}
@@ -182,7 +182,7 @@ function HeroSection({
               <ConfigurableLink
                 href={secondaryCta.href}
                 openInNewTab={Boolean(secondaryCta.openInNewTab)}
-                className="btn btn-fire touch-manipulation"
+                className="btn btn-fire min-h-11 touch-manipulation"
                 title={secondaryLabelEn || undefined}
               >
                 {secondaryLabel}
@@ -194,14 +194,14 @@ function HeroSection({
           <ConfigurableLink
             href={heroHref}
             openInNewTab={heroOpenInNewTab}
-            className="tilt-hero-frame float-soft surface surface-fire block overflow-hidden rounded-[36px] touch-manipulation"
+            className="tilt-hero-frame float-soft surface surface-fire block overflow-hidden rounded-[24px] touch-manipulation sm:rounded-[36px]"
             ariaLabel={heroAlt}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={heroImage}
               alt={heroAlt}
-              className="tilt-layer-mid aspect-[4/5] w-full object-cover sm:aspect-[5/4] lg:aspect-[4/5]"
+              className="tilt-layer-mid aspect-[16/10] w-full object-cover sm:aspect-[5/4] lg:aspect-[4/5]"
             />
           </ConfigurableLink>
         </div>

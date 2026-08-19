@@ -86,7 +86,10 @@ export function BgMusicPlayer() {
         if (cancelled) return;
         const nextTracks = (data.tracks || []).map(normalizePublicTrack);
         setPayload({ ...data, tracks: nextTracks });
-        setOpen(false);
+        // 手机端默认收起列表，避免外链面板盖住首屏
+        const narrow =
+          typeof window !== "undefined" && window.matchMedia("(max-width: 640px)").matches;
+        setOpen(Boolean(data.defaultOpen) && !narrow);
         // 优先本站音频（自动播更稳）；没有再落外链
         const audioIdx = nextTracks.findIndex((t) => t.kind === "audio");
         setIndex(audioIdx >= 0 ? audioIdx : 0);
@@ -187,9 +190,22 @@ export function BgMusicPlayer() {
       setEmbedWantAuto(true);
       setEmbedKeepAlive(true);
       setPlaying(true);
+      // 手机/微信对外链 iframe 限制很严，常完全无声；本站 MP3 才稳
       if (wechat || ios) {
         setAwaitingGesture(true);
-        setError("若未出声，点一下「播放」或页面任意处");
+        const onlyEmbed = !tracks.some((t) => t.kind === "audio");
+        setError(
+          onlyEmbed
+            ? "手机微信播不了网易云/QQ外链，请站长上传本站MP3"
+            : "若未出声，点「列表」选「本站」曲目，或点页面任意处",
+        );
+        if (onlyEmbed) {
+          // 仅提示，不强制展开列表（窄屏展开会挡住整页）
+          const narrow =
+            typeof window !== "undefined" &&
+            window.matchMedia("(max-width: 640px)").matches;
+          if (!narrow) setOpen(true);
+        }
       }
       return;
     }
@@ -211,7 +227,7 @@ export function BgMusicPlayer() {
         setError("点一下「播放」或页面任意处开始听歌");
       },
     );
-  }, [visible, payload?.autoplay, track, wechat, ios]);
+  }, [visible, payload?.autoplay, track, wechat, ios, tracks]);
 
   useEffect(() => {
     const el = audioRef.current;
@@ -427,8 +443,9 @@ export function BgMusicPlayer() {
                     </p>
                   )}
                   {isEmbed && (wechat || ios) && !hasAnyAudio ? (
-                    <p className="mt-1 text-[10px] text-[var(--muted)]">
-                      iPhone 微信外链可能无声，建议上传本站 MP3
+                    <p className="mt-1 text-[10px] leading-4 text-[var(--fire-strong)]">
+                      手机微信无法稳定播放网易云/QQ外链。电脑能播不代表手机能播；请站长在「背景音乐」上传本站
+                      MP3。
                     </p>
                   ) : null}
                 </div>

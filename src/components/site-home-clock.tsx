@@ -267,7 +267,7 @@ export function SiteHomeClock() {
     >
       <button
         type="button"
-        className="flex min-h-11 items-center gap-1.5 rounded-full border border-[var(--line)] bg-white/50 px-2.5 py-1 text-[var(--ink)] shadow-[var(--glass-inset)] backdrop-blur-md transition active:bg-black/5 sm:px-3"
+        className="flex min-h-11 items-center gap-1 rounded-full border border-[var(--line)] bg-white/50 px-1.5 py-1 text-[var(--ink)] shadow-[var(--glass-inset)] backdrop-blur-md transition active:bg-black/5 sm:gap-1.5 sm:px-3"
         aria-expanded={open}
         aria-haspopup="dialog"
         title={`当前时区：${label}（点击切换）`}
@@ -280,7 +280,7 @@ export function SiteHomeClock() {
             className="h-full w-full"
           />
         </span>
-        <span className="tabular-nums text-sm font-semibold tracking-wide">
+        <span className="hidden tabular-nums text-sm font-semibold tracking-wide min-[480px]:inline">
           {clockText}
         </span>
         <span className="hidden max-w-[5.5rem] truncate text-xs text-[var(--muted)] sm:inline">
@@ -289,7 +289,7 @@ export function SiteHomeClock() {
       </button>
 
       <p
-        className="max-w-[16rem] text-right text-[10px] leading-snug text-[var(--brand-strong)] sm:max-w-none sm:text-xs"
+        className="hidden max-w-[16rem] text-right text-[10px] leading-snug text-[var(--brand-strong)] sm:block sm:max-w-none sm:text-xs"
         title={PROVERB}
       >
         {PROVERB}

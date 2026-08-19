@@ -1004,14 +1004,61 @@ html[data-theme-fx="island-breath"]::after {
   }
 }
 
-/* 窄屏/微信：减弱动效强度，保留氛围但不抢交互 */
+/* 窄屏/微信：可读字号、留白、顶栏安全区、双列模块改堆叠 */
 @media (max-width: 640px) {
+  :root {
+    --fs-nav: 15px;
+    --fs-brand: 16px;
+    --fs-hero-title: clamp(1.45rem, 6.2vw, 1.85rem);
+    --fs-hero-sub: 15px;
+    --fs-section-title: 1.25rem;
+    --fs-section-desc: 13px;
+    --fs-portal-card-title: 16px;
+    --fs-portal-card-desc: 13px;
+    --surface-pad: 1rem;
+    --control-pad-x: 1rem;
+  }
+
+  .container {
+    width: 100%;
+    padding-left: max(1rem, env(safe-area-inset-left, 0px));
+    padding-right: max(1rem, env(safe-area-inset-right, 0px));
+  }
+
+  /* 顶栏避开刘海；略增左右内边距与内容区对齐 */
+  .glass-bar.sticky {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  /* DIY 左右栏：手机改为通栏堆叠，避免各 50% 窄条难读 */
+  .page-mod-col-half {
+    width: 100% !important;
+  }
+
+  /* DIY 绝对定位模块：窄屏改回文档流，避免重叠/裁切成「原始」感 */
+  .page-mod-absolute {
+    position: relative !important;
+    left: auto !important;
+    top: auto !important;
+    width: 100% !important;
+    z-index: auto !important;
+    margin-bottom: 0.75rem;
+  }
+
   html[data-theme-fx^="island-"]::before,
   html[data-theme-fx^="island-"]::after {
     opacity: 0.45;
     animation-duration: 18s;
   }
 }
+
+@media (min-width: 641px) {
+  .page-mod-col-half {
+    width: 50%;
+  }
+}
+
+
 
 @media (prefers-reduced-motion: reduce) {
   html[data-theme-fx^="island-"]::before,

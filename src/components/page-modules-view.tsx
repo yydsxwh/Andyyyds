@@ -135,10 +135,18 @@ async function loadTeachers(limit: number): Promise<TeacherItem[]> {
 }
 
 function flowWidthStyle(layout: PageModuleLayout): CSSProperties {
+  // 宽度交给 .page-mod-col-half（窄屏通栏，≥641px 各 50%），避免 inline 50% 盖掉媒体查询
   if (layout.column === "left" || layout.column === "right") {
-    return { width: "50%", boxSizing: "border-box" };
+    return { boxSizing: "border-box" };
   }
-  return { width: "100%" };
+  return { width: "100%", boxSizing: "border-box" };
+}
+
+function flowWidthClass(layout: PageModuleLayout): string {
+  if (layout.column === "left" || layout.column === "right") {
+    return "page-mod-col page-mod-col-half min-w-0";
+  }
+  return "page-mod-col min-w-0 w-full";
 }
 
 function absoluteStyle(layout: PageModuleLayout): CSSProperties {
@@ -978,7 +986,7 @@ export async function PageModulesView({
             return (
               <div
                 key={module.id}
-                className="min-w-0"
+                className={flowWidthClass(layout)}
                 style={flowWidthStyle(layout)}
               >
                 <ModuleBlock
@@ -994,7 +1002,7 @@ export async function PageModulesView({
         {absoluteModules.map((module) => {
           const layout = resolveModuleLayout(module.layout);
           return (
-            <div key={module.id} style={absoluteStyle(layout)}>
+            <div key={module.id} className="page-mod-absolute" style={absoluteStyle(layout)}>
               <ModuleBlock
                 module={module}
                 slots={slots}

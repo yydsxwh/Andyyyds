@@ -132,7 +132,7 @@ export async function SiteHeader() {
 
   return (
     <header className="glass-bar tilt-glass-bar sticky top-0 z-40 border-b">
-      <div className="grid min-h-14 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-1.5 px-2 py-2 sm:min-h-16 sm:gap-3 sm:px-3 lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:px-4">
+      <div className="grid min-h-14 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-3 py-2 sm:min-h-16 sm:gap-3 sm:px-3 lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:px-4">
         <Link
           href="/"
           className="flex min-w-0 items-center gap-1.5 self-center sm:gap-2"
@@ -141,11 +141,11 @@ export async function SiteHeader() {
           <img
             src={logoUrl}
             alt={brandPrimary}
-            className="h-8 w-auto max-w-[72px] shrink-0 object-contain object-left sm:h-9 sm:max-w-[160px]"
+            className="h-8 w-auto max-w-[56px] shrink-0 object-contain object-left sm:h-9 sm:max-w-[160px]"
           />
           {decorate.showBrandText ? (
             <span
-              className={`brand-mark min-w-0 truncate leading-none text-[var(--ink)] ${typoRoleClass("brand")}`}
+              className={`brand-mark hidden min-w-0 truncate leading-none text-[var(--ink)] min-[380px]:inline ${typoRoleClass("brand")}`}
               style={typoRoleStyle("brand")}
             >
               <BilingualHover
@@ -160,7 +160,7 @@ export async function SiteHeader() {
           <SiteHeaderNav links={links} variant="desktop" />
         </div>
 
-        <div className="flex shrink-0 items-center justify-end gap-1.5 sm:gap-3 lg:gap-4">
+        <div className="flex shrink-0 items-center justify-end gap-1 sm:gap-3 lg:gap-4">
           <SiteHomeClock />
           <SiteHeaderNav links={links} variant="mobile" />
           {session ? (
@@ -198,14 +198,14 @@ export async function SiteHeader() {
             <>
               <Link
                 href="/login"
-                className={`btn btn-secondary btn-compact sm:px-4 ${typoRoleClass("nav")}`}
+                className={`btn btn-secondary btn-compact px-2.5 text-sm sm:px-4 ${typoRoleClass("nav")}`}
                 style={typoRoleStyle("nav")}
               >
                 {t("nav.login")}
               </Link>
               <Link
                 href="/register"
-                className={`btn btn-fire btn-compact sm:px-4 ${typoRoleClass("nav")}`}
+                className={`btn btn-fire btn-compact hidden min-[420px]:inline-flex sm:px-4 ${typoRoleClass("nav")}`}
                 style={typoRoleStyle("nav")}
               >
                 {t("nav.register")}

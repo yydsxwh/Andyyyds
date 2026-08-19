@@ -281,7 +281,7 @@ function MobileNav({ links }: { links: HeaderNavLink[] }) {
                   justifyContent: "space-between",
                   gap: "0.5rem",
                   padding: "0 0.75rem 0.75rem",
-                  borderBottom: "1px solid rgba(15,23,42,0.1)",
+                  borderBottom: "1px solid var(--line)",
                   flexShrink: 0,
                 }}
               >
@@ -289,7 +289,7 @@ function MobileNav({ links }: { links: HeaderNavLink[] }) {
                   style={{
                     fontSize: "0.875rem",
                     fontWeight: 600,
-                    color: "#5b6b7c",
+                    color: "var(--muted)",
                   }}
                 >
                   门户入口
@@ -316,7 +316,7 @@ function MobileNav({ links }: { links: HeaderNavLink[] }) {
                   overflowY: "auto",
                   WebkitOverflowScrolling: "touch",
                   padding: "0.5rem",
-                  color: "#0f172a",
+                  color: "var(--ink)",
                   ...typoRoleStyle("nav"),
                 }}
               >
@@ -342,7 +342,7 @@ function MobileNav({ links }: { links: HeaderNavLink[] }) {
                                 minWidth: 0,
                                 borderRadius: "0.75rem",
                                 padding: "0.85rem 0.75rem",
-                                color: "#0f172a",
+                                color: "var(--ink)",
                                 fontWeight: 600,
                               }}
                             >
@@ -365,7 +365,7 @@ function MobileNav({ links }: { links: HeaderNavLink[] }) {
                                 borderRadius: "0.75rem",
                                 padding: "0.85rem 0.75rem",
                                 textAlign: "left",
-                                color: "#0f172a",
+                                color: "var(--ink)",
                                 fontWeight: 600,
                                 font: "inherit",
                               }}
@@ -393,7 +393,7 @@ function MobileNav({ links }: { links: HeaderNavLink[] }) {
                               background: "transparent",
                               borderRadius: "0.75rem",
                               padding: "0.85rem 0.75rem",
-                              color: "#5b6b7c",
+                              color: "var(--muted)",
                               font: "inherit",
                             }}
                           >
@@ -405,7 +405,7 @@ function MobileNav({ links }: { links: HeaderNavLink[] }) {
                             style={{
                               margin: "0 0 0.25rem 0.75rem",
                               paddingLeft: "0.5rem",
-                              borderLeft: "1px solid rgba(15,23,42,0.1)",
+                              borderLeft: "1px solid var(--line)",
                               display: "flex",
                               flexDirection: "column",
                             }}
@@ -418,7 +418,7 @@ function MobileNav({ links }: { links: HeaderNavLink[] }) {
                                 style={{
                                   borderRadius: "0.75rem",
                                   padding: "0.7rem 0.75rem",
-                                  color: "#0f172a",
+                                  color: "var(--ink)",
                                 }}
                               >
                                 <NavLabel
@@ -442,7 +442,7 @@ function MobileNav({ links }: { links: HeaderNavLink[] }) {
                         display: "block",
                         borderRadius: "0.75rem",
                         padding: "0.85rem 0.75rem",
-                        color: "#0f172a",
+                        color: "var(--ink)",
                         fontWeight: 600,
                       }}
                     >
