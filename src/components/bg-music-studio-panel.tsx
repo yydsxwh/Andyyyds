@@ -66,6 +66,8 @@ export function BgMusicStudioPanel({
   const [neteaseTitle, setNeteaseTitle] = useState("");
   const [qqInput, setQqInput] = useState("");
   const [qqTitle, setQqTitle] = useState("");
+  const [qishuiInput, setQishuiInput] = useState("");
+  const [qishuiBusy, setQishuiBusy] = useState(false);
 
   const [jamendoQ, setJamendoQ] = useState("ambient");
   const [jamendoHits, setJamendoHits] = useState<JamendoHit[]>([]);
@@ -170,8 +172,16 @@ export function BgMusicStudioPanel({
       setStatus({ kind: "error", text: "请填写曲名与音频地址" });
       return;
     }
-    // 误把网易云/QQ 歌曲页贴进直链时，自动改成官方外链 kind
+    // 误把网易云/QQ/汽水歌曲页贴进直链时，自动改成官方外链 kind
     const coerced = coerceBgMusicTrackKind("audio", src);
+    const embedLabel =
+      coerced.kind === "netease"
+        ? "网易云"
+        : coerced.kind === "qqmusic"
+          ? "QQ音乐"
+          : coerced.kind === "qishui"
+            ? "汽水音乐"
+            : "";
     addTrack({
       title,
       artist: urlArtist.trim(),
@@ -186,7 +196,7 @@ export function BgMusicStudioPanel({
     setHint(
       coerced.kind === "audio"
         ? "已加入歌单（记得点保存）"
-        : `已识别为${coerced.kind === "netease" ? "网易云" : "QQ音乐"}外链（记得点保存）。iPhone 微信更稳妥请上传 MP3。`,
+        : `已识别为${embedLabel}外链（记得点保存）。iPhone 微信更稳妥请上传 MP3。`,
     );
   }
 
@@ -236,6 +246,53 @@ export function BgMusicStudioPanel({
     setHint("已加入 QQ 音乐外链（记得点保存）");
   }
 
+  async function addQishui() {
+    const input = qishuiInput.trim();
+    if (!input) {
+      setStatus({
+        kind: "error",
+        text: "请粘贴汽水音乐分享短链（qishui.douyin.com/s/…）或 track_id",
+      });
+      return;
+    }
+    setQishuiBusy(true);
+    setStatus(null);
+    setHint("");
+    try {
+      const res = await fetch("/api/studio/bg-music/qishui-resolve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ input }),
+      });
+      const data = (await res.json()) as {
+        error?: string;
+        trackId?: string;
+        title?: string;
+        artist?: string;
+        coverUrl?: string;
+      };
+      if (!res.ok || !data.trackId) {
+        setStatus({
+          kind: "error",
+          text: data.error || "无法解析汽水音乐链接",
+        });
+        return;
+      }
+      addTrack({
+        title: (data.title || `汽水音乐 ${data.trackId}`).slice(0, 120),
+        artist: (data.artist || "").slice(0, 80),
+        kind: "qishui",
+        src: data.trackId,
+        coverUrl: data.coverUrl || undefined,
+        source: "qishui",
+      });
+      setQishuiInput("");
+      setHint("已加入汽水音乐外链（记得点保存）");
+    } finally {
+      setQishuiBusy(false);
+    }
+  }
+
   async function searchJamendo() {
     setJamendoBusy(true);
     setHint("");
@@ -277,13 +334,13 @@ export function BgMusicStudioPanel({
         <h2 className="text-lg font-semibold text-[var(--ink)]">播放器开关</h2>
         <p className="text-sm text-[var(--muted)]">
           QQ 空间风格悬浮播放器。无法合法免费接入三大平台全曲库；本页用免版税曲库
-          + 自建上传 + 网易云 / QQ 音乐官方外链补齐。
+          + 自建上传 + 网易云 / QQ / 汽水音乐官方分享页补齐。
         </p>
         {config.enabled &&
         config.tracks.some((t) => t.enabled) &&
         !config.tracks.some((t) => t.enabled && t.kind === "audio") ? (
           <p className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm leading-6 text-amber-950">
-            当前歌单只有网易云 / QQ
+            当前歌单只有网易云 / QQ / 汽水
             外链：电脑浏览器往往能播，但手机微信 / iPhone
             里外链 iframe 常被拦截、完全无声。若要手机也能听，请至少上传 1
             首本站 MP3（或用下方免版税曲库加入直链）。
@@ -318,7 +375,7 @@ export function BgMusicStudioPanel({
             <span className="font-medium">进入站点自动播放</span>
             <span className="mt-0.5 block text-xs text-[var(--muted)]">
               进站后在悬浮球状态下尝试开播（不强制展开列表）。浏览器/微信可能拦截，拦截后点「播放」或点一下页面即可。本站
-              MP3 最稳；网易云/QQ 外链依赖官方策略。
+              MP3 最稳；网易云/QQ/汽水外链依赖官方策略。
             </span>
           </span>
         </label>
@@ -389,7 +446,7 @@ export function BgMusicStudioPanel({
             <p className="mt-1 text-xs text-[var(--muted)]">
               {jamendoConfigured
                 ? "已配置；改完请点下方「保存全部」。"
-                : "未配置时只能上传 / 直链 / 网易云 / QQ 音乐外链。"}
+                : "未配置时只能上传 / 直链 / 网易云 / QQ / 汽水音乐外链。"}
             </p>
           </label>
           <div className="flex flex-col gap-2 sm:flex-row">
@@ -447,7 +504,7 @@ export function BgMusicStudioPanel({
 
       <section className="space-y-3 rounded-3xl border border-[var(--line)] bg-white/70 p-4 sm:p-5">
         <h2 className="text-lg font-semibold">
-          D · 上传 / 直链 / 网易云 / QQ 音乐外链
+          D · 上传 / 直链 / 网易云 / QQ / 汽水音乐
         </h2>
         <div className="space-y-2">
           <h3 className="text-sm font-medium">上传音频到本站</h3>
@@ -544,6 +601,29 @@ export function BgMusicStudioPanel({
             className="min-h-11 rounded-2xl border border-[var(--line)] px-4 text-sm"
           >
             加入歌单
+          </button>
+        </div>
+
+        <div className="space-y-2 border-t border-[var(--line)] pt-4">
+          <h3 className="text-sm font-medium">汽水音乐分享页</h3>
+          <p className="text-xs text-[var(--muted)]">
+            在汽水 App 打开歌曲 → 分享 → 复制链接（qishui.douyin.com/s/…），或粘贴含
+            track_id 的链接。前台用官方分享页 iframe 播放（无迷你外链）。
+          </p>
+          <input
+            className={inputClass}
+            placeholder="https://qishui.douyin.com/s/… 或 track_id"
+            value={qishuiInput}
+            onChange={(e) => setQishuiInput(e.target.value)}
+            disabled={qishuiBusy}
+          />
+          <button
+            type="button"
+            onClick={() => void addQishui()}
+            disabled={qishuiBusy}
+            className="min-h-11 rounded-2xl border border-[var(--line)] px-4 text-sm disabled:opacity-60"
+          >
+            {qishuiBusy ? "解析中…" : "解析并加入歌单"}
           </button>
         </div>
       </section>

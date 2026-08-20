@@ -7,13 +7,14 @@ import {
   isEmbedBgMusicKind,
   neteaseEmbedSrc,
   qqmusicEmbedSrc,
+  qishuiEmbedSrc,
 } from "@/lib/bg-music";
 
 type PublicTrack = {
   id: string;
   title: string;
   artist: string;
-  kind: "audio" | "netease" | "qqmusic";
+  kind: "audio" | "netease" | "qqmusic" | "qishui";
   src: string;
   coverUrl?: string;
   credit?: string;
@@ -375,7 +376,16 @@ export function BgMusicPlayer() {
       ? neteaseEmbedSrc(track.src, embedWantAuto)
       : track.kind === "qqmusic"
         ? qqmusicEmbedSrc(track.src)
-        : "";
+        : track.kind === "qishui"
+          ? qishuiEmbedSrc(track.src)
+          : "";
+  // 汽水无迷你外链，分享页需要更高 iframe 才能点播放
+  const embedIframeClass =
+    track.kind === "qishui"
+      ? open
+        ? "h-[min(22rem,55vh)] w-full border-0"
+        : "h-[22rem] w-full border-0"
+      : "h-[66px] w-full border-0";
   const showShell = open || (isEmbed && embedKeepAlive);
   const isLive =
     (playing && track.kind === "audio") || (isEmbed && embedKeepAlive);
@@ -444,7 +454,7 @@ export function BgMusicPlayer() {
                   )}
                   {isEmbed && (wechat || ios) && !hasAnyAudio ? (
                     <p className="mt-1 text-[10px] leading-4 text-[var(--fire-strong)]">
-                      手机微信无法稳定播放网易云/QQ外链。电脑能播不代表手机能播；请站长在「背景音乐」上传本站
+                      手机微信无法稳定播放网易云/QQ/汽水外链。电脑能播不代表手机能播；请站长在「背景音乐」上传本站
                       MP3。
                     </p>
                   ) : null}
@@ -474,7 +484,7 @@ export function BgMusicPlayer() {
               <iframe
                 title={track.title}
                 src={embedSrc}
-                className="h-[66px] w-full border-0"
+                className={embedIframeClass}
                 allow="autoplay *; encrypted-media *"
               />
             </div>
@@ -541,6 +551,11 @@ export function BgMusicPlayer() {
                     {t.kind === "qqmusic" ? (
                       <span className="shrink-0 text-[10px] text-[var(--muted)]">
                         QQ
+                      </span>
+                    ) : null}
+                    {t.kind === "qishui" ? (
+                      <span className="shrink-0 text-[10px] text-[var(--muted)]">
+                        汽水
                       </span>
                     ) : null}
                     {t.kind === "audio" ? (

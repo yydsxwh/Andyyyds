@@ -1,23 +1,24 @@
 /**
  * 全站背景音乐歌单（QQ 空间风格）。
- * 来源：upload/url 自建、stock（Jamendo）、netease/qqmusic（官方外链 iframe）。
+ * 来源：upload/url 自建、stock（Jamendo）、netease/qqmusic/qishui（官方分享页 iframe）。
  */
 
-export type BgMusicKind = "audio" | "netease" | "qqmusic";
+export type BgMusicKind = "audio" | "netease" | "qqmusic" | "qishui";
 
 export type BgMusicSource =
   | "upload"
   | "url"
   | "stock"
   | "netease"
-  | "qqmusic";
+  | "qqmusic"
+  | "qishui";
 
 export type BgMusicTrack = {
   id: string;
   title: string;
   artist: string;
   kind: BgMusicKind;
-  /** audio: 可播放 URL；netease/qqmusic: 平台歌曲数字 id */
+  /** audio: 可播放 URL；netease/qqmusic/qishui: 平台歌曲 id */
   src: string;
   coverUrl?: string;
   /** 免费曲库署名（Jamendo / Mixkit 等） */
@@ -110,7 +111,7 @@ export function stringifyBgMusic(config: BgMusicConfig): string {
 }
 
 /**
- * 把误填成「音频直链」的网易云 / QQ 歌曲页纠正为外链 kind，
+ * 把误填成「音频直链」的网易云 / QQ / 汽水分享页纠正为外链 kind，
  * 避免 iOS 微信里 <audio> 去播一个 HTML 页面导致完全无声。
  */
 export function coerceBgMusicTrackKind(
@@ -122,10 +123,16 @@ export function coerceBgMusicTrackKind(
     if (neteaseId && /163\.com|music\.163/i.test(src)) {
       return { kind: "netease", src: neteaseId, source: "netease" };
     }
-    // 纯数字且来源已标 netease 时在 normalize 里处理；此处只认明确网易域名
     const qqId = parseQqmusicSongId(src);
     if (qqId && /y\.qq\.com|qq\.com/i.test(src)) {
       return { kind: "qqmusic", src: qqId, source: "qqmusic" };
+    }
+    const qishuiId = parseQishuiTrackId(src);
+    if (
+      qishuiId &&
+      /qishui\.douyin\.com|music\.douyin\.com|douyin\.com\/music/i.test(src)
+    ) {
+      return { kind: "qishui", src: qishuiId, source: "qishui" };
     }
   }
   if (kind === "netease") {
@@ -135,6 +142,10 @@ export function coerceBgMusicTrackKind(
   if (kind === "qqmusic") {
     const id = parseQqmusicSongId(src);
     if (id) return { kind: "qqmusic", src: id };
+  }
+  if (kind === "qishui") {
+    const id = parseQishuiTrackId(src);
+    if (id) return { kind: "qishui", src: id };
   }
   return { kind, src };
 }
@@ -150,7 +161,9 @@ function normalizeTrack(raw: unknown): BgMusicTrack | null {
       ? "netease"
       : t.kind === "qqmusic"
         ? "qqmusic"
-        : "audio";
+        : t.kind === "qishui"
+          ? "qishui"
+          : "audio";
   const coerced = coerceBgMusicTrackKind(kind, src);
   kind = coerced.kind;
   src = coerced.src;
@@ -160,13 +173,16 @@ function normalizeTrack(raw: unknown): BgMusicTrack | null {
     t.source === "url" ||
     t.source === "stock" ||
     t.source === "netease" ||
-    t.source === "qqmusic"
+    t.source === "qqmusic" ||
+    t.source === "qishui"
       ? t.source
       : kind === "netease"
         ? "netease"
         : kind === "qqmusic"
           ? "qqmusic"
-          : "url");
+          : kind === "qishui"
+            ? "qishui"
+            : "url");
   return {
     id: String(t.id || "").trim() || `t_${Math.random().toString(36).slice(2, 10)}`,
     title,
@@ -198,6 +214,12 @@ export function qqmusicEmbedSrc(songId: string): string {
   return `https://i.y.qq.com/n2/m/outchain/player/index.html?songid=${id}&songtype=0`;
 }
 
+/** 汽水音乐官方分享页（无迷你外链；用分享页 iframe） */
+export function qishuiEmbedSrc(trackId: string): string {
+  const id = trackId.replace(/\D/g, "");
+  return `https://music.douyin.com/qishui/share/track?track_id=${id}`;
+}
+
 /** 从网易云分享链接或纯数字提取歌曲 id */
 export function parseNeteaseSongId(input: string): string | null {
   const s = input.trim();
@@ -223,9 +245,20 @@ export function parseQqmusicSongId(input: string): string | null {
   return m?.[1] || null;
 }
 
+/** 从汽水分享短链 / 分享页 / 纯数字提取 track_id */
+export function parseQishuiTrackId(input: string): string | null {
+  const s = input.trim();
+  if (/^\d{10,}$/.test(s)) return s;
+  const m =
+    /[?&]track_id=(\d{10,})/i.exec(s) ||
+    /track_id%3D(\d{10,})/i.exec(s) ||
+    /\/track\/(\d{10,})/i.exec(s);
+  return m?.[1] || null;
+}
+
 /** 是否为 iframe 外链曲目（不用本站 <audio>） */
 export function isEmbedBgMusicKind(
   kind: BgMusicKind,
-): kind is "netease" | "qqmusic" {
-  return kind === "netease" || kind === "qqmusic";
+): kind is "netease" | "qqmusic" | "qishui" {
+  return kind === "netease" || kind === "qqmusic" || kind === "qishui";
 }

@@ -20,11 +20,11 @@ const trackSchema = z.object({
   id: z.string().max(64).optional(),
   title: z.string().min(1).max(120),
   artist: z.string().max(80).optional().default(""),
-  kind: z.enum(["audio", "netease", "qqmusic"]),
+  kind: z.enum(["audio", "netease", "qqmusic", "qishui"]),
   src: z.string().min(1).max(2000),
   coverUrl: z.string().max(2000).optional(),
   credit: z.string().max(200).optional(),
-  source: z.enum(["upload", "url", "stock", "netease", "qqmusic"]),
+  source: z.enum(["upload", "url", "stock", "netease", "qqmusic", "qishui"]),
   enabled: z.boolean().optional().default(true),
 });
 
