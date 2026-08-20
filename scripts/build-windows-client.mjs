@@ -1,7 +1,8 @@
 /**
- * 构建 Windows 便携客户端，并发布到 public/app：
- * - yyds-windows.exe（直链）
- * - yyds-windows.zip（推荐：Edge/Chrome 对 zip 拦截更少）
+ * 构建 Windows 客户端并发布到 public/app：
+ * - yyds-windows-setup.exe（NSIS 安装包：可选路径 + 桌面/开始菜单快捷方式）
+ * - yyds-windows.exe（便携版）
+ * - yyds-windows.zip（便携版压缩，浏览器拦截更少）
  */
 import { spawnSync } from "node:child_process";
 import {
@@ -18,6 +19,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const desktopDir = path.join(root, "desktop");
 const distDir = path.join(desktopDir, "dist");
 const outDir = path.join(root, "public", "app");
+const outSetup = path.join(outDir, "yyds-windows-setup.exe");
 const outExe = path.join(outDir, "yyds-windows.exe");
 const outZip = path.join(outDir, "yyds-windows.zip");
 const isWin = process.platform === "win32";
@@ -53,6 +55,18 @@ function zipExe(exePath, zipPath) {
   run("zip", ["-j", zipPath, exePath], outDir);
 }
 
+function findArtifact(preferredNames, fallbackPredicate) {
+  for (const name of preferredNames) {
+    const p = path.join(distDir, name);
+    if (existsSync(p)) return p;
+  }
+  if (!existsSync(distDir)) return null;
+  const hits = readdirSync(distDir)
+    .filter((name) => fallbackPredicate(name.toLowerCase()))
+    .map((name) => path.join(distDir, name));
+  return hits[0] || null;
+}
+
 if (!existsSync(path.join(desktopDir, "package.json"))) {
   console.error("未找到 desktop/package.json");
   process.exit(1);
@@ -63,27 +77,41 @@ if (!existsSync(path.join(desktopDir, "node_modules", "electron"))) {
   run("npm", ["install"], desktopDir);
 }
 
-console.log("Packaging Windows portable client…");
+console.log("Packaging Windows NSIS installer + portable…");
 run("npm", ["run", "pack"], desktopDir);
 
 mkdirSync(outDir, { recursive: true });
 
-let built = path.join(distDir, "yyds-windows.exe");
-if (!existsSync(built)) {
-  // electron-builder 偶发把产物放在子目录或带空格命名
-  const candidates = existsSync(distDir)
-    ? readdirSync(distDir)
-        .filter((name) => name.toLowerCase().endsWith(".exe"))
-        .map((name) => path.join(distDir, name))
-    : [];
-  if (candidates.length === 0) {
-    console.error("未找到构建产物 .exe，请检查 desktop/dist");
-    process.exit(1);
-  }
-  built = candidates[0];
+const setupBuilt = findArtifact(
+  ["yyds-windows-setup.exe"],
+  (n) => n.endsWith(".exe") && (n.includes("setup") || n.includes("安装")),
+);
+const portableBuilt = findArtifact(
+  ["yyds-windows.exe"],
+  (n) =>
+    n.endsWith(".exe") &&
+    !n.includes("setup") &&
+    !n.includes("安装") &&
+    !n.includes("uninstall"),
+);
+
+if (!setupBuilt && !portableBuilt) {
+  console.error("未找到构建产物 .exe，请检查 desktop/dist");
+  process.exit(1);
 }
 
-copyFileSync(built, outExe);
-zipExe(outExe, outZip);
-console.log("Windows client ready:", outExe);
-console.log("Windows zip ready:", outZip);
+if (setupBuilt) {
+  copyFileSync(setupBuilt, outSetup);
+  console.log("Windows setup ready:", outSetup);
+} else {
+  console.warn("未生成 NSIS 安装包（yyds-windows-setup.exe）");
+}
+
+if (portableBuilt) {
+  copyFileSync(portableBuilt, outExe);
+  zipExe(outExe, outZip);
+  console.log("Windows portable ready:", outExe);
+  console.log("Windows zip ready:", outZip);
+} else {
+  console.warn("未生成便携版（yyds-windows.exe）");
+}

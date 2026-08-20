@@ -24,7 +24,9 @@ function assetReady(fileName: string) {
 export default function AppDownloadPage() {
   const apkOnDisk = assetReady("yyds.apk");
   const winOnDisk =
-    assetReady("yyds-windows.zip") || assetReady("yyds-windows.exe");
+    assetReady("yyds-windows-setup.exe") ||
+    assetReady("yyds-windows.zip") ||
+    assetReady("yyds-windows.exe");
 
   return (
     <div className="container py-10 sm:py-14">

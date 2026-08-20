@@ -28,7 +28,9 @@ function buildSlots(): ClientSlot[] {
   const apkOk = appAssetReady("yyds.apk");
   // zip 或 exe 任一即可开放入口（推荐 zip，减少浏览器拦截）
   const winOk =
-    appAssetReady("yyds-windows.zip") || appAssetReady("yyds-windows.exe");
+    appAssetReady("yyds-windows-setup.exe") ||
+    appAssetReady("yyds-windows.zip") ||
+    appAssetReady("yyds-windows.exe");
   return [
     {
       id: "android",

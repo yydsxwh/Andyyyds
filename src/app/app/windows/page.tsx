@@ -8,10 +8,10 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "下载 Windows 客户端",
   description:
-    "安装歪歪滴艾斯（YYDS）Windows 客户端，在电脑上使用与官网一致的完整功能。",
+    "安装歪歪滴艾斯（YYDS）Windows 客户端，可自选安装路径并生成桌面快捷方式。",
 };
 
-/** 推荐 ZIP：Edge/Chrome 对裸 exe 常提示「通常不会下载」 */
+const SETUP_PUBLIC_PATH = "/app/yyds-windows-setup.exe";
 const ZIP_PUBLIC_PATH = "/app/yyds-windows.zip";
 const EXE_PUBLIC_PATH = "/app/yyds-windows.exe";
 
@@ -20,13 +20,15 @@ function assetReady(fileName: string) {
 }
 
 /**
- * Windows 便携客户端下载页：Electron 壳加载线上站点，
- * 登录 / 支付 / 上传 / 点播 / 聊天与网页版一致。
+ * Windows 客户端下载页。
+ * 优先推荐 NSIS 安装包（可选路径 + 桌面/开始菜单快捷方式）；
+ * 便携 ZIP/EXE 作备选（浏览器拦截更少时可下 ZIP）。
  */
 export default function WindowsAppDownloadPage() {
+  const setupOnDisk = assetReady("yyds-windows-setup.exe");
   const zipOnDisk = assetReady("yyds-windows.zip");
   const exeOnDisk = assetReady("yyds-windows.exe");
-  const ready = zipOnDisk || exeOnDisk;
+  const ready = setupOnDisk || zipOnDisk || exeOnDisk;
 
   return (
     <div className="container py-10 sm:py-14">
@@ -46,29 +48,37 @@ export default function WindowsAppDownloadPage() {
             歪歪滴艾斯 · YYDS
           </h1>
           <p className="mt-4 text-sm leading-7 text-[var(--muted)]">
-            网易云风格桌面客户端（便携版，无需安装）。深色侧栏 +
-            自定义标题栏，打开后加载
-            www.yydsxwh.com，课程学习、下单支付、素材上传、聊天与网页版功能完整一致。
+            网易云风格桌面客户端。安装时可自选文件夹，并自动创建桌面与开始菜单快捷方式；打开后加载
+            www.yydsxwh.com，课程、支付、上传、聊天与网页版一致。
           </p>
 
           {ready ? (
             <div className="mt-8 flex flex-col items-center gap-3">
+              {setupOnDisk ? (
+                <a
+                  href={SETUP_PUBLIC_PATH}
+                  download="yyds-windows-setup.exe"
+                  className="btn btn-primary inline-flex min-h-12 w-full max-w-xs items-center justify-center sm:w-auto sm:px-8"
+                >
+                  下载安装包（推荐）
+                </a>
+              ) : null}
               {zipOnDisk ? (
                 <a
                   href={ZIP_PUBLIC_PATH}
                   download="yyds-windows.zip"
-                  className="btn btn-primary inline-flex min-h-12 w-full max-w-xs items-center justify-center sm:w-auto sm:px-8"
+                  className="btn btn-secondary inline-flex min-h-12 w-full max-w-xs items-center justify-center sm:w-auto sm:px-8"
                 >
-                  下载压缩包（推荐）
+                  下载便携压缩包
                 </a>
               ) : null}
               {exeOnDisk ? (
                 <a
                   href={EXE_PUBLIC_PATH}
                   download="yyds-windows.exe"
-                  className="btn btn-secondary inline-flex min-h-12 w-full max-w-xs items-center justify-center sm:w-auto sm:px-8"
+                  className="btn btn-secondary inline-flex min-h-12 w-full max-w-xs items-center justify-center text-sm sm:w-auto sm:px-8"
                 >
-                  直接下载 .exe
+                  直接下载便携版 .exe
                 </a>
               ) : null}
             </div>
@@ -79,8 +89,7 @@ export default function WindowsAppDownloadPage() {
           )}
 
           <p className="mt-4 text-xs leading-6 text-[var(--muted)]">
-            支持 Windows 10 / 11（64 位）。推荐先下 ZIP，解压后双击
-            yyds-windows.exe 即可运行。
+            支持 Windows 10 / 11（64 位）。推荐「安装包」：安装向导里可选路径，装完桌面会出现「歪歪滴艾斯」图标。
           </p>
 
           <p className="mt-6 text-sm text-[var(--muted)]">
@@ -96,16 +105,33 @@ export default function WindowsAppDownloadPage() {
 
         <section className="rounded-[28px] border border-[var(--line)] bg-white/40 px-5 py-5 text-left text-sm leading-7 text-[var(--muted)]">
           <h2 className="text-base font-semibold text-[var(--ink)]">
+            安装后怎么打开？
+          </h2>
+          <ul className="mt-3 list-disc space-y-2 pl-5">
+            <li>
+              桌面双击 <strong>歪歪滴艾斯</strong> 图标（安装包会自动创建）。
+            </li>
+            <li>
+              或点开始菜单 → 搜索「歪歪滴艾斯」。
+            </li>
+            <li>
+              若你下的是便携 ZIP：解压后双击文件夹里的{" "}
+              <strong>yyds-windows.exe</strong>
+              （便携版不会自动生成桌面图标）。
+            </li>
+          </ul>
+        </section>
+
+        <section className="rounded-[28px] border border-[var(--line)] bg-white/40 px-5 py-5 text-left text-sm leading-7 text-[var(--muted)]">
+          <h2 className="text-base font-semibold text-[var(--ink)]">
             浏览器提示「通常不会下载」怎么办？
           </h2>
           <ul className="mt-3 list-disc space-y-2 pl-5">
             <li>
               这是 Edge/Chrome 对<strong>未常见 exe</strong>
-              的安全提示，不是网站坏了。优先用上方「下载压缩包」。
-            </li>
-            <li>
-              若仍出现提示：点下载栏右侧 <strong>…</strong> →{" "}
-              <strong>保留</strong> → <strong>仍要保留</strong>。
+              的安全提示。可改下「便携压缩包」，或点下载栏{" "}
+              <strong>…</strong> → <strong>保留</strong> →{" "}
+              <strong>仍要保留</strong>。
             </li>
             <li>
               首次运行若出现 SmartScreen：点 <strong>更多信息</strong> →{" "}
