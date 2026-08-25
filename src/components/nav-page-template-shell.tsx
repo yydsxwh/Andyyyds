@@ -21,6 +21,7 @@ const SLOT_TYPES = new Set<string>([
   "courses",
   "meetup",
   "shop",
+  "products",
   "forum",
   "games",
   "account",

@@ -143,6 +143,8 @@ export const DEFAULT_PORTAL: PortalConfig = {
     // 约搭：线下结伴 / 活动匹配广场（类似「一起玩」，非小程序复刻）
     { key: "meetup", label: "约搭", href: "/meetup" },
     { key: "shop", label: "商城", href: "/shop" },
+    // 自研软件产品专栏（颗秒会议、颗秒网盘等）；库里无此项时 mergePortalNav 会补到末尾
+    { key: "products", label: "软件产品", href: "/products" },
     { key: "forum", label: "大学论坛", href: "/forum", comingSoon: true },
     { key: "games", label: "游戏中心", href: "/games", comingSoon: true },
   ],

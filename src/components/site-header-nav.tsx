@@ -42,6 +42,7 @@ const FALLBACK_MOBILE_HREFS = [
   { href: "/courses", key: "nav.courses" },
   { href: "/meetup", key: "nav.meetup" },
   { href: "/shop", key: "nav.shop" },
+  { href: "/products", key: "nav.products" },
   { href: "/forum", key: "nav.forum" },
   { href: "/games", key: "nav.games" },
 ] as const;

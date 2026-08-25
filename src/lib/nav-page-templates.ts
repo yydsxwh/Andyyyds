@@ -23,6 +23,7 @@ export const NAV_PAGE_TEMPLATE_TYPES = [
   "courses",
   "meetup",
   "shop",
+  "products",
   "forum",
   "games",
   "account",
@@ -41,6 +42,7 @@ export type NavPageTemplateDef = {
     | "courses"
     | "meetup"
     | "shop"
+    | "products"
     | "forum"
     | "games"
     | "account";
@@ -77,6 +79,12 @@ export const NAV_PAGE_TEMPLATE_DEFS: NavPageTemplateDef[] = [
     name: "商城默认模板",
     path: "/shop",
     slot: "shop",
+  },
+  {
+    type: "products",
+    name: "软件产品默认模板",
+    path: "/products",
+    slot: "products",
   },
   {
     type: "forum",

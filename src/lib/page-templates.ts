@@ -19,6 +19,7 @@ export type PageTemplateType =
   | "courses"
   | "meetup"
   | "shop"
+  | "products"
   | "forum"
   | "games"
   | "account"
@@ -30,6 +31,7 @@ export type PageSlotId =
   | "courses"
   | "meetup"
   | "shop"
+  | "products"
   | "forum"
   | "games"
   | "account";
@@ -444,6 +446,7 @@ export const PAGE_SLOT_LABEL: Record<PageSlotId, string> = {
   courses: "网课资料广场",
   meetup: "约搭广场",
   shop: "商城占位",
+  products: "软件产品列表",
   forum: "论坛占位",
   games: "游戏中心占位",
   account: "个人中心内容",
@@ -456,6 +459,7 @@ export const PAGE_TEMPLATE_TYPE_LABEL: Record<PageTemplateType, string> = {
   courses: "网课资料",
   meetup: "约搭",
   shop: "商城",
+  products: "软件产品",
   forum: "大学论坛",
   games: "游戏中心",
   account: "个人中心",
@@ -1383,6 +1387,8 @@ export function publicTemplatePath(template: PageTemplate) {
       return "/meetup";
     case "shop":
       return "/shop";
+    case "products":
+      return "/products";
     case "forum":
       return "/forum";
     case "games":

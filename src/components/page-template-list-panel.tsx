@@ -32,6 +32,7 @@ const TYPE_RIBBON: Record<PageTemplateType, string> = {
   courses: "bg-teal-600",
   meetup: "bg-orange-500",
   shop: "bg-rose-500",
+  products: "bg-cyan-600",
   forum: "bg-indigo-500",
   games: "bg-lime-600",
   account: "bg-amber-500",

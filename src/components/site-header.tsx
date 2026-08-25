@@ -68,6 +68,7 @@ export async function SiteHeader() {
           { key: "courses", href: "/courses", label: "网课资料" },
           { key: "meetup", href: "/meetup", label: "约搭" },
           { key: "shop", href: "/shop", label: "商城" },
+          { key: "products", href: "/products", label: "软件产品" },
           { key: "forum", href: "/forum", label: "大学论坛" },
           { key: "games", href: "/games", label: "游戏中心" },
         ];
