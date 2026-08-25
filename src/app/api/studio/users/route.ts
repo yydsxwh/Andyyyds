@@ -1,9 +1,10 @@
 ﻿/**
  * GET/PATCH /api/studio/users —— 站长用户管理
  *
- * - GET：列表（?pending=1 仅待审申请）
+ * - GET：列表（?pending=1 仅待审申请；q 可搜姓名/邮箱/站长备注）
  * - PATCH { userId, roles: Role[] } 或 { userId, role }：设置多角色 / 单角色
  * - PATCH { userId, referralCode }：设置邀请码（含站长自己）
+ * - PATCH { userId, adminNote }：设置站长内部备注（仅后台可见）
  * - PATCH { userId, applicationAction: approve|reject, note? }：审核注册申请
  * - PATCH { userId, unbindWechat: true }：清空微信 openid/unionid，便于用户重新绑定
  */
@@ -43,6 +44,7 @@ const userSelect = {
   roleApplicationNote: true,
   roleReviewedAt: true,
   referralCode: true,
+  adminNote: true,
 } as const;
 
 function serializeUser<
@@ -77,6 +79,7 @@ export async function GET(req: Request) {
                 OR: [
                   { name: { contains: q } },
                   { email: { contains: q } },
+                  { adminNote: { contains: q } },
                 ],
               }
             : {},
@@ -138,6 +141,7 @@ export async function GET(req: Request) {
         roleApplicationNote: u.roleApplicationNote,
         roleReviewedAt: u.roleReviewedAt?.toISOString() ?? null,
         referralCode: u.referralCode,
+        adminNote: u.adminNote || "",
         referredById: u.referredBy?.id || "",
         referredByName: u.referredBy?.name || "",
         referredByCode: u.referredBy?.referralCode || "",
@@ -179,6 +183,12 @@ const setRoleSchema = z.object({
 const setReferralSchema = z.object({
   userId: z.string().min(1),
   referralCode: z.string().min(1).max(32),
+});
+
+/** 站长备注可清空；上限与审核备注一致，避免超长文本拖垮列表 */
+const setAdminNoteSchema = z.object({
+  userId: z.string().min(1),
+  adminNote: z.string().max(500),
 });
 
 const applicationSchema = z.object({
@@ -226,6 +236,34 @@ export async function PATCH(req: Request) {
         ok: true,
         hasWechat: false,
         message: "已解绑微信，用户可在个人中心重新绑定",
+      });
+    }
+
+    // —— 站长内部备注：仅后台可见，与审核备注 roleApplicationNote 分开 ——
+    if (
+      "adminNote" in raw &&
+      !("role" in raw) &&
+      !("roles" in raw) &&
+      !("applicationAction" in raw) &&
+      !("referralCode" in raw)
+    ) {
+      const body = setAdminNoteSchema.parse(raw);
+      const target = await prisma.user.findUnique({
+        where: { id: body.userId },
+        select: { id: true },
+      });
+      if (!target) {
+        return NextResponse.json({ error: "用户不存在" }, { status: 404 });
+      }
+      const note = body.adminNote.trim();
+      const updated = await prisma.user.update({
+        where: { id: body.userId },
+        data: { adminNote: note },
+        select: userSelect,
+      });
+      return NextResponse.json({
+        user: serializeUser(updated),
+        message: note ? "备注已保存" : "备注已清空",
       });
     }
 

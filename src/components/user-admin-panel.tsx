@@ -47,6 +47,8 @@ export type AdminUserRow = {
   roleApplicationNote: string;
   roleReviewedAt: string | null;
   referralCode: string;
+  /** 站长内部备注：仅后台可见，不展示给用户本人 */
+  adminNote: string;
   /** 上级邀请人（谁邀请他进来） */
   referredById: string;
   referredByName: string;
@@ -83,6 +85,10 @@ export function UserAdminPanel({ initialUsers, initialPending }: Props) {
   const [rejectNote, setRejectNote] = useState<Record<string, string>>({});
   /** 编辑中的邀请码草稿（按用户 id） */
   const [referralDraft, setReferralDraft] = useState<Record<string, string>>({});
+  /** 编辑中的站长备注草稿（按用户 id） */
+  const [adminNoteDraft, setAdminNoteDraft] = useState<Record<string, string>>(
+    {},
+  );
 
   const filtered = useMemo(() => {
     const keyword = q.trim().toLowerCase();
@@ -107,6 +113,7 @@ export function UserAdminPanel({ initialUsers, initialPending }: Props) {
         u.name.toLowerCase().includes(keyword) ||
         u.email.toLowerCase().includes(keyword) ||
         u.referralCode.toLowerCase().includes(keyword) ||
+        (u.adminNote || "").toLowerCase().includes(keyword) ||
         (u.referredByName || "").toLowerCase().includes(keyword) ||
         (u.referredByCode || "").toLowerCase().includes(keyword) ||
         inviteeHit
@@ -212,6 +219,39 @@ export function UserAdminPanel({ initialUsers, initialPending }: Props) {
       typeof result.data.message === "string"
         ? result.data.message
         : "邀请码已保存成功";
+    setFeedback({ kind: "ok", text: msg });
+    router.refresh();
+  }
+
+  async function saveAdminNote(userId: string) {
+    const prev =
+      users.find((u) => u.id === userId) || pending.find((u) => u.id === userId);
+    if (!prev) return;
+    const next = (adminNoteDraft[userId] ?? prev.adminNote ?? "").trim();
+    setBusyId(`note-${userId}`);
+    setFeedback(null);
+    const result = await postSave("/api/studio/users", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, adminNote: next }),
+    });
+    setBusyId("");
+    if (!result.ok) {
+      setFeedback({ kind: "error", text: result.error || "备注保存失败" });
+      return;
+    }
+    const user = result.data.user as { adminNote?: string } | undefined;
+    const note = user?.adminNote ?? next;
+    upsertUser({ ...prev, adminNote: note });
+    setAdminNoteDraft((d) => {
+      const copy = { ...d };
+      delete copy[userId];
+      return copy;
+    });
+    const msg =
+      typeof result.data.message === "string"
+        ? result.data.message
+        : "备注已保存";
     setFeedback({ kind: "ok", text: msg });
     router.refresh();
   }
@@ -370,7 +410,7 @@ export function UserAdminPanel({ initialUsers, initialPending }: Props) {
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
           <input
             className="w-full min-w-0 flex-1 rounded-2xl border border-[var(--line)] bg-white/80 px-3 py-3 text-base outline-none focus:border-[var(--brand)] sm:text-sm"
-            placeholder="搜索姓名 / 邮箱 / 邀请码 / 邀请人"
+            placeholder="搜索姓名 / 邮箱 / 邀请码 / 邀请人 / 备注"
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
@@ -625,7 +665,7 @@ export function UserAdminPanel({ initialUsers, initialPending }: Props) {
                     />
                     <button
                       type="button"
-                      className="btn btn-secondary min-h-10 shrink-0 px-3 text-sm"
+                      className="btn btn-secondary min-h-10 shrink-0 px-3 text-sm touch-manipulation"
                       disabled={busyId === `ref-${user.id}`}
                       onClick={() => void saveReferralCode(user.id)}
                     >
@@ -633,6 +673,15 @@ export function UserAdminPanel({ initialUsers, initialPending }: Props) {
                     </button>
                   </div>
                 </div>
+                <AdminNoteEditor
+                  user={user}
+                  value={adminNoteDraft[user.id] ?? user.adminNote ?? ""}
+                  busy={busyId === `note-${user.id}`}
+                  onChange={(text) =>
+                    setAdminNoteDraft((d) => ({ ...d, [user.id]: text }))
+                  }
+                  onSave={() => void saveAdminNote(user.id)}
+                />
                 <RoleMultiEditor
                   user={user}
                   busy={busyId === user.id}
@@ -653,6 +702,7 @@ export function UserAdminPanel({ initialUsers, initialPending }: Props) {
                 <thead className="border-b border-[var(--line)] bg-white/50 text-[var(--muted)]">
                   <tr>
                     <th className="px-4 py-3 font-medium">用户</th>
+                    <th className="px-4 py-3 font-medium">站长备注</th>
                     <th className="px-4 py-3 font-medium">角色</th>
                     <th className="px-4 py-3 font-medium">被谁邀请</th>
                     <th className="px-4 py-3 font-medium">邀请了谁</th>
@@ -698,6 +748,18 @@ export function UserAdminPanel({ initialUsers, initialPending }: Props) {
                             {busyId === `ref-${user.id}` ? "…" : "保存"}
                           </button>
                         </div>
+                      </td>
+                      <td className="min-w-[12rem] px-4 py-3">
+                        <AdminNoteEditor
+                          user={user}
+                          value={adminNoteDraft[user.id] ?? user.adminNote ?? ""}
+                          busy={busyId === `note-${user.id}`}
+                          compact
+                          onChange={(text) =>
+                            setAdminNoteDraft((d) => ({ ...d, [user.id]: text }))
+                          }
+                          onSave={() => void saveAdminNote(user.id)}
+                        />
                       </td>
                       <td className="px-4 py-3">
                         {user.rolesLabel ||
@@ -772,7 +834,7 @@ export function UserAdminPanel({ initialUsers, initialPending }: Props) {
                   {filtered.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={9}
+                        colSpan={10}
                         className="px-4 py-10 text-center text-[var(--muted)]"
                       >
                         没有匹配的用户
@@ -788,8 +850,67 @@ export function UserAdminPanel({ initialUsers, initialPending }: Props) {
       <p className="text-xs text-[var(--muted)]">
         {tab === "applications"
           ? `待审核 ${pending.length} 人。通过后立即开通对应角色权限；拒绝后保留原身份（注册待审账号仍为普通用户）。`
-          : `共 ${filtered.length} 人（最多展示最近 200 人）。「被谁邀请 / 邀请了谁」按注册时的邀请关系展示；点击「查看详情」可打开完整下级列表、统计并导出 Excel。可勾选多种身份（如老师+商家），保存后立即生效。至少保留一位站长。`}
+          : `共 ${filtered.length} 人（最多展示最近 200 人）。「被谁邀请 / 邀请了谁」按注册时的邀请关系展示；点击「查看详情」可打开完整下级列表、统计并导出 Excel。可勾选多种身份（如老师+商家），保存后立即生效。「站长备注」仅后台可见，不会展示给用户本人。至少保留一位站长。`}
       </p>
+    </div>
+  );
+}
+
+/** 站长备注编辑：手机与桌面共用；可清空后保存 */
+function AdminNoteEditor({
+  user,
+  value,
+  busy,
+  onChange,
+  onSave,
+  compact = false,
+}: {
+  user: AdminUserRow;
+  value: string;
+  busy: boolean;
+  onChange: (text: string) => void;
+  onSave: () => void;
+  compact?: boolean;
+}) {
+  const dirty = value.trim() !== (user.adminNote || "").trim();
+  return (
+    <div className={compact ? "space-y-1.5" : "space-y-2"}>
+      {!compact ? (
+        <div className="text-sm text-[var(--muted)]">
+          站长备注
+          <span className="ml-1 text-xs">（仅后台可见）</span>
+        </div>
+      ) : null}
+      <textarea
+        className={
+          compact
+            ? "field min-h-[4.5rem] w-full resize-y py-2 text-xs leading-5"
+            : "field min-h-[5.5rem] w-full resize-y py-2.5 text-sm leading-5"
+        }
+        value={value}
+        maxLength={500}
+        disabled={busy}
+        placeholder="例如：老客户、电话跟进中…"
+        aria-label={`${user.name}的站长备注`}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          className={
+            compact
+              ? "btn btn-secondary min-h-9 px-2.5 text-xs touch-manipulation"
+              : "btn btn-secondary min-h-10 px-3 text-sm touch-manipulation"
+          }
+          disabled={busy || !dirty}
+          onClick={onSave}
+        >
+          {busy ? "保存中…" : "保存备注"}
+        </button>
+        <span className="text-[10px] text-[var(--muted)]">
+          {value.length}/500
+        </span>
+      </div>
     </div>
   );
 }
