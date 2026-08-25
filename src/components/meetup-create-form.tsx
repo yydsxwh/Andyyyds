@@ -8,7 +8,7 @@ export function MeetupCreateForm() {
     <MeetupEditorForm
       mode="create"
       apiPath="/api/meetup"
-      successHref={(id) => `/meetup/${id}`}
+      successHref="/meetup/{id}"
       submitLabel="发布约搭"
     />
   );

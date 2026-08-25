@@ -31,7 +31,7 @@ export default async function StudioMeetupNewPage() {
       <MeetupEditorForm
         mode="create"
         apiPath="/api/studio/meetups"
-        successHref={(id) => `/studio/meetup/${id}/edit`}
+        successHref="/studio/meetup/{id}/edit"
         submitLabel="创建并保存"
       />
     </div>
