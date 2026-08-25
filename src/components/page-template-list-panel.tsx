@@ -248,27 +248,28 @@ export function PageTemplateListPanel({ initial, siteUrl }: Props) {
                     ? `${publicTemplatePath(tpl)} · 设为默认可恢复原页`
                     : `${publicTemplatePath(tpl)} · ${tpl.modules.length} 个模块`}
                 </p>
-                <div className="flex items-center justify-center gap-1 border-t border-[var(--line)] pt-3">
+                {/* 文字按钮：手机无 hover 时图标不易辨认 */}
+                <div className="flex flex-wrap items-center justify-center gap-2 border-t border-[var(--line)] pt-3">
                   <button
                     type="button"
-                    className="min-h-10 min-w-10 rounded-xl text-[var(--muted)] hover:bg-white/70 hover:text-[var(--ink)]"
+                    className="inline-flex min-h-11 items-center rounded-xl border border-[var(--line)] bg-white px-3 text-sm text-[var(--muted)] touch-manipulation hover:text-[var(--ink)]"
                     title="复制链接"
                     onClick={() => copyLink(tpl)}
                   >
-                    🔗
+                    链接
                   </button>
                   {!tpl.locked ? (
                     <Link
                       href={`/studio/templates/${tpl.id}/edit`}
-                      className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-xl text-[var(--muted)] hover:bg-white/70 hover:text-[var(--ink)]"
+                      className="inline-flex min-h-11 items-center rounded-xl border border-[var(--brand)]/30 bg-[var(--brand-soft)] px-3 text-sm font-medium text-[var(--brand)] touch-manipulation"
                       title="编辑"
                     >
-                      ✎
+                      编辑
                     </Link>
                   ) : null}
                   <button
                     type="button"
-                    className="inline-flex min-h-10 items-center gap-1 rounded-xl px-2 text-xs font-medium text-[var(--brand)] hover:bg-[var(--brand-soft)] disabled:opacity-60"
+                    className="inline-flex min-h-11 items-center rounded-xl border border-[var(--line)] bg-white px-3 text-sm font-medium text-[var(--brand)] touch-manipulation hover:bg-[var(--brand-soft)] disabled:opacity-60"
                     title={tpl.locked ? "复制为可编辑模板" : "复制模板"}
                     disabled={busy === `dup-${tpl.id}`}
                     onClick={async () => {
@@ -289,7 +290,7 @@ export function PageTemplateListPanel({ initial, siteUrl }: Props) {
                   {!tpl.isDefault ? (
                     <button
                       type="button"
-                      className="min-h-10 rounded-xl px-2 text-xs text-[var(--brand)] hover:bg-white/70"
+                      className="inline-flex min-h-11 items-center rounded-xl border border-[var(--line)] bg-white px-3 text-sm text-[var(--brand)] touch-manipulation hover:bg-white/70"
                       title={
                         tpl.locked
                           ? "设为默认，恢复系统原页面"
@@ -310,7 +311,7 @@ export function PageTemplateListPanel({ initial, siteUrl }: Props) {
                   {!tpl.locked ? (
                     <button
                       type="button"
-                      className="min-h-10 min-w-10 rounded-xl text-[var(--muted)] hover:bg-rose-50 hover:text-[var(--fire)]"
+                      className="inline-flex min-h-11 items-center rounded-xl border border-[var(--fire)]/25 bg-white px-3 text-sm text-[var(--fire)] touch-manipulation hover:bg-rose-50 disabled:opacity-60"
                       title="删除"
                       disabled={busy === `del-${tpl.id}`}
                       onClick={() => {
@@ -322,7 +323,7 @@ export function PageTemplateListPanel({ initial, siteUrl }: Props) {
                         );
                       }}
                     >
-                      🗑
+                      删除
                     </button>
                   ) : null}
                 </div>

@@ -61,11 +61,12 @@ export default async function StudioDecoratePage() {
       {/* 本机体验开关：不写 decorateJson，避免全站访客被微信权限打扰 */}
       <TiltParallaxToggle />
 
-      <details className="surface rounded-[28px] p-5 sm:p-6">
-        <summary className="cursor-pointer list-none text-lg font-semibold">
+      {/* 手机默认展开：窄屏上折叠易被忽略，站长在微信里也要能直接改 Logo/Banner */}
+      <details open className="surface rounded-[28px] p-5 sm:p-6">
+        <summary className="cursor-pointer list-none touch-manipulation text-lg font-semibold">
           门面装修：Logo / 首页文案 / Banner / 点击链接
           <span className="mt-1 block text-sm font-normal text-[var(--muted)]">
-            点击展开，配置品牌标识、首页主视觉图片，以及每张图/按钮的跳转地址
+            配置品牌标识、首页主视觉图片，以及每张图/按钮的跳转地址
           </span>
         </summary>
         <div className="mt-6">

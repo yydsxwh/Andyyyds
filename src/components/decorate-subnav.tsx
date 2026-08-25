@@ -14,14 +14,17 @@ export type DecorateNavKey = (typeof LINKS)[number]["key"];
 
 export function DecorateSubnav({ current }: { current: DecorateNavKey }) {
   return (
-    <div className="flex flex-wrap gap-2">
+    <nav
+      className="flex gap-2 overflow-x-auto overscroll-x-contain pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      aria-label="装修子导航"
+    >
       {LINKS.map((link) => {
         const active = current === link.key;
         return (
           <Link
             key={link.key}
             href={link.href}
-            className={`min-h-10 whitespace-nowrap rounded-full px-4 py-2.5 text-base ${
+            className={`min-h-11 shrink-0 touch-manipulation whitespace-nowrap rounded-full px-4 py-2.5 text-base ${
               active
                 ? "bg-[var(--brand-soft)] font-medium text-[var(--brand)]"
                 : "border border-[var(--line)] bg-white/70 text-[var(--muted)] hover:text-[var(--ink)]"
@@ -31,6 +34,6 @@ export function DecorateSubnav({ current }: { current: DecorateNavKey }) {
           </Link>
         );
       })}
-    </div>
+    </nav>
   );
 }

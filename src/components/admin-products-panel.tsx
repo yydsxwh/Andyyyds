@@ -49,7 +49,7 @@ type Props = {
 
 /**
  * 站长产品管理面板：拖拽调序、置顶/精华开关、上下架；编辑链到已有课程编辑页。
- * 触控可用：手柄区域足够大；微信内同样可点开关与保存。
+ * 微信/iOS 常不支持 HTML5 DnD，故同时提供上移/下移按钮保证手机可调序。
  */
 export function AdminProductsPanel({ initialProducts }: Props) {
   const router = useRouter();
@@ -188,7 +188,7 @@ export function AdminProductsPanel({ initialProducts }: Props) {
       </div>
 
       <p className="text-xs text-[var(--muted)]">
-        拖拽左侧手柄调整展示次序（置顶产品仍会排在非置顶之前）。精华仅作前台角标。
+        可用左侧手柄拖拽，或点「上移 / 下移」调整展示次序（置顶产品仍会排在非置顶之前）。精华仅作前台角标。
         有报名/订单时建议「下架」保留履约数据；硬删除会移除订单与报名且不可恢复。
       </p>
 
@@ -225,22 +225,44 @@ export function AdminProductsPanel({ initialProducts }: Props) {
             }`}
           >
             <div className="flex gap-3">
-              <button
-                type="button"
-                draggable
-                className="flex h-11 w-11 shrink-0 cursor-grab items-center justify-center rounded-xl border border-[var(--line)] bg-white text-[var(--muted)] active:cursor-grabbing"
-                aria-label={`拖拽调整「${product.title}」顺序`}
-                title="按住拖动调整顺序"
-                onDragStart={(e) => {
-                  e.dataTransfer.setData(DND_MIME, String(index));
-                  e.dataTransfer.effectAllowed = "move";
-                }}
-                onDragEnd={() => setDragOverIndex(null)}
-              >
-                <span aria-hidden className="select-none text-base leading-none">
-                  ⋮⋮
-                </span>
-              </button>
+              <div className="flex shrink-0 flex-col gap-1">
+                <button
+                  type="button"
+                  draggable
+                  className="flex h-11 w-11 cursor-grab items-center justify-center rounded-xl border border-[var(--line)] bg-white text-[var(--muted)] touch-manipulation active:cursor-grabbing"
+                  aria-label={`拖拽调整「${product.title}」顺序`}
+                  title="按住拖动调整顺序"
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData(DND_MIME, String(index));
+                    e.dataTransfer.effectAllowed = "move";
+                  }}
+                  onDragEnd={() => setDragOverIndex(null)}
+                >
+                  <span aria-hidden className="select-none text-base leading-none">
+                    ⋮⋮
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary min-h-11 min-w-11 touch-manipulation px-2 text-sm disabled:opacity-40"
+                  disabled={busy || index === 0}
+                  onClick={() => moveItem(index, index - 1)}
+                  aria-label={`将「${product.title}」上移`}
+                  title="上移"
+                >
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary min-h-11 min-w-11 touch-manipulation px-2 text-sm disabled:opacity-40"
+                  disabled={busy || index === visible.length - 1}
+                  onClick={() => moveItem(index, index + 1)}
+                  aria-label={`将「${product.title}」下移`}
+                  title="下移"
+                >
+                  ↓
+                </button>
+              </div>
 
               <div className="min-w-0 flex-1 space-y-3">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -284,7 +306,7 @@ export function AdminProductsPanel({ initialProducts }: Props) {
                 </div>
 
                 <div className="flex flex-wrap gap-2">
-                  <label className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[var(--line)] bg-white px-3 text-sm">
+                  <label className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[var(--line)] bg-white px-3 text-sm touch-manipulation">
                     <input
                       type="checkbox"
                       className="h-4 w-4"
@@ -296,7 +318,7 @@ export function AdminProductsPanel({ initialProducts }: Props) {
                     />
                     置顶
                   </label>
-                  <label className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[var(--line)] bg-white px-3 text-sm">
+                  <label className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[var(--line)] bg-white px-3 text-sm touch-manipulation">
                     <input
                       type="checkbox"
                       className="h-4 w-4"
@@ -310,7 +332,7 @@ export function AdminProductsPanel({ initialProducts }: Props) {
                     />
                     精华
                   </label>
-                  <label className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[var(--line)] bg-white px-3 text-sm">
+                  <label className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[var(--line)] bg-white px-3 text-sm touch-manipulation">
                     <input
                       type="checkbox"
                       className="h-4 w-4"
@@ -333,7 +355,7 @@ export function AdminProductsPanel({ initialProducts }: Props) {
                           product.status === "PUBLISHED" ? "DRAFT" : "PUBLISHED",
                       })
                     }
-                    className="inline-flex min-h-11 items-center rounded-full border border-[var(--line)] bg-white px-3 text-sm disabled:opacity-50"
+                    className="inline-flex min-h-11 items-center rounded-full border border-[var(--line)] bg-white px-3 text-sm touch-manipulation disabled:opacity-50"
                   >
                     {product.status === "PUBLISHED" ? "下架" : "上架"}
                   </button>
@@ -345,7 +367,7 @@ export function AdminProductsPanel({ initialProducts }: Props) {
                           ? "/studio/shop"
                           : `/studio/courses/${product.id}/edit`
                     }
-                    className="inline-flex min-h-11 items-center rounded-full border border-[var(--line)] bg-white px-3 text-sm font-medium text-[var(--brand)]"
+                    className="inline-flex min-h-11 items-center rounded-full border border-[var(--line)] bg-white px-3 text-sm font-medium text-[var(--brand)] touch-manipulation"
                   >
                     {isMeetupProductType(product.productType)
                       ? "编辑活动"
@@ -353,7 +375,7 @@ export function AdminProductsPanel({ initialProducts }: Props) {
                   </Link>
                   <Link
                     href={productDetailPath(product.slug, product.productType)}
-                    className="inline-flex min-h-11 items-center rounded-full border border-[var(--line)] bg-white px-3 text-sm text-[var(--muted)]"
+                    className="inline-flex min-h-11 items-center rounded-full border border-[var(--line)] bg-white px-3 text-sm text-[var(--muted)] touch-manipulation"
                   >
                     前台
                   </Link>

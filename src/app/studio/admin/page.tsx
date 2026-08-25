@@ -265,7 +265,7 @@ export default async function StudioAdminHubPage() {
             <Link
               key={item.href + item.label}
               href={item.href}
-              className="surface flex min-h-[5.5rem] flex-col justify-center rounded-[22px] px-4 py-3 transition hover:-translate-y-0.5 hover:border-[var(--brand)]/35"
+              className="surface flex min-h-[5.5rem] flex-col justify-center rounded-[22px] px-4 py-3 touch-manipulation transition hover:-translate-y-0.5 hover:border-[var(--brand)]/35 active:bg-black/[0.03]"
             >
               <span className="font-semibold text-[var(--ink)]">{item.label}</span>
               <span className="mt-1 text-xs text-[var(--muted)]">{item.hint}</span>
