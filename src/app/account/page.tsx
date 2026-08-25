@@ -210,12 +210,13 @@ export default async function AccountPage() {
 
       {/* —— 邮箱 / 手机 / 微信绑定（三种登录共用同一账号） —— */}
       <AccountAuthPanel
-        username={user?.username || ""}
         email={accountEmail}
         phone={user?.phone || ""}
-        hasWechatOa={Boolean(user?.wechatOpenId)}
-        hasWechatWeb={Boolean(user?.wechatWebOpenId)}
-        hasWechatMobile={Boolean(user?.wechatMobileOpenId)}
+        hasWechat={Boolean(
+          user?.wechatOpenId ||
+            user?.wechatWebOpenId ||
+            user?.wechatMobileOpenId,
+        )}
         passwordSet={user?.passwordSet !== false}
       />
 
