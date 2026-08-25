@@ -18,6 +18,7 @@ function mapUser(u: {
   roleApplicationNote: string;
   roleReviewedAt: Date | null;
   referralCode: string;
+  adminNote: string;
   wechatOpenId: string;
   wechatWebOpenId: string;
   createdAt: Date;
@@ -51,6 +52,7 @@ function mapUser(u: {
     roleApplicationNote: u.roleApplicationNote,
     roleReviewedAt: u.roleReviewedAt?.toISOString() ?? null,
     referralCode: u.referralCode,
+    adminNote: u.adminNote || "",
     referredById: u.referredBy?.id || "",
     referredByName: u.referredBy?.name || "",
     referredByCode: u.referredBy?.referralCode || "",
@@ -90,6 +92,7 @@ export default async function StudioUsersPage() {
     roleApplicationNote: true,
     roleReviewedAt: true,
     referralCode: true,
+    adminNote: true,
     wechatOpenId: true,
     wechatWebOpenId: true,
     createdAt: true,
@@ -137,7 +140,7 @@ export default async function StudioUsersPage() {
       <div>
         <h1 className="text-3xl font-semibold">用户管理</h1>
         <p className="mt-2 text-sm text-[var(--muted)]">
-          查看注册用户、邀请关系、审核角色申请；可为同一用户勾选多种身份（如老师+商家）。至少保留一位站长。
+          查看注册用户、邀请关系、审核角色申请；可为同一用户勾选多种身份（如老师+商家）；可为每位用户写站长备注（仅后台可见）。至少保留一位站长。
         </p>
       </div>
       <UserAdminPanel
