@@ -212,11 +212,9 @@ export default async function AccountPage() {
       <AccountAuthPanel
         email={accountEmail}
         phone={user?.phone || ""}
-        hasWechat={Boolean(
-          user?.wechatOpenId ||
-            user?.wechatWebOpenId ||
-            user?.wechatMobileOpenId,
-        )}
+        hasWechatOa={Boolean(user?.wechatOpenId)}
+        hasWechatWeb={Boolean(user?.wechatWebOpenId)}
+        hasWechatMobile={Boolean(user?.wechatMobileOpenId)}
         passwordSet={user?.passwordSet !== false}
       />
 
