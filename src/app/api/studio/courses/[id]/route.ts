@@ -4,6 +4,7 @@ import {
   replaceColumnBundleItems,
   resolveBundleCourses,
 } from "@/lib/course-bundle";
+import { markTranslationsStale } from "@/lib/i18n/content-translate";
 import { prisma } from "@/lib/db";
 import { PRODUCT_TITLE_MAX } from "@/lib/media";
 import { yuanToCents } from "@/lib/money";
@@ -373,6 +374,29 @@ export async function PATCH(
     });
 
     const updated = await getOwnedCourse(course.id, session.id, session.role);
+    // 源文变更后标记各语种译文过期，便于一键重翻
+    if (updated) {
+      await Promise.all([
+        markTranslationsStale({
+          entityType: "course",
+          entityId: updated.id,
+          field: "title",
+          source: updated.title,
+        }),
+        markTranslationsStale({
+          entityType: "course",
+          entityId: updated.id,
+          field: "subtitle",
+          source: updated.subtitle || "",
+        }),
+        markTranslationsStale({
+          entityType: "course",
+          entityId: updated.id,
+          field: "description",
+          source: updated.description || "",
+        }),
+      ]);
+    }
     return NextResponse.json({ course: serializeCourse(updated!) });
   } catch (error) {
     const mapped = studioErrorResponse(error);

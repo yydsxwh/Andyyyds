@@ -9,6 +9,13 @@ import {
 } from "@/lib/lesson-kinds";
 import { formatBytes } from "@/lib/media";
 
+type LessonResource = {
+  id: string;
+  title: string;
+  fileName: string;
+  sizeBytes: number;
+};
+
 type Lesson = {
   id: string;
   title: string;
@@ -20,6 +27,7 @@ type Lesson = {
   liveAt: string | null;
   fileName?: string;
   fileSizeBytes?: number;
+  resources?: LessonResource[];
 };
 
 type Chapter = {
@@ -37,6 +45,11 @@ type Props = {
   enrollmentId?: string;
   /** MATERIAL：资料包走预览/下载，不按视频课交互 */
   productType?: string;
+  /**
+   * 防录屏弱水印：叠学员姓名 + 截断 id / 脱敏手机，
+   * 无法防专业盗版，但可提高传播追责成本。
+   */
+  watermarkText?: string;
 };
 
 export function LearnPlayer({
@@ -47,6 +60,7 @@ export function LearnPlayer({
   progressMap,
   enrollmentId,
   productType = "COURSE",
+  watermarkText = "",
 }: Props) {
   const router = useRouter();
   const isMaterial = productType === "MATERIAL";
@@ -315,7 +329,7 @@ export function LearnPlayer({
                 {accessError}
               </div>
             ) : accessUrl ? (
-              <>
+              <div className="relative">
                 <video
                   key={accessUrl}
                   ref={(el) => {
@@ -341,6 +355,19 @@ export function LearnPlayer({
                     "x5-video-orientation": "landscape",
                   }}
                 />
+                {/* 学员水印：CSS 叠加，录屏/截图带身份便于追责（非 DRM） */}
+                {watermarkText ? (
+                  <div
+                    className="learn-watermark pointer-events-none absolute inset-0 overflow-hidden"
+                    aria-hidden
+                  >
+                    <div className="learn-watermark-tile">
+                      {Array.from({ length: 18 }, (_, i) => (
+                        <span key={i}>{watermarkText}</span>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
                 {landscapeFs ? (
                   <button
                     type="button"
@@ -358,7 +385,7 @@ export function LearnPlayer({
                     横屏全屏
                   </button>
                 )}
-              </>
+              </div>
             ) : (
               <div className="flex aspect-video items-center justify-center bg-[var(--bg-deep)] text-sm text-[var(--muted)]">
                 正在加载播放地址…
@@ -399,6 +426,36 @@ export function LearnPlayer({
             >
               {isMaterial ? "标记已查看" : "标记已学完"}
             </button>
+          ) : null}
+
+          {!locked && (active.resources?.length || 0) > 0 ? (
+            <div className="mt-5 border-t border-[var(--line)] pt-4">
+              <h3 className="text-sm font-semibold">本课课件</h3>
+              <p className="mt-1 text-xs text-[var(--muted)]">
+                下载需登录且已报名；链接短时有效，请勿转发。
+              </p>
+              <ul className="mt-3 space-y-2">
+                {active.resources!.map((r) => (
+                  <li key={r.id}>
+                    <a
+                      href={`/api/learn/resources/${r.id}/download`}
+                      className="btn btn-secondary flex min-h-11 w-full items-center justify-between gap-2 px-4 text-left text-sm"
+                    >
+                      <span className="min-w-0 truncate">
+                        {r.title}
+                        <span className="mt-0.5 block truncate text-xs opacity-80">
+                          {r.fileName}
+                          {r.sizeBytes > 0
+                            ? ` · ${formatBytes(r.sizeBytes)}`
+                            : ""}
+                        </span>
+                      </span>
+                      <span className="shrink-0">下载</span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
           ) : null}
         </div>
       </div>

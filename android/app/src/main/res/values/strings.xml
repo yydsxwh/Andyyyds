@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">歪歪滴艾斯</string>
+    <string name="title_activity_main">歪歪滴艾斯</string>
+    <string name="package_name">com.yydsxwh.app</string>
+    <string name="custom_url_scheme">com.yydsxwh.app</string>
+</resources>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useLocale } from "@/components/i18n/locale-provider";
 import { OrderFormFields } from "@/components/order-form-fields";
 import { COUPON_QUERY_KEY, COUPON_STORAGE_KEY } from "@/lib/coupon-share";
 import { normalizeCouponCode } from "@/lib/coupons";
@@ -68,6 +69,7 @@ export function PurchasePanel({
 }: Props) {
   const goLearn = learnHref || `/learn/${slug}`;
   const router = useRouter();
+  const { t } = useLocale();
   const [couponCode, setCouponCode] = useState("");
   const [selectedCouponId, setSelectedCouponId] = useState("");
   const [available, setAvailable] = useState<AvailableCoupon[]>([]);
@@ -353,7 +355,7 @@ export function PurchasePanel({
         type="button"
       >
         {loading
-          ? "处理中..."
+          ? t("common.loading")
           : buyCtaLabel
             ? willZeroPay
               ? isMeetup
@@ -362,9 +364,9 @@ export function PurchasePanel({
               : buyCtaLabel
             : isFree || price <= 0 || willZeroPay
               ? isMeetup
-                ? "0 元报名"
+                ? t("cta.freeJoin")
                 : "0 元开通"
-              : "立即购买"}
+              : t("cta.buy")}
       </button>
       {message ? <p className="mt-3 text-sm text-red-700">{message}</p> : null}
     </div>

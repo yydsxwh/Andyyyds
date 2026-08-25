@@ -43,6 +43,9 @@ export type SiteSettingsRow = {
   wechatAppSecret: string;
   wechatWebAppId: string;
   wechatWebAppSecret: string;
+  /** 开放平台「移动应用」AppID（Android Capacitor 微信快捷登录） */
+  wechatMobileAppId: string;
+  wechatMobileAppSecret: string;
   wechatMchId: string;
   wechatApiV3Key: string;
   wechatMchSerialNo: string;
@@ -115,6 +118,10 @@ export async function getSiteSettings(): Promise<SiteSettingsRow> {
   // 兼容迁移前后旧进程：缺字段时补默认，避免读配置崩溃
   const normalized = {
     ...row,
+    wechatMobileAppId:
+      (row as { wechatMobileAppId?: string }).wechatMobileAppId || "",
+    wechatMobileAppSecret:
+      (row as { wechatMobileAppSecret?: string }).wechatMobileAppSecret || "",
     defaultLocale:
       (row as { defaultLocale?: string }).defaultLocale || "zh-Hans",
     enabledLocalesJson:
@@ -244,6 +251,10 @@ export function publicSiteSettings(row: SiteSettingsRow) {
     wechatWebAppSecret: row.wechatWebAppSecret
       ? maskSecret(row.wechatWebAppSecret)
       : "",
+    wechatMobileAppId: row.wechatMobileAppId || "",
+    wechatMobileAppSecret: row.wechatMobileAppSecret
+      ? maskSecret(row.wechatMobileAppSecret)
+      : "",
     wechatMchId: row.wechatMchId,
     wechatApiV3Key: maskSecret(row.wechatApiV3Key),
     wechatMchSerialNo: row.wechatMchSerialNo,
@@ -263,6 +274,11 @@ export function publicSiteSettings(row: SiteSettingsRow) {
     wechatWebOauthConfigured: Boolean(
       (row.wechatWebAppId || process.env.WECHAT_WEB_APP_ID) &&
         (row.wechatWebAppSecret || process.env.WECHAT_WEB_APP_SECRET),
+    ),
+    // 开放平台移动应用（Android App 微信 SDK 登录）是否已配齐
+    wechatMobileOauthConfigured: Boolean(
+      (row.wechatMobileAppId || process.env.WECHAT_MOBILE_APP_ID) &&
+        (row.wechatMobileAppSecret || process.env.WECHAT_MOBILE_APP_SECRET),
     ),
     alipayAppId: row.alipayAppId,
     alipayPrivateKey: row.alipayPrivateKey ? maskSecret(row.alipayPrivateKey, 8) : "",

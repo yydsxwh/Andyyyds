@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ImageUrlField } from "@/components/image-url-field";
+import { LessonResourcesEditor } from "@/components/lesson-resources-editor";
 import {
   MediaAssetPickerModal,
   type PickerMediaAsset,
@@ -956,6 +957,11 @@ export function EditCourseForm({
                         />
                       </label>
                     </div>
+
+                    <LessonResourcesEditor
+                      courseId={course.id}
+                      lessonId={lesson.id}
+                    />
                   </div>
                 ))}
               </div>

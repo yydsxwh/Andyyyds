@@ -111,12 +111,20 @@ export async function collectAllTranslateItems(): Promise<TranslateJobItem[]> {
     push(items, "portal", "default", "company.title", company.title || "");
     push(items, "portal", "default", "company.subtitle", company.subtitle || "");
     push(items, "portal", "default", "company.body", company.body || "");
+    for (const [i, h] of (company.highlights || []).entries()) {
+      push(items, "portal", "default", `company.highlights.${i}.label`, h.label || "");
+      push(items, "portal", "default", `company.highlights.${i}.text`, h.text || "");
+    }
   }
   const person = portal.person;
   if (person) {
     push(items, "portal", "default", "person.title", person.title || "");
     push(items, "portal", "default", "person.subtitle", person.subtitle || "");
     push(items, "portal", "default", "person.body", person.body || "");
+    for (const [i, h] of (person.highlights || []).entries()) {
+      push(items, "portal", "default", `person.highlights.${i}.label`, h.label || "");
+      push(items, "portal", "default", `person.highlights.${i}.text`, h.text || "");
+    }
   }
 
   return items;

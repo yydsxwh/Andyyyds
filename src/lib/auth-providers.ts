@@ -5,12 +5,19 @@
  * 注册页可带 requestedRole（代理/商家/老师待审）；登录页新建账号一律学员。
  */
 
-import { createSession, hashPassword, makeReferralCode } from "./auth";
 import {
+  createSession,
+  hashPassword,
+  makeReferralCode,
+  verifyPassword,
+} from "./auth";
+import {
+  accountPlaceholderEmail,
   isPlaceholderEmail,
   phonePlaceholderEmail,
   wechatPlaceholderEmail,
 } from "./auth-email";
+import { validateUsername } from "./auth-username";
 import { prisma } from "./db";
 import {
   fieldsForSignup,
@@ -24,6 +31,7 @@ import {
 } from "./roles";
 
 export {
+  accountPlaceholderEmail,
   isPlaceholderEmail,
   phonePlaceholderEmail,
   wechatPlaceholderEmail,
@@ -94,25 +102,27 @@ async function resolveReferrerId(referralCode?: string) {
   return inviter?.id;
 }
 
-/** oa=公众号 openid（JSAPI）；web=网站应用扫码 openid（勿写入 wechatOpenId） */
-export type WechatIdentityChannel = "oa" | "web";
+/** oa=公众号；web=网站扫码；mobile=Android App 微信 SDK */
+export type WechatIdentityChannel = "oa" | "web" | "mobile";
 
 /** 仅查找微信身份对应用户，不建号、不写会话（用于静默登录分流） */
 export async function findUserByWechatIdentity(input: {
   openid: string;
   unionid?: string;
-  /** 默认 oa：按公众号 openid 查；web 按网站应用 openid 查；均再按 unionid 兜底 */
+  /** 默认 oa：按公众号 openid 查；web/mobile 按各自字段查；均再按 unionid 兜底 */
   channel?: WechatIdentityChannel;
 }) {
   const openid = input.openid.trim();
   if (!openid) return null;
   const unionid = (input.unionid || "").trim();
   const channel = input.channel || "oa";
-  // 先按本渠道 openid，再按 unionid（公众号与网站应用绑同一开放平台时可合并账号）
+  // 先按本渠道 openid，再按 unionid（绑同一开放平台时可合并账号）
   const byOpenId =
     channel === "web"
       ? await prisma.user.findFirst({ where: { wechatWebOpenId: openid } })
-      : await prisma.user.findFirst({ where: { wechatOpenId: openid } });
+      : channel === "mobile"
+        ? await prisma.user.findFirst({ where: { wechatMobileOpenId: openid } })
+        : await prisma.user.findFirst({ where: { wechatOpenId: openid } });
   if (byOpenId) return byOpenId;
   if (!unionid) return null;
   return prisma.user.findFirst({ where: { wechatUnionId: unionid } });
@@ -158,10 +168,12 @@ export async function findOrCreateUserByWechat(input: {
         email: wechatPlaceholderEmail(openid),
         passwordHash: await unusablePasswordHash(),
         passwordSet: false,
-        // 扫码建号只写 wechatWebOpenId，保留 wechatOpenId 给公众号/JSAPI
+        // 各渠道 openid 分字段存，避免 JSAPI / 扫码 / App 登录互相覆盖
         ...(channel === "web"
           ? { wechatWebOpenId: openid }
-          : { wechatOpenId: openid }),
+          : channel === "mobile"
+            ? { wechatMobileOpenId: openid }
+            : { wechatOpenId: openid }),
         wechatUnionId: unionid,
         referralCode: makeReferralCode(),
         referredById: await resolveReferrerId(input.referralCode),
@@ -173,12 +185,15 @@ export async function findOrCreateUserByWechat(input: {
     const patch: {
       wechatOpenId?: string;
       wechatWebOpenId?: string;
+      wechatMobileOpenId?: string;
       wechatUnionId?: string;
       name?: string;
       avatarUrl?: string;
     } = {};
     if (channel === "web") {
       if (user.wechatWebOpenId !== openid) patch.wechatWebOpenId = openid;
+    } else if (channel === "mobile") {
+      if (user.wechatMobileOpenId !== openid) patch.wechatMobileOpenId = openid;
     } else if (!user.wechatOpenId && openid) {
       patch.wechatOpenId = openid;
     }
@@ -217,10 +232,15 @@ export async function bindWechatToUser(input: {
           where: { wechatWebOpenId: openid, NOT: { id: input.userId } },
           select: { id: true },
         })
-      : await prisma.user.findFirst({
-          where: { wechatOpenId: openid, NOT: { id: input.userId } },
-          select: { id: true },
-        });
+      : channel === "mobile"
+        ? await prisma.user.findFirst({
+            where: { wechatMobileOpenId: openid, NOT: { id: input.userId } },
+            select: { id: true },
+          })
+        : await prisma.user.findFirst({
+            where: { wechatOpenId: openid, NOT: { id: input.userId } },
+            select: { id: true },
+          });
   if (occupied) {
     throw new Error("该微信已绑定其他账号，请先用微信登录原账号或联系站长");
   }
@@ -233,7 +253,9 @@ export async function bindWechatToUser(input: {
     data: {
       ...(channel === "web"
         ? { wechatWebOpenId: openid }
-        : { wechatOpenId: openid }),
+        : channel === "mobile"
+          ? { wechatMobileOpenId: openid }
+          : { wechatOpenId: openid }),
       ...(unionid ? { wechatUnionId: unionid } : {}),
       ...(nickname ? { name: nickname } : {}),
       ...(headimgurl ? { avatarUrl: headimgurl } : {}),
@@ -350,4 +372,134 @@ export async function bindEmailToUser(input: {
     where: { id: input.userId },
     data: { email },
   });
+}
+
+/**
+ * 已登录用户绑定或更换登录账号（username）。
+ * 被其他用户占用则拒绝；未设密码时须同时设密码，才能用账号登录。
+ */
+export async function bindUsernameToUser(input: {
+  userId: string;
+  username: string;
+  /** 当前用户尚未设密码时必填 */
+  password?: string;
+}) {
+  const checked = validateUsername(input.username);
+  if (!checked.ok) throw new Error(checked.error);
+
+  const user = await prisma.user.findUnique({
+    where: { id: input.userId },
+    select: { id: true, passwordSet: true, username: true },
+  });
+  if (!user) throw new Error("用户不存在");
+
+  const occupied = await prisma.user.findFirst({
+    where: {
+      username: checked.username,
+      NOT: { id: input.userId },
+    },
+    select: { id: true },
+  });
+  if (occupied) {
+    throw new Error("该登录账号已被其他用户占用");
+  }
+
+  const data: {
+    username: string;
+    passwordHash?: string;
+    passwordSet?: boolean;
+  } = { username: checked.username };
+
+  if (!user.passwordSet) {
+    const password = (input.password || "").trim();
+    if (password.length < 6) {
+      throw new Error("请同时设置至少 6 位登录密码，以便用账号登录");
+    }
+    data.passwordHash = await hashPassword(password);
+    data.passwordSet = true;
+  }
+
+  await prisma.user.update({
+    where: { id: input.userId },
+    data,
+  });
+
+  return { username: checked.username, passwordSet: true as const };
+}
+
+/**
+ * 账号 + 密码注册（与邮箱注册分开：身份靠 username，邮箱为占位）。
+ */
+export async function registerUserByUsername(input: {
+  username: string;
+  password: string;
+  name: string;
+  referralCode?: string;
+  requestedRole?: string;
+}): Promise<{ userId: string; result: AuthResultPayload }> {
+  const checked = validateUsername(input.username);
+  if (!checked.ok) throw new Error(checked.error);
+
+  const password = (input.password || "").trim();
+  if (password.length < 6) {
+    throw new Error("密码至少 6 位");
+  }
+  const name = (input.name || "").trim();
+  if (!name) throw new Error("请填写昵称");
+
+  const exists = await prisma.user.findUnique({
+    where: { username: checked.username },
+    select: { id: true },
+  });
+  if (exists) {
+    throw new Error("该登录账号已被注册，请换一个或直接登录");
+  }
+
+  const applyRole = resolveApplyRole(input.requestedRole);
+  const roleFields = fieldsForSignup(applyRole);
+  const user = await prisma.user.create({
+    data: {
+      name,
+      username: checked.username,
+      email: accountPlaceholderEmail(checked.username),
+      passwordHash: await hashPassword(password),
+      passwordSet: true,
+      referralCode: makeReferralCode(),
+      referredById: await resolveReferrerId(input.referralCode),
+      ...roleFields,
+    },
+  });
+
+  const result = await sessionPayloadForUser(user);
+  return { userId: user.id, result };
+}
+
+/**
+ * 账号 + 密码登录（只查 username，不走邮箱字段）。
+ */
+export async function loginUserByUsername(input: {
+  username: string;
+  password: string;
+}): Promise<{ userId: string; result: AuthResultPayload }> {
+  const checked = validateUsername(input.username);
+  if (!checked.ok) throw new Error(checked.error);
+
+  const password = (input.password || "").trim();
+  if (password.length < 6) {
+    throw new Error("密码至少 6 位");
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { username: checked.username },
+  });
+  if (
+    !user ||
+    !user.passwordSet ||
+    !(await verifyPassword(password, user.passwordHash))
+  ) {
+    throw new Error("账号或密码错误");
+  }
+
+  const result = await sessionPayloadForUser(user);
+  return { userId: user.id, result };
 }

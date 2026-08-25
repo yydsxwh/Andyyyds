@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import type { CSSProperties } from "react";
+import Link from "next/link";
 import { BgMusicPlayer } from "@/components/bg-music-player";
 import { CouponCapture } from "@/components/coupon-capture";
 import { LocaleProvider } from "@/components/i18n/locale-provider";
@@ -165,7 +166,15 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                     </span>
                   ) : null}
                 </div>
-                <span title={siteNameEn || undefined}>{siteName}</span>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                  <span title={siteNameEn || undefined}>{siteName}</span>
+                  <Link
+                    href="/app"
+                    className="min-h-11 inline-flex items-center text-[var(--brand)] underline-offset-2 hover:underline"
+                  >
+                    下载 Android 应用
+                  </Link>
+                </div>
               </div>
             </footer>
           </TiltParallaxProvider>

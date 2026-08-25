@@ -8,6 +8,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { BilingualHover } from "@/components/i18n/bilingual-hover";
 import { InviteSharePanel } from "@/components/invite-share-panel";
 import { OrderFormFields } from "@/components/order-form-fields";
 import { COUPON_QUERY_KEY, COUPON_STORAGE_KEY } from "@/lib/coupon-share";
@@ -61,6 +62,8 @@ export type MeetupDetailSlot = {
 export type MeetupDetailData = {
   id: string;
   title: string;
+  /** 站长双语：悬浮英文 */
+  titleSecondary?: string;
   description: string;
   contentHtml: string;
   priceCents: number;
@@ -72,6 +75,7 @@ export type MeetupDetailData = {
   /** IANA；展示用活动时区墙钟 */
   timezone?: string | null;
   place: string;
+  placeSecondary?: string;
   maxPeople: number;
   coverUrl: string;
   tags: string[];
@@ -658,7 +662,12 @@ export function MeetupDetailView({
             )}
           </div>
           <h1 className="mt-3 text-lg font-semibold leading-snug sm:text-xl">
-            {meetup.title}
+            <BilingualHover
+              as="span"
+              className="block"
+              primary={meetup.title}
+              secondary={meetup.titleSecondary}
+            />
           </h1>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             {meetup.autoRefund ? (

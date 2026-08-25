@@ -788,6 +788,26 @@ body.learn-landscape-fs {
   position: relative;
 }
 
+/* 斜向重复水印：低对比度不挡操作，录屏仍可读身份 */
+.learn-watermark {
+  z-index: 2;
+}
+
+.learn-watermark-tile {
+  position: absolute;
+  inset: -40%;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3.5rem 2rem;
+  transform: rotate(-28deg);
+  font-size: 13px;
+  line-height: 1.2;
+  color: rgba(255, 255, 255, 0.22);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  user-select: none;
+  white-space: nowrap;
+}
+
 .learn-video-shell[data-landscape-fs="1"] {
   position: fixed;
   z-index: 10050;
@@ -1057,8 +1077,6 @@ html[data-theme-fx="island-breath"]::after {
     width: 50%;
   }
 }
-
-
 
 @media (prefers-reduced-motion: reduce) {
   html[data-theme-fx^="island-"]::before,

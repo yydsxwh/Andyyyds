@@ -17,6 +17,8 @@ export type PublicSettings = {
   wechatAppSecret: string;
   wechatWebAppId: string;
   wechatWebAppSecret: string;
+  wechatMobileAppId: string;
+  wechatMobileAppSecret: string;
   wechatMchId: string;
   wechatApiV3Key: string;
   wechatMchSerialNo: string;
@@ -24,6 +26,7 @@ export type PublicSettings = {
   wechatConfigured: boolean;
   wechatOauthConfigured?: boolean;
   wechatWebOauthConfigured?: boolean;
+  wechatMobileOauthConfigured?: boolean;
   alipayAppId: string;
   alipayPrivateKey: string;
   alipayPublicKey: string;
@@ -98,6 +101,7 @@ type SettingsSectionId =
   | "commission"
   | "wechat-mp"
   | "wechat-web"
+  | "wechat-mobile"
   | "wechat"
   | "sms"
   | "alipay"
@@ -170,8 +174,11 @@ export function SiteSettingsPanel({ initial }: Props) {
     wechatAppSecret: initial.wechatAppSecret || "",
     wechatWebAppId: initial.wechatWebAppId || "",
     wechatWebAppSecret: initial.wechatWebAppSecret || "",
+    wechatMobileAppId: initial.wechatMobileAppId || "",
+    wechatMobileAppSecret: initial.wechatMobileAppSecret || "",
     wechatOauthConfigured: Boolean(initial.wechatOauthConfigured),
     wechatWebOauthConfigured: Boolean(initial.wechatWebOauthConfigured),
+    wechatMobileOauthConfigured: Boolean(initial.wechatMobileOauthConfigured),
     ossRegion: initial.ossRegion || "oss-cn-hongkong",
     ossBucket: initial.ossBucket || "yydsxwh-course-media",
     ossPrefix: initial.ossPrefix || "uploads",
@@ -297,6 +304,11 @@ export function SiteSettingsPanel({ initial }: Props) {
           wechatWebAppId: form.wechatWebAppId,
           wechatWebAppSecret: form.wechatWebAppSecret,
         };
+      case "wechat-mobile":
+        return {
+          wechatMobileAppId: form.wechatMobileAppId,
+          wechatMobileAppSecret: form.wechatMobileAppSecret,
+        };
       case "wechat":
         return {
           wechatEnabled: form.wechatEnabled,
@@ -355,6 +367,7 @@ export function SiteSettingsPanel({ initial }: Props) {
     commission: "分成与抽成已保存",
     "wechat-mp": "微信公众号接口已保存",
     "wechat-web": "微信扫码登录已保存",
+    "wechat-mobile": "微信 App 快捷登录已保存",
     wechat: "微信支付已保存",
     sms: "短信登录已保存",
     alipay: "支付宝支付已保存",
@@ -794,6 +807,67 @@ export function SiteSettingsPanel({ initial }: Props) {
           </Field>
         </div>
         {sectionSaveBar("wechat-web")}
+      </SettingsSection>
+
+      {/*
+        开放平台移动应用：Android Capacitor App 微信快捷登录。
+        包名 / 签名须与开放平台登记一致，否则 SDK 授权失败。
+      */}
+      <SettingsSection
+        id="wechat-mobile"
+        title="微信 App 快捷登录（开放平台移动应用）"
+        summary={
+          form.wechatMobileOauthConfigured
+            ? "移动应用 AppID / AppSecret 已配置 · App 快捷登录可用"
+            : form.wechatMobileAppId?.trim()
+              ? "已填 AppID · 请补全 AppSecret"
+              : "未配置"
+        }
+        open={openSections.has("wechat-mobile")}
+        onToggle={toggleSection}
+      >
+        <p className="rounded-2xl bg-[var(--bg-deep)]/60 px-3 py-2 text-xs leading-5 text-[var(--muted)]">
+          用于 Android 安装包内的「微信快捷登录」。请到
+          <span className="text-[var(--ink)]">微信开放平台</span>
+          → 管理中心 → 移动应用，创建应用并填写：
+          <br />
+          · 应用包名{" "}
+          <code className="text-[var(--ink)]">com.yydsxwh.app</code>
+          <br />
+          · 应用签名{" "}
+          <span className="text-[var(--ink)]">MD5</span>
+          （32 位小写、无冒号；debug 包见 android/README.md 取签名说明）
+          <br />
+          建议与公众号、网站应用绑定同一开放平台账号，以便拿到 unionid
+          自动合并用户。
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field
+            label="移动应用 AppID"
+            hint="开放平台「移动应用」的 AppID，不是公众号 / 网站应用 AppID"
+          >
+            <input
+              className={inputClass}
+              value={form.wechatMobileAppId}
+              onChange={(e) => set("wechatMobileAppId", e.target.value)}
+              placeholder="wx..."
+              autoComplete="off"
+            />
+          </Field>
+          <Field
+            label="移动应用 AppSecret"
+            hint="已保存会打码，不改请留原样。勿泄露"
+          >
+            <input
+              className={inputClass}
+              value={form.wechatMobileAppSecret}
+              onChange={(e) => set("wechatMobileAppSecret", e.target.value)}
+              placeholder="填写后 Android App 可微信快捷登录"
+              autoComplete="off"
+            />
+          </Field>
+        </div>
+        {sectionSaveBar("wechat-mobile")}
       </SettingsSection>
 
       <SettingsSection

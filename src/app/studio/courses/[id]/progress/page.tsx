@@ -4,6 +4,7 @@ import { CoursesSubnav } from "@/components/courses-subnav";
 import { StudioNav } from "@/components/studio-nav";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { videoWatchPercent } from "@/lib/lesson-resource-access";
 import {
   isMeetupProductType,
   meetupActivityEditPath,
@@ -58,6 +59,14 @@ export default async function CourseLearnerProgressPage({
               type: true,
               durationSec: true,
               sortOrder: true,
+              resources: {
+                orderBy: { sortOrder: "asc" },
+                select: {
+                  id: true,
+                  title: true,
+                  fileName: true,
+                },
+              },
             },
           },
         },
@@ -91,12 +100,47 @@ export default async function CourseLearnerProgressPage({
   );
   const totalLessons = lessons.length;
   const videoLessons = lessons.filter((l) => l.type === "VIDEO");
+  const resourceIds = lessons.flatMap((l) => l.resources.map((r) => r.id));
   const canCreate = canCreateSellableProducts(session.role);
+
+  const enrollmentIds = course.enrollments.map((e) => e.id);
+  const downloadLogs =
+    resourceIds.length > 0 && enrollmentIds.length > 0
+      ? await prisma.lessonResourceDownload.findMany({
+          where: {
+            resourceId: { in: resourceIds },
+            enrollmentId: { in: enrollmentIds },
+          },
+          orderBy: { createdAt: "desc" },
+          select: {
+            resourceId: true,
+            enrollmentId: true,
+            createdAt: true,
+          },
+        })
+      : [];
+
+  /** enrollmentId → resourceId → 最近一次下载时间 */
+  const downloadByEnrollment = new Map<string, Map<string, Date>>();
+  for (const log of downloadLogs) {
+    let byRes = downloadByEnrollment.get(log.enrollmentId);
+    if (!byRes) {
+      byRes = new Map();
+      downloadByEnrollment.set(log.enrollmentId, byRes);
+    }
+    // 已按 createdAt desc，只保留首次（最近）
+    if (!byRes.has(log.resourceId)) {
+      byRes.set(log.resourceId, log.createdAt);
+    }
+  }
 
   const rows = course.enrollments.map((en) => {
     const byLesson = new Map(en.progress.map((p) => [p.lessonId, p]));
     const completedCount = en.progress.filter((p) => p.completed).length;
-    const watchedSec = en.progress.reduce((sum, p) => sum + (p.watchedSec || 0), 0);
+    const watchedSec = en.progress.reduce(
+      (sum, p) => sum + (p.watchedSec || 0),
+      0,
+    );
     const lastAt = en.progress.reduce<Date | null>((latest, p) => {
       if (!latest || p.updatedAt > latest) return p.updatedAt;
       return latest;
@@ -105,6 +149,8 @@ export default async function CourseLearnerProgressPage({
       totalLessons > 0
         ? Math.min(100, Math.round((completedCount / totalLessons) * 100))
         : 0;
+    const downloads = downloadByEnrollment.get(en.id) || new Map();
+
     return {
       enrollmentId: en.id,
       enrolledAt: en.createdAt,
@@ -115,16 +161,38 @@ export default async function CourseLearnerProgressPage({
       percent,
       lessons: lessons.map((lesson) => {
         const p = byLesson.get(lesson.id);
+        const completed = Boolean(p?.completed);
+        const positionSec = p?.positionSec || 0;
+        const watchPct =
+          lesson.type === "VIDEO"
+            ? videoWatchPercent({
+                positionSec,
+                durationSec: lesson.durationSec,
+                completed,
+              })
+            : null;
+        const resourceRows = lesson.resources.map((r) => {
+          const at = downloads.get(r.id) || null;
+          return {
+            id: r.id,
+            title: r.title,
+            fileName: r.fileName,
+            downloaded: Boolean(at),
+            downloadedAt: at,
+          };
+        });
         return {
           id: lesson.id,
           title: lesson.title,
           chapterTitle: lesson.chapterTitle,
           type: lesson.type,
           durationSec: lesson.durationSec,
-          completed: Boolean(p?.completed),
-          positionSec: p?.positionSec || 0,
+          completed,
+          positionSec,
           watchedSec: p?.watchedSec || 0,
+          watchPct,
           updatedAt: p?.updatedAt || null,
+          resources: resourceRows,
         };
       }),
     };
@@ -156,7 +224,7 @@ export default async function CourseLearnerProgressPage({
             : ""}
         </p>
         <p className="mt-1 text-xs text-[var(--muted)]">
-          学习时长按学员实际正放累计；拖拽进度条不计入。新观看数据需学员打开视频后才会更新。
+          视频观看进度按「播放位置 / 时长」估算；课件下载以审计日志为准。学习时长按正放累计，拖拽不计入。
         </p>
       </div>
 
@@ -213,12 +281,13 @@ export default async function CourseLearnerProgressPage({
               </summary>
 
               <div className="mt-4 overflow-x-auto">
-                <table className="w-full min-w-[560px] text-left text-sm">
+                <table className="w-full min-w-[640px] text-left text-sm">
                   <thead className="text-[var(--muted)]">
                     <tr>
                       <th className="py-2 pr-3 font-medium">课时</th>
+                      <th className="py-2 pr-3 font-medium">观看</th>
                       <th className="py-2 pr-3 font-medium">状态</th>
-                      <th className="py-2 pr-3 font-medium">学到</th>
+                      <th className="py-2 pr-3 font-medium">课件</th>
                       <th className="py-2 font-medium">本课时长</th>
                     </tr>
                   </thead>
@@ -226,7 +295,7 @@ export default async function CourseLearnerProgressPage({
                     {row.lessons.map((lesson) => (
                       <tr
                         key={lesson.id}
-                        className="border-t border-[var(--line)]"
+                        className="border-t border-[var(--line)] align-top"
                       >
                         <td className="py-2.5 pr-3">
                           <div className="font-medium">{lesson.title}</div>
@@ -236,18 +305,64 @@ export default async function CourseLearnerProgressPage({
                           </div>
                         </td>
                         <td className="py-2.5 pr-3">
+                          {lesson.watchPct !== null ? (
+                            <span>
+                              <strong className="text-[var(--brand)]">
+                                {lesson.watchPct}%
+                              </strong>
+                              <span className="text-[var(--muted)]">
+                                {" "}
+                                / 100%
+                              </span>
+                              {lesson.positionSec > 0 ? (
+                                <div className="text-xs text-[var(--muted)]">
+                                  学到{" "}
+                                  {formatStudyDuration(lesson.positionSec)}
+                                </div>
+                              ) : null}
+                            </span>
+                          ) : (
+                            <span className="text-[var(--muted)]">—</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 pr-3">
                           {lesson.completed ? (
                             <span className="text-[var(--brand)]">已完成</span>
-                          ) : lesson.watchedSec > 0 || lesson.positionSec > 0 ? (
+                          ) : lesson.watchedSec > 0 ||
+                            lesson.positionSec > 0 ? (
                             <span>学习中</span>
                           ) : (
                             <span className="text-[var(--muted)]">未开始</span>
                           )}
                         </td>
-                        <td className="py-2.5 pr-3 text-[var(--muted)]">
-                          {lesson.type === "VIDEO" && lesson.positionSec > 0
-                            ? formatStudyDuration(lesson.positionSec)
-                            : "—"}
+                        <td className="py-2.5 pr-3">
+                          {lesson.resources.length === 0 ? (
+                            <span className="text-[var(--muted)]">无课件</span>
+                          ) : (
+                            <ul className="space-y-1 text-xs">
+                              {lesson.resources.map((r) => (
+                                <li key={r.id}>
+                                  {r.downloaded ? (
+                                    <span className="text-[var(--brand)]">
+                                      已下载
+                                      {r.downloadedAt
+                                        ? ` · ${r.downloadedAt.toLocaleString("zh-CN")}`
+                                        : ""}
+                                    </span>
+                                  ) : (
+                                    <span className="text-[var(--muted)]">
+                                      未下载 · {r.title}
+                                    </span>
+                                  )}
+                                  {r.downloaded ? (
+                                    <span className="block text-[var(--muted)]">
+                                      {r.title}
+                                    </span>
+                                  ) : null}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
                         </td>
                         <td className="py-2.5">
                           {formatStudyDuration(lesson.watchedSec)}
@@ -268,6 +383,13 @@ export default async function CourseLearnerProgressPage({
           className="text-[var(--brand)]"
         >
           去编辑课程
+        </Link>
+        {" · "}
+        <Link
+          href={`/studio/courses/${course.id}/content`}
+          className="text-[var(--brand)]"
+        >
+          编辑章节 / 课件
         </Link>
       </p>
     </div>

@@ -9,6 +9,9 @@
  *
  * channel=oa：公众号网页授权（微信内 snsapi_base/userinfo）
  * channel=web：开放平台网站应用扫码（qrconnect + snsapi_login）
+ *
+ * Android 移动应用 SDK 登录走 POST /api/auth/wechat/mobile，不经过本 state JWT
+ * （原生已持有 code，无需浏览器回调防伪）。
  */
 
 import { SignJWT, jwtVerify } from "jose";

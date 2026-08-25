@@ -315,23 +315,50 @@ export async function createH5Payment(input: {
 }
 
 /**
+ * 开放平台「移动应用」凭证：Android App 调起微信快捷登录。
+ * 须在开放平台创建移动应用，填写包名 com.yydsxwh.app 与应用签名。
+ */
+export async function getWechatMobileOAuthConfig() {
+  const settings = await getSiteSettings();
+  const appId = (
+    settings.wechatMobileAppId ||
+    process.env.WECHAT_MOBILE_APP_ID ||
+    ""
+  ).trim();
+  const appSecret = (
+    settings.wechatMobileAppSecret ||
+    process.env.WECHAT_MOBILE_APP_SECRET ||
+    ""
+  ).trim();
+  if (!appId || !appSecret) return null;
+  return { appId, appSecret };
+}
+
+export async function isWechatMobileOAuthConfigured() {
+  return Boolean(await getWechatMobileOAuthConfig());
+}
+
+/**
  * 用 OAuth code 换 openid / access_token。
- * channel=oa 用公众号凭证；channel=web 用开放平台网站应用凭证（扫码登录）。
- * 两套 openid 不同，勿混用。
+ * channel=oa 公众号；web 网站扫码；mobile 移动应用 SDK。
  */
 export async function exchangeWechatOAuthCode(
   code: string,
-  channel: "oa" | "web" = "oa",
+  channel: "oa" | "web" | "mobile" = "oa",
 ) {
   const oauth =
     channel === "web"
       ? await getWechatWebOAuthConfig()
-      : await getWechatOAuthConfig();
+      : channel === "mobile"
+        ? await getWechatMobileOAuthConfig()
+        : await getWechatOAuthConfig();
   if (!oauth) {
     throw new Error(
       channel === "web"
         ? "未配置开放平台网站应用 AppSecret，无法完成扫码登录"
-        : "未配置微信 AppSecret，无法完成网页授权",
+        : channel === "mobile"
+          ? "未配置开放平台移动应用 AppSecret，无法完成 App 微信登录"
+          : "未配置微信 AppSecret，无法完成网页授权",
     );
   }
   const url = new URL("https://api.weixin.qq.com/sns/oauth2/access_token");
@@ -355,9 +382,9 @@ export async function exchangeWechatOAuthCode(
     );
   }
   return {
+    accessToken: data.access_token || "",
     openid: data.openid,
     unionid: data.unionid || "",
-    accessToken: data.access_token || "",
     scope: data.scope || "",
   };
 }

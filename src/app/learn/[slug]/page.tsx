@@ -8,6 +8,24 @@ import { decodeRouteSlug } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
+function maskPhone(phone: string) {
+  const p = phone.trim();
+  if (p.length < 7) return "";
+  return `${p.slice(0, 3)}****${p.slice(-4)}`;
+}
+
+/** 学习页水印文案：姓名 + 短 id / 脱敏手机，便于录屏追责 */
+function buildWatermarkText(user: {
+  name: string;
+  id: string;
+  phone?: string | null;
+}) {
+  const parts = [user.name.trim() || "学员", user.id.slice(0, 8)];
+  const phone = maskPhone(user.phone || "");
+  if (phone) parts.push(phone);
+  return parts.join(" · ");
+}
+
 export default async function LearnCoursePage({
   params,
 }: {
@@ -30,6 +48,15 @@ export default async function LearnCoursePage({
               mediaAsset: {
                 select: { name: true, type: true, sizeBytes: true },
               },
+              resources: {
+                orderBy: { sortOrder: "asc" },
+                select: {
+                  id: true,
+                  title: true,
+                  fileName: true,
+                  sizeBytes: true,
+                },
+              },
             },
           },
         },
@@ -43,10 +70,16 @@ export default async function LearnCoursePage({
     redirect(productDetailPath(course.slug, course.productType));
   }
 
-  const enrollment = await prisma.enrollment.findUnique({
-    where: { userId_courseId: { userId: session.id, courseId: course.id } },
-    include: { progress: true },
-  });
+  const [enrollment, dbUser] = await Promise.all([
+    prisma.enrollment.findUnique({
+      where: { userId_courseId: { userId: session.id, courseId: course.id } },
+      include: { progress: true },
+    }),
+    prisma.user.findUnique({
+      where: { id: session.id },
+      select: { name: true, phone: true },
+    }),
+  ]);
 
   // 站长可预览任意课程；授课者可预览名下课程（不必先购买）
   const staffPreview = canPreviewAllLessons({
@@ -62,6 +95,11 @@ export default async function LearnCoursePage({
     ]),
   );
   const isMaterial = course.productType === "MATERIAL";
+  const watermarkText = buildWatermarkText({
+    name: dbUser?.name || session.name,
+    id: session.id,
+    phone: dbUser?.phone,
+  });
 
   return (
     <div className="container space-y-4 py-10">
@@ -78,6 +116,7 @@ export default async function LearnCoursePage({
         canAccessAll={canAccessAll}
         enrollmentId={enrollment?.id}
         progressMap={progressMap}
+        watermarkText={watermarkText}
         chapters={course.chapters.map((c) => ({
           id: c.id,
           title: c.title,
@@ -98,6 +137,12 @@ export default async function LearnCoursePage({
               liveAt: l.liveAt ? l.liveAt.toISOString() : null,
               fileName: l.mediaAsset?.name || undefined,
               fileSizeBytes: l.mediaAsset?.sizeBytes || undefined,
+              resources: l.resources.map((r) => ({
+                id: r.id,
+                title: r.title,
+                fileName: r.fileName,
+                sizeBytes: r.sizeBytes,
+              })),
             };
           }),
         }))}

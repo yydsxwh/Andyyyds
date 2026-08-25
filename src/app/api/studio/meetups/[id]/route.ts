@@ -9,6 +9,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { markTranslationsStale } from "@/lib/i18n/content-translate";
 import {
   fromMeetupPeopleDb,
   isMeetupStatus,
@@ -266,6 +267,34 @@ export async function PATCH(req: Request, ctx: Ctx) {
         productCourseId: row.productCourseId,
       });
     });
+
+    // 源文变更 → 缓存译文标过期，站长可一键重翻
+    await Promise.all([
+      markTranslationsStale({
+        entityType: "meetup",
+        entityId: id,
+        field: "title",
+        source: data.title,
+      }),
+      markTranslationsStale({
+        entityType: "meetup",
+        entityId: id,
+        field: "description",
+        source: data.description || "",
+      }),
+      markTranslationsStale({
+        entityType: "meetup",
+        entityId: id,
+        field: "place",
+        source: data.place || "",
+      }),
+      markTranslationsStale({
+        entityType: "meetup",
+        entityId: id,
+        field: "contentHtml",
+        source: data.contentHtml || "",
+      }),
+    ]);
 
     return NextResponse.json({ ok: true });
   } catch (error) {

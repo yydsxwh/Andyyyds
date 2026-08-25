@@ -5,6 +5,7 @@
  *
  * - 微信内：公众号网页授权（/api/auth/wechat）
  * - 站外浏览器：开放平台网站应用扫码（/api/auth/wechat/qr）
+ * - Capacitor Android：开放平台移动应用 SDK（/api/auth/wechat/mobile）
  * - 账号：登录名 + 密码（与邮箱通道分开，不填邮箱）
  * - 手机号：短信验证码；注册可带身份申请与可选密码
  * - 邮箱：真实邮箱 + 密码
@@ -26,7 +27,11 @@ import { REFERRAL_STORAGE_KEY } from "@/lib/invite";
 import { PENDING_REVIEW_MESSAGE } from "@/lib/role-applications";
 import { normalizeReferralCode } from "@/lib/referral-code";
 import { preferWechatFromClient } from "@/lib/auth-channel-preference";
-import { isWeChatBrowser } from "@/lib/wechat-env";
+import {
+  isCapacitorAndroid,
+  isWeChatBrowser,
+} from "@/lib/wechat-env";
+import { WechatLogin } from "@/lib/wechat-login-plugin";
 
 type AuthChannel = "email" | "account" | "phone" | "wechat";
 
@@ -47,6 +52,10 @@ type MethodsState = {
   wechat: boolean;
   /** 开放平台网站应用扫码（PC/站外浏览器） */
   wechatQr: boolean;
+  /** Android App 微信 SDK 快捷登录 */
+  wechatMobile: boolean;
+  /** 移动应用公开 AppID（SDK 调起用） */
+  wechatMobileAppId: string;
   smsTestMode: boolean;
 };
 
@@ -92,6 +101,8 @@ export function AuthForm({
     phone: true,
     wechat: true,
     wechatQr: false,
+    wechatMobile: false,
+    wechatMobileAppId: "",
     smsTestMode: false,
   });
   const [error, setError] = useState("");
@@ -102,12 +113,16 @@ export function AuthForm({
   const [smsCode, setSmsCode] = useState("");
   const [cooldown, setCooldown] = useState(0);
   const [inWeChat, setInWeChat] = useState(false);
+  /** Capacitor Android 壳：优先微信 SDK 快捷登录 */
+  const [inCapacitorAndroid, setInCapacitorAndroid] = useState(false);
   /** URL ?ref= 优先，其次本地记住的分享码 */
   const [resolvedRef, setResolvedRef] = useState(defaultReferralCode);
 
   useEffect(() => {
     const inWx = isWeChatBrowser();
+    const inCapAndroid = isCapacitorAndroid();
     setInWeChat(inWx);
+    setInCapacitorAndroid(inCapAndroid);
     try {
       const params = new URLSearchParams(window.location.search);
       const fromUrl = normalizeReferralCode(
@@ -138,9 +153,17 @@ export function AuthForm({
           phone: Boolean(data.phone),
           wechat: Boolean(data.wechat),
           wechatQr: Boolean(data.wechatQr),
+          wechatMobile: Boolean(data.wechatMobile),
+          wechatMobileAppId: String(data.wechatMobileAppId || ""),
           smsTestMode: Boolean(data.smsTestMode),
         };
         setMethods(nextMethods);
+
+        // Capacitor Android 已配移动应用时默认微信 Tab（快捷登录）
+        if (inCapAndroid && nextMethods.wechatMobile) {
+          setChannel("wechat");
+          return;
+        }
 
         // 以客户端时区/语言/微信内为准校正首屏；微信内未配置公众号则回退
         const wantWechat = preferWechatFromClient({ inWeChat: inWx });
@@ -155,7 +178,7 @@ export function AuthForm({
       .catch(() => {
         /* 探测失败时仍展示入口，提交时再报错 */
         if (cancelled) return;
-        if (preferWechatFromClient({ inWeChat: inWx })) {
+        if (inCapAndroid || preferWechatFromClient({ inWeChat: inWx })) {
           // methods 未知时保持微信 Tab（有引导文案），勿空白
           setChannel("wechat");
         }
@@ -371,6 +394,69 @@ export function AuthForm({
     }
     window.location.href = `/api/auth/wechat/qr?${buildWechatLoginParams().toString()}`;
   }
+
+  /**
+   * Capacitor Android：调起微信 SDK 拿 code，再 POST 服务端换登录 Cookie。
+   * 为何不用网页 OAuth：App WebView 无法走微信内授权，须原生 openSDK。
+   */
+  async function startWechatMobile() {
+    setError("");
+    setNotice("");
+    if (!methods.wechatMobile || !methods.wechatMobileAppId) {
+      setError(
+        "微信快捷登录未配置。请站长在系统设置填写开放平台「移动应用」AppID / AppSecret",
+      );
+      return;
+    }
+    setLoading(true);
+    try {
+      const installed = await WechatLogin.isInstalled();
+      if (!installed.installed) {
+        setError("未检测到微信，请先安装微信后再试");
+        setLoading(false);
+        return;
+      }
+      const { code } = await WechatLogin.login({
+        appId: methods.wechatMobileAppId,
+      });
+      if (!code) {
+        setError("微信授权未返回凭证，请重试");
+        setLoading(false);
+        return;
+      }
+      const nextPath =
+        safeNextPath(
+          new URLSearchParams(window.location.search).get("next"),
+        ) || "/account";
+      const res = await fetch("/api/auth/wechat/mobile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code,
+          purpose: "login",
+          returnUrl: nextPath,
+          requestedRole: mode === "register" ? requestedRole : undefined,
+          referralCode:
+            mode === "register" && resolvedRef ? resolvedRef : undefined,
+        }),
+      });
+      const data = await res.json();
+      setLoading(false);
+      if (!res.ok) {
+        setError(data.error || "微信登录失败");
+        return;
+      }
+      finishAuth(data);
+    } catch (err) {
+      setLoading(false);
+      const message =
+        err instanceof Error ? err.message : "微信登录已取消或失败";
+      setError(message);
+    }
+  }
+
+  const useMobileQuickLogin =
+    inCapacitorAndroid && methods.wechatMobile && Boolean(methods.wechatMobileAppId);
 
   // Tab 顺序：微信 → 账号 → 手机号 → 邮箱（账号与邮箱分开，电脑端可走账号密码）
   const visibleTabs = (
@@ -655,7 +741,13 @@ export function AuthForm({
               ) : null}
             </>
           ) : null}
-          {inWeChat ? (
+          {useMobileQuickLogin ? (
+            <p className="text-sm text-[var(--muted)]">
+              {mode === "login"
+                ? "将打开微信完成授权。已有账号直接登录；首次授权将自动注册为学员。"
+                : "将打开微信完成授权。首次授权按上方所选身份创建账号；若该微信已注册则直接登录。"}
+            </p>
+          ) : inWeChat ? (
             <p className="text-sm text-[var(--muted)]">
               {mode === "login"
                 ? "将跳转微信授权。已有账号直接登录；首次授权将自动注册为学员。"
@@ -670,19 +762,38 @@ export function AuthForm({
               若已在微信内打开本站，请改用「微信授权登录」。
             </p>
           )}
-          {!inWeChat && !methods.wechatQr ? (
+          {useMobileQuickLogin && !methods.wechatMobile ? (
+            <p className="text-sm text-amber-800">
+              尚未配置开放平台移动应用，App 快捷登录暂不可用。请站长在系统设置填写移动应用
+              AppID / AppSecret。
+            </p>
+          ) : null}
+          {!useMobileQuickLogin && !inWeChat && !methods.wechatQr ? (
             <p className="text-sm text-amber-800">
               尚未配置开放平台网站应用，扫码登录暂不可用。请站长在系统设置填写网站应用
               AppID / AppSecret。
             </p>
           ) : null}
-          {inWeChat && !methods.wechat ? (
+          {!useMobileQuickLogin && inWeChat && !methods.wechat ? (
             <p className="text-sm text-amber-800">
               尚未配置公众号 AppSecret，请联系站长在系统设置中填写。
             </p>
           ) : null}
           {error ? <p className="text-sm text-red-700">{error}</p> : null}
-          {inWeChat ? (
+          {useMobileQuickLogin ? (
+            <button
+              type="button"
+              className="btn btn-primary w-full min-h-12"
+              disabled={loading || !methods.wechatMobile}
+              onClick={() => void startWechatMobile()}
+            >
+              {loading
+                ? "正在打开微信…"
+                : mode === "login"
+                  ? "微信快捷登录"
+                  : "微信快捷注册 / 登录"}
+            </button>
+          ) : inWeChat ? (
             <button
               type="button"
               className="btn btn-primary w-full min-h-12"

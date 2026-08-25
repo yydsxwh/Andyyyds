@@ -119,7 +119,7 @@ export async function POST(req: Request) {
       passwordSet: true,
       message: hadRealEmail
         ? "登录邮箱已更换"
-        : "邮箱已绑定，可用邮箱 + 密码、手机号或微信登录同一账号",
+        : "邮箱已绑定，可用邮箱、登录账号、手机号或微信登录同一账号",
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

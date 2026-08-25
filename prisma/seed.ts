@@ -6,6 +6,8 @@ const prisma = new PrismaClient();
 async function main() {
   await prisma.commission.deleteMany();
   await prisma.lessonProgress.deleteMany();
+  await prisma.lessonResourceDownload.deleteMany();
+  await prisma.lessonResource.deleteMany();
   await prisma.enrollment.deleteMany();
   await prisma.order.deleteMany();
   await prisma.couponRedemption.deleteMany();

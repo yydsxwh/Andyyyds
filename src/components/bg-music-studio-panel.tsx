@@ -35,6 +35,9 @@ type Props = {
 const inputClass =
   "w-full rounded-2xl border border-[var(--line)] bg-white/80 px-3 py-2.5 text-sm outline-none focus:border-[var(--brand)]";
 
+/** 歌单拖拽 MIME，避免与页面其它 DnD 互相干扰 */
+const BGM_TRACK_DND_MIME = "application/x-yyds-bgm-track-index";
+
 function newId() {
   return `t_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -68,6 +71,8 @@ export function BgMusicStudioPanel({
   const [qqTitle, setQqTitle] = useState("");
   const [qishuiInput, setQishuiInput] = useState("");
   const [qishuiBusy, setQishuiBusy] = useState(false);
+  /** 拖拽悬停目标行，便于看出将插入的位置 */
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   const [jamendoQ, setJamendoQ] = useState("ambient");
   const [jamendoHits, setJamendoHits] = useState<JamendoHit[]>([]);
@@ -316,16 +321,37 @@ export function BgMusicStudioPanel({
     }
   }
 
-  function moveTrack(index: number, delta: number) {
+  /** 数组下标即前台播放顺序；保存后按此顺序渲染 */
+  function moveTrackTo(from: number, to: number) {
     setConfig((c) => {
-      const next = [...c.tracks];
-      const j = index + delta;
-      if (j < 0 || j >= next.length) return c;
-      const tmp = next[index]!;
-      next[index] = next[j]!;
-      next[j] = tmp;
+      if (
+        from === to ||
+        from < 0 ||
+        to < 0 ||
+        from >= c.tracks.length ||
+        to >= c.tracks.length
+      ) {
+        return c;
+      }
+      const next = c.tracks.slice();
+      const [item] = next.splice(from, 1);
+      if (!item) return c;
+      next.splice(to, 0, item);
       return { ...c, tracks: next };
     });
+  }
+
+  function moveTrack(index: number, delta: number) {
+    moveTrackTo(index, index + delta);
+  }
+
+  /** 用户输入的是 1 起的序号；超出范围会夹到两端 */
+  function applyTrackOrderInput(fromIndex: number, raw: string) {
+    const n = Number.parseInt(raw.trim(), 10);
+    if (!Number.isFinite(n)) return;
+    const last = Math.max(0, config.tracks.length - 1);
+    const to = Math.max(0, Math.min(last, n - 1));
+    moveTrackTo(fromIndex, to);
   }
 
   return (
@@ -651,89 +677,171 @@ export function BgMusicStudioPanel({
         {config.tracks.length === 0 ? (
           <p className="text-sm text-[var(--muted)]">还没有曲目，请先添加。</p>
         ) : (
-          <ul className="space-y-2">
-            {config.tracks.map((t, index) => (
-              <li
-                key={t.id}
-                className="rounded-2xl border border-[var(--line)] bg-white/80 px-3 py-3"
-              >
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="min-w-0 flex-1 space-y-2">
-                    <input
-                      className={inputClass}
-                      value={t.title}
-                      onChange={(e) =>
-                        setConfig((c) => ({
-                          ...c,
-                          tracks: c.tracks.map((x) =>
-                            x.id === t.id
-                              ? { ...x, title: e.target.value }
-                              : x,
-                          ),
-                        }))
-                      }
-                    />
-                    <div className="flex flex-wrap gap-2 text-xs text-[var(--muted)]">
-                      <span className="rounded-lg bg-[var(--line)]/40 px-2 py-1">
-                        {t.source}
+          <>
+            <p className="text-xs text-[var(--muted)]">
+              左侧手柄拖拽调序；或改「序号」后回车/失焦跳到对应位置（1 为第一首）。改完记得点保存。
+            </p>
+            <ul className="space-y-2">
+              {config.tracks.map((t, index) => (
+                <li
+                  key={t.id}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "move";
+                    setDragOverIndex(index);
+                  }}
+                  onDragLeave={(e) => {
+                    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                      setDragOverIndex((cur) => (cur === index ? null : cur));
+                    }
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragOverIndex(null);
+                    const from = Number.parseInt(
+                      e.dataTransfer.getData(BGM_TRACK_DND_MIME),
+                      10,
+                    );
+                    if (Number.isFinite(from)) moveTrackTo(from, index);
+                  }}
+                  className={`rounded-2xl border bg-white/80 px-3 py-3 ${
+                    dragOverIndex === index
+                      ? "border-[var(--brand)] ring-1 ring-[var(--brand)]"
+                      : "border-[var(--line)]"
+                  }`}
+                >
+                  <div className="flex gap-2 sm:gap-3">
+                    {/* 仅手柄可拖：避免改曲名时误触发排序；触控亦可按住拖动 */}
+                    <button
+                      type="button"
+                      draggable
+                      className="mt-0.5 flex h-11 w-11 shrink-0 cursor-grab touch-none items-center justify-center rounded-xl border border-[var(--line)] bg-white text-[var(--muted)] active:cursor-grabbing"
+                      aria-label={`拖拽调整「${t.title || "曲目"}」顺序`}
+                      title="按住拖动调整顺序"
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData(
+                          BGM_TRACK_DND_MIME,
+                          String(index),
+                        );
+                        e.dataTransfer.effectAllowed = "move";
+                      }}
+                      onDragEnd={() => setDragOverIndex(null)}
+                    >
+                      <span
+                        aria-hidden
+                        className="select-none text-base leading-none"
+                      >
+                        ⋮⋮
                       </span>
-                      <span className="rounded-lg bg-[var(--line)]/40 px-2 py-1">
-                        {t.kind}
-                      </span>
-                      {t.artist ? <span>{t.artist}</span> : null}
-                      {t.credit ? <span>{t.credit}</span> : null}
-                    </div>
-                    <label className="flex min-h-10 items-center gap-2 text-sm">
+                    </button>
+
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <label className="flex items-center gap-1.5 text-xs text-[var(--muted)]">
+                          <span className="shrink-0">序号</span>
+                          <input
+                            key={`${t.id}-${index}`}
+                            type="number"
+                            inputMode="numeric"
+                            min={1}
+                            max={config.tracks.length}
+                            defaultValue={index + 1}
+                            className="h-10 w-16 rounded-xl border border-[var(--line)] bg-white px-2 text-center text-sm outline-none focus:border-[var(--brand)]"
+                            aria-label={`「${t.title || "曲目"}」播放序号`}
+                            title="输入数字后回车或点别处，跳到该位置"
+                            onBlur={(e) =>
+                              applyTrackOrderInput(index, e.target.value)
+                            }
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                (e.target as HTMLInputElement).blur();
+                              }
+                            }}
+                          />
+                          <span className="shrink-0">
+                            / {config.tracks.length}
+                          </span>
+                        </label>
+                      </div>
                       <input
-                        type="checkbox"
-                        className="h-4 w-4 accent-[var(--brand)]"
-                        checked={t.enabled}
+                        className={inputClass}
+                        value={t.title}
                         onChange={(e) =>
                           setConfig((c) => ({
                             ...c,
                             tracks: c.tracks.map((x) =>
                               x.id === t.id
-                                ? { ...x, enabled: e.target.checked }
+                                ? { ...x, title: e.target.value }
                                 : x,
                             ),
                           }))
                         }
                       />
-                      前台启用
-                    </label>
+                      <div className="flex flex-wrap gap-2 text-xs text-[var(--muted)]">
+                        <span className="rounded-lg bg-[var(--line)]/40 px-2 py-1">
+                          {t.source}
+                        </span>
+                        <span className="rounded-lg bg-[var(--line)]/40 px-2 py-1">
+                          {t.kind}
+                        </span>
+                        {t.artist ? <span>{t.artist}</span> : null}
+                        {t.credit ? <span>{t.credit}</span> : null}
+                      </div>
+                      <label className="flex min-h-10 items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 accent-[var(--brand)]"
+                          checked={t.enabled}
+                          onChange={(e) =>
+                            setConfig((c) => ({
+                              ...c,
+                              tracks: c.tracks.map((x) =>
+                                x.id === t.id
+                                  ? { ...x, enabled: e.target.checked }
+                                  : x,
+                              ),
+                            }))
+                          }
+                        />
+                        前台启用
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          className="min-h-10 rounded-xl border border-[var(--line)] px-3 text-sm disabled:opacity-40"
+                          disabled={index === 0}
+                          onClick={() => moveTrack(index, -1)}
+                        >
+                          上移
+                        </button>
+                        <button
+                          type="button"
+                          className="min-h-10 rounded-xl border border-[var(--line)] px-3 text-sm disabled:opacity-40"
+                          disabled={index >= config.tracks.length - 1}
+                          onClick={() => moveTrack(index, 1)}
+                        >
+                          下移
+                        </button>
+                        <button
+                          type="button"
+                          className="min-h-10 rounded-xl border border-red-200 px-3 text-sm text-red-700"
+                          onClick={() =>
+                            setConfig((c) => ({
+                              ...c,
+                              tracks: c.tracks.filter((x) => x.id !== t.id),
+                            }))
+                          }
+                        >
+                          删除
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      className="min-h-10 rounded-xl border border-[var(--line)] px-3 text-sm"
-                      onClick={() => moveTrack(index, -1)}
-                    >
-                      上移
-                    </button>
-                    <button
-                      type="button"
-                      className="min-h-10 rounded-xl border border-[var(--line)] px-3 text-sm"
-                      onClick={() => moveTrack(index, 1)}
-                    >
-                      下移
-                    </button>
-                    <button
-                      type="button"
-                      className="min-h-10 rounded-xl border border-red-200 px-3 text-sm text-red-700"
-                      onClick={() =>
-                        setConfig((c) => ({
-                          ...c,
-                          tracks: c.tracks.filter((x) => x.id !== t.id),
-                        }))
-                      }
-                    >
-                      删除
-                    </button>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
+                </li>
+              ))}
+            </ul>
+          </>
         )}
       </section>
     </div>

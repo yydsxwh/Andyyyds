@@ -4,6 +4,9 @@ import { MeetupPlazaToolbar } from "@/components/meetup-plaza-toolbar";
 import { NavPageTemplateShell } from "@/components/nav-page-template-shell";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { getRequestLocaleContext } from "@/lib/i18n/get-request-locale";
+import { localizeMeetupCardFields } from "@/lib/i18n/localize-entities";
+import { translateMessage } from "@/lib/i18n/messages";
 import {
   buildMeetupPlazaWhere,
   fromMeetupPeopleDb,
@@ -37,7 +40,11 @@ export default async function MeetupPlazaPage({
   const sort = parseMeetupSort(params.sort);
   const userLat = parseOptionalCoord(params.lat, "lat");
   const userLng = parseOptionalCoord(params.lng, "lng");
-  const session = await getSession();
+  const [session, localeCtx] = await Promise.all([
+    getSession(),
+    getRequestLocaleContext(),
+  ]);
+  const t = (key: string) => translateMessage(localeCtx.locale, key);
   // 站长可编辑广场任意卡片；普通用户仅编辑 hostId === 自己的局（未登录不显示）
   const isMeetupAdmin = session ? canManageMeetups(session.role) : false;
 
@@ -62,7 +69,7 @@ export default async function MeetupPlazaPage({
     getHideAllPricesFlag(),
   ]);
 
-  const meetups = sortMeetupPlazaRows(
+  const sorted = sortMeetupPlazaRows(
     rows.map((m) => ({
       ...m,
       maxPeople: fromMeetupPeopleDb(m.maxPeople),
@@ -71,79 +78,108 @@ export default async function MeetupPlazaPage({
     { sort, userLat, userLng },
   );
 
+  const meetups = await Promise.all(
+    sorted.map(async (m) => {
+      const loc = await localizeMeetupCardFields(m, localeCtx.contentLocale);
+      return {
+        ...m,
+        title: localeCtx.bilingual ? loc.titleSource : loc.title,
+        titleSecondary:
+          localeCtx.bilingual && loc.title !== loc.titleSource
+            ? loc.title
+            : undefined,
+        place: localeCtx.bilingual ? loc.placeSource : loc.place,
+        placeSecondary:
+          localeCtx.bilingual && loc.place !== loc.placeSource
+            ? loc.place
+            : undefined,
+      };
+    }),
+  );
+
   return (
     <NavPageTemplateShell type="meetup">
-    <div className="container py-10 sm:py-12">
-      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="brand-mark text-3xl font-semibold sm:text-4xl">约搭</h1>
-          <p className="mt-2 max-w-xl text-sm leading-7 text-[var(--muted)]">
-            找人一起出门玩：发局、报名、组队集合。支持免费或收费报名、图文视频详情与分享分销。
-          </p>
-        </div>
-        {session ? (
-          <Link href="/meetup/new" className="btn btn-primary min-h-11 shrink-0">
-            发起约搭
-          </Link>
-        ) : (
-          <Link
-            href={`/login?next=${encodeURIComponent("/meetup/new")}`}
-            className="btn btn-primary min-h-11 shrink-0"
-          >
-            登录后发起
-          </Link>
-        )}
-      </div>
-
-      <MeetupPlazaToolbar
-        category={category}
-        sort={sort}
-        userLat={userLat}
-        userLng={userLng}
-      />
-
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {meetups.map((m) => (
-          <MeetupCard
-            key={m.id}
-            canEdit={
-              isMeetupAdmin || Boolean(session && session.id === m.hostId)
-            }
-            hideAllPrices={hideAllPrices}
-            meetup={{
-              id: m.id,
-              title: m.title,
-              category: m.category,
-              startsAt: m.startsAt,
-              timezone: m.timezone,
-              place: m.place,
-              maxPeople: m.maxPeople,
-              coverUrl: m.coverUrl || undefined,
-              status: m.status,
-              joinCount: m.joinCount,
-              host: { name: m.host.name },
-              hostId: m.hostId,
-              priceCents: m.priceCents,
-              hidePrice: Boolean(m.productCourse?.hidePrice),
-            }}
-          />
-        ))}
-      </div>
-
-      {meetups.length === 0 ? (
-        <div className="surface surface-pad px-6 py-16 text-center">
-          <p className="text-[var(--muted)]">暂无约搭活动</p>
-          <p className="mt-2 text-sm text-[var(--muted)]">
-            当第一个发起人，喊上搭子一起出门
-          </p>
+      <div className="container py-10 sm:py-12">
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="brand-mark text-3xl font-semibold sm:text-4xl">
+              {t("meetup.plazaTitle")}
+            </h1>
+            <p className="mt-2 max-w-xl text-sm leading-7 text-[var(--muted)]">
+              {t("meetup.plazaIntro")}
+            </p>
+          </div>
           {session ? (
-            <Link href="/meetup/new" className="btn btn-primary mt-6 inline-flex min-h-11">
-              发起约搭
+            <Link
+              href="/meetup/new"
+              className="btn btn-primary min-h-11 shrink-0"
+            >
+              {t("meetup.create")}
             </Link>
-          ) : null}
+          ) : (
+            <Link
+              href={`/login?next=${encodeURIComponent("/meetup/new")}`}
+              className="btn btn-primary min-h-11 shrink-0"
+            >
+              {t("meetup.loginToCreate")}
+            </Link>
+          )}
         </div>
-      ) : null}
-    </div>
+
+        <MeetupPlazaToolbar
+          category={category}
+          sort={sort}
+          userLat={userLat}
+          userLng={userLng}
+        />
+
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {meetups.map((m) => (
+            <MeetupCard
+              key={m.id}
+              canEdit={
+                isMeetupAdmin || Boolean(session && session.id === m.hostId)
+              }
+              hideAllPrices={hideAllPrices}
+              meetup={{
+                id: m.id,
+                title: m.title,
+                titleSecondary: m.titleSecondary,
+                category: m.category,
+                startsAt: m.startsAt,
+                timezone: m.timezone,
+                place: m.place,
+                placeSecondary: m.placeSecondary,
+                maxPeople: m.maxPeople,
+                coverUrl: m.coverUrl || undefined,
+                status: m.status,
+                joinCount: m.joinCount,
+                host: { name: m.host.name },
+                hostId: m.hostId,
+                priceCents: m.priceCents,
+                hidePrice: Boolean(m.productCourse?.hidePrice),
+              }}
+            />
+          ))}
+        </div>
+
+        {meetups.length === 0 ? (
+          <div className="surface surface-pad px-6 py-16 text-center">
+            <p className="text-[var(--muted)]">{t("meetup.empty")}</p>
+            <p className="mt-2 text-sm text-[var(--muted)]">
+              {t("meetup.emptyHint")}
+            </p>
+            {session ? (
+              <Link
+                href="/meetup/new"
+                className="btn btn-primary mt-6 inline-flex min-h-11"
+              >
+                {t("meetup.create")}
+              </Link>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
     </NavPageTemplateShell>
   );
 }

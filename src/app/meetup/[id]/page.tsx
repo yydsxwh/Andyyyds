@@ -117,16 +117,23 @@ export default async function MeetupDetailPage({
     },
     locale: localeCtx.contentLocale,
   });
-  // 站长详情：主显中文；英文由 MeetupDetailView 若支持 title 可再挂，此处先保中文不挤版
+  // 站长：主显中文；访客：主显当前 locale 译文（无缓存则原文）
   const withBi = (field: keyof typeof loc) => {
     const row = loc[field];
     if (!localeCtx.bilingual) return row.text;
     return row.source || row.text;
   };
+  const secondary = (field: keyof typeof loc) => {
+    if (!localeCtx.bilingual) return undefined;
+    const row = loc[field];
+    if (row.text && row.text !== row.source) return row.text;
+    return undefined;
+  };
 
   const data: MeetupDetailData = {
     id: meetup.id,
     title: withBi("title"),
+    titleSecondary: secondary("title"),
     description: withBi("description"),
     contentHtml: withBi("contentHtml") || "",
     priceCents: meetup.priceCents,
@@ -136,6 +143,7 @@ export default async function MeetupDetailPage({
     endsAt: meetup.endsAt ? meetup.endsAt.toISOString() : null,
     timezone: meetup.timezone || "Asia/Shanghai",
     place: withBi("place"),
+    placeSecondary: secondary("place"),
     maxPeople: fromMeetupPeopleDb(meetup.maxPeople),
     coverUrl: meetup.coverUrl || "",
     tags: parseJsonStringArray(meetup.tagsJson),

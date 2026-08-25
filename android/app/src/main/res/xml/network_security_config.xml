@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  默认仅信任系统 CA 的 HTTPS。
+  若个别阿里云临时域名或调试环境需要明文，可在 cleartextTrafficPermitted 域内放开；
+  生产站 www.yydsxwh.com 走 HTTPS，不依赖 cleartext。
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">yydsxwh.com</domain>
+        <domain includeSubdomains="true">aliyuncs.com</domain>
+        <domain includeSubdomains="true">aliyun.com</domain>
+        <domain includeSubdomains="true">alipay.com</domain>
+        <domain includeSubdomains="true">alipayobjects.com</domain>
+        <domain includeSubdomains="true">tenpay.com</domain>
+        <domain includeSubdomains="true">qq.com</domain>
+        <domain includeSubdomains="true">weixin.qq.com</domain>
+    </domain-config>
+</network-security-config>
