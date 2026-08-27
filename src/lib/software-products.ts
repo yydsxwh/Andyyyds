@@ -15,9 +15,23 @@ export type SoftwareProduct = {
   href?: string;
   /** 卡片角标文案 */
   badge?: string;
+  /** true=仅站长可用（前台仍展示卡片，进入后按登录身份分流） */
+  adminOnly?: boolean;
 };
 
 export const SOFTWARE_PRODUCTS: SoftwareProduct[] = [
+  {
+    // 站长内部工具：截图/PDF 公式 → LaTeX，直接可入库自用；卡片仍展示便于统一入口
+    id: "mathcode",
+    name: "MathCode 公式转 LaTeX",
+    tagline: "数理化公式 AI 识别",
+    description:
+      "上传数学、物理、化学公式的截图或 PDF，由 AI 识别为可编辑的 LaTeX 源码；一键复制或下载 .tex 文件，接下来用 pdflatex / xelatex 生成 PDF。",
+    status: "live",
+    href: "/products/mathcode",
+    badge: "站长专用 · 立即可用",
+    adminOnly: true,
+  },
   {
     id: "kemiao-meeting",
     name: "颗秒会议",
@@ -40,5 +54,6 @@ export const SOFTWARE_PRODUCTS: SoftwareProduct[] = [
 
 export const SOFTWARE_PRODUCTS_PAGE = {
   title: "软件产品",
-  subtitle: "颗秒系列自研产品将陆续在此发布，欢迎关注。",
+  subtitle:
+    "颗秒系列自研产品与站长内部工具将陆续在此发布，欢迎关注。",
 } as const;

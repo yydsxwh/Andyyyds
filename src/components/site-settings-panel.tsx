@@ -7,6 +7,11 @@ import {
   SaveFeedback,
   type SaveStatus,
 } from "@/components/save-feedback";
+import {
+  AI_PROVIDER_PRESETS,
+  findProviderPreset,
+  REGION_LABEL,
+} from "@/lib/ai-providers";
 
 export type PublicSettings = {
   siteUrl: string;
@@ -1478,40 +1483,136 @@ function LanguageTranslateSection({
           ))}
         </div>
       </div>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field
-          label="翻译 API Base URL"
-          hint="OpenAI 兼容，如 https://api.openai.com/v1"
-        >
-          <input
-            className={inputClass}
-            value={form.translateApiBaseUrl || ""}
-            onChange={(e) => set("translateApiBaseUrl", e.target.value)}
-            placeholder="https://api.openai.com/v1"
-          />
-        </Field>
-        <Field label="模型名">
-          <input
-            className={inputClass}
-            value={form.translateApiModel || ""}
-            onChange={(e) => set("translateApiModel", e.target.value)}
-            placeholder="gpt-4o-mini"
-          />
-        </Field>
-        <Field
-          label="API Key"
-          hint="已保存的密钥显示为打码；留空保存表示不修改"
-        >
-          <input
-            className={inputClass}
-            type="password"
-            autoComplete="off"
-            value={form.translateApiKey || ""}
-            onChange={(e) => set("translateApiKey", e.target.value)}
-            placeholder="sk-…"
-          />
-        </Field>
-      </div>
+      {(() => {
+        // AI 提供商预设：选中后自动填 Base URL + 默认模型；已保存值反查匹配到哪个预设
+        const currentPreset = findProviderPreset({
+          baseUrl: form.translateApiBaseUrl,
+          model: form.translateApiModel,
+        });
+        return (
+          <div className="space-y-4">
+            <Field
+              label="AI 提供商"
+              hint="选一个预设即自动填 Base URL 与推荐模型；也可选「自定义」手动填写。此 Key 同时用于「一键翻译」与「MathCode 公式识别」。"
+            >
+              <select
+                className={inputClass}
+                value={currentPreset.id}
+                onChange={(e) => {
+                  const preset = AI_PROVIDER_PRESETS.find(
+                    (p) => p.id === e.target.value,
+                  );
+                  if (!preset) return;
+                  if (preset.id === "custom") return;
+                  set("translateApiBaseUrl", preset.baseUrl);
+                  set("translateApiModel", preset.defaultModel);
+                }}
+              >
+                {AI_PROVIDER_PRESETS.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                    {p.id === "custom"
+                      ? ""
+                      : ` · ${REGION_LABEL[p.region]}${p.vision ? " · 含视觉" : ""}`}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            {currentPreset.notes || currentPreset.applyUrl ? (
+              <p className="text-xs leading-6 text-[var(--muted)]">
+                {currentPreset.notes}
+                {currentPreset.applyUrl ? (
+                  <>
+                    {currentPreset.notes ? "　" : ""}
+                    <a
+                      className="text-[var(--brand)] hover:underline"
+                      href={currentPreset.applyUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      申请 Key →
+                    </a>
+                  </>
+                ) : null}
+              </p>
+            ) : null}
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field
+                label="Base URL"
+                hint="OpenAI 兼容的 /chat/completions 前缀，通常预设已自动填好；改动会切到「自定义」"
+              >
+                <input
+                  className={inputClass}
+                  value={form.translateApiBaseUrl || ""}
+                  onChange={(e) => set("translateApiBaseUrl", e.target.value)}
+                  placeholder="https://api.openai.com/v1"
+                />
+              </Field>
+              <Field
+                label="模型名"
+                hint={
+                  currentPreset.models.length
+                    ? "可直接输入，或从下方推荐列表挑一个"
+                    : "手动填写模型 ID"
+                }
+              >
+                <input
+                  className={inputClass}
+                  value={form.translateApiModel || ""}
+                  onChange={(e) => set("translateApiModel", e.target.value)}
+                  placeholder="gpt-4o-mini"
+                  list={`ai-models-${currentPreset.id}`}
+                />
+                {currentPreset.models.length ? (
+                  <datalist id={`ai-models-${currentPreset.id}`}>
+                    {currentPreset.models.map((m) => (
+                      <option key={m.id} value={m.id} label={m.label} />
+                    ))}
+                  </datalist>
+                ) : null}
+                {currentPreset.models.length ? (
+                  <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
+                    {currentPreset.models.map((m) => {
+                      const active = form.translateApiModel === m.id;
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => set("translateApiModel", m.id)}
+                          className={
+                            active
+                              ? "rounded-full border border-[var(--brand)] bg-[var(--brand)]/12 px-2 py-0.5 text-[var(--brand)]"
+                              : "rounded-full border border-[var(--line)] bg-white/60 px-2 py-0.5 text-[var(--muted)] hover:border-[var(--brand)]/60 hover:text-[var(--brand)]"
+                          }
+                          title={m.label}
+                        >
+                          {m.id}
+                          {m.vision ? " 👁" : ""}
+                          {m.recommended ? " ★" : ""}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </Field>
+              <Field
+                label="API Key"
+                hint="已保存的密钥显示为打码；留空保存表示不修改"
+              >
+                <input
+                  className={inputClass}
+                  type="password"
+                  autoComplete="off"
+                  value={form.translateApiKey || ""}
+                  onChange={(e) => set("translateApiKey", e.target.value)}
+                  placeholder="sk-…"
+                />
+              </Field>
+            </div>
+          </div>
+        );
+      })()}
       {sectionSaveBar("i18n")}
       <div className="mt-4 space-y-3 rounded-2xl border border-[var(--line)] bg-white/50 p-4">
         <p className="text-sm font-medium text-[var(--ink)]">一键翻译正文</p>
