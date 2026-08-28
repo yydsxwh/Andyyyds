@@ -313,7 +313,7 @@ export function MathcodeTool() {
     setCopyHint("正在复制…");
     try {
       await copyTextToClipboard(payload);
-      setCopyHint("已复制完整文档。到 Overleaf 全选 main.tex 粘贴，直接点「重新编译」（不必改编译器）。");
+      setCopyHint("已复制完整 XeLaTeX 文档。Overleaf：Menu → Compiler 选 XeLaTeX，再 Ctrl+A 覆盖 main.tex 后编译。");
     } catch {
       setCopyHint("浏览器拦截了剪贴板。请改点「下载完整 .tex」，或手动全选下方文本框复制。");
     } finally {
@@ -483,7 +483,7 @@ export function MathcodeTool() {
               合并 LaTeX 输出
             </h2>
             <p className="text-xs text-[var(--muted)]">
-              下方已是完整 main.tex。复制后到 Overleaf 覆盖 main.tex，直接点「重新编译」即可，不用改编译器。
+              下方是完整 XeLaTeX + ctex 源码。Overleaf 必须：Menu → Compiler → XeLaTeX，再全选粘贴 main.tex。请重新识别后再复制。
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -540,21 +540,22 @@ export function MathcodeTool() {
 
         <details className="mt-4 text-xs leading-6 text-[var(--muted)]" open>
           <summary className="cursor-pointer text-[var(--ink)]">
-            Overleaf 报 Missing begin&#123;document&#125;？
+            Overleaf 编译步骤（本次必须 XeLaTeX）
           </summary>
           <ol className="ml-5 mt-2 list-decimal space-y-1">
             <li>
-              右侧文本框第一行必须是 <code>\documentclass</code>。若第一行就是
-              <code>\section</code>，说明只贴了正文，请点「复制给 Overleaf」或全选本框。
+              刷新本页后重新识别，再点「复制给 Overleaf」。文本框开头应有
+              <code> % !TEX program = xelatex </code> 和
+              <code>{"\\documentclass[...]{ctexart}"}</code>。
             </li>
             <li>
-              在 Overleaf 里 <strong>全选 main.tex 再粘贴</strong>（Ctrl+A 然后
-              Ctrl+V），不要追加在旧内容后面。
+              Overleaf 里 <strong>全选 main.tex 再粘贴</strong>（Ctrl+A → Ctrl+V）。
             </li>
             <li>
-              直接点绿色「重新编译」。本模板按 pdfLaTeX 编写，与 Overleaf
-              默认编译器一致。
+              左上角 <strong>Menu → Compiler → XeLaTeX</strong>（不要用默认
+              pdfLaTeX，否则中文 ctexart 会失败）。
             </li>
+            <li>点绿色「重新编译」。</li>
           </ol>
         </details>
       </section>

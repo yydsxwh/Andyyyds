@@ -52,25 +52,23 @@ export async function resolveMathcodeProvider(): Promise<MathcodeProvider> {
 }
 
 const SYSTEM_PROMPT = [
-  "You are a lossless full-page OCR engine. Your job is to copy EVERY visible character from the image into LaTeX.",
-  "NEVER extract formulas only. NEVER summarize. NEVER skip prose, captions, page numbers, watermarks, stamps, or side notes.",
-  "Keep text in the original language: Chinese, English, Japanese, Korean, French, German, Spanish, Russian, Arabic, Thai, Vietnamese, and any other script. Do not translate.",
-  "Output rules:",
-  "1. Return LaTeX body only. No greetings, no markdown fences, no commentary.",
-  "2. Ordinary text (any language) stays as UTF-8 prose outside math mode. Do not wrap whole paragraphs in \\text{...}.",
-  "3. Only mathematical / chemical expressions go into math mode: $...$ inline, $$...$$ or equation environment for display.",
-  "4. Preserve reading order and structure: titles \\section*{...}, lists itemize/enumerate, paragraphs separated by a blank line.",
-  "5. Mixed lines like「已知 $a+b=c$，求 $a$」: keep the words, wrap only the math.",
-  "6. Chemistry: \\ce{...}; units: \\pu{...}; visible equation numbers: \\tag{...}.",
-  "7. If you cannot read a glyph, write [?] in place — still do not drop the surrounding sentence.",
-  "8. Empty image → empty string. Otherwise the output length should roughly match the amount of text in the image.",
+  "You are a high-precision document-layout reverse engine. Faithfully reconstruct the ENTIRE scanned page in LaTeX (content + visual style + spatial layout). Do not edit wording. Do not omit elements.",
+  "Return BODY only (no \\documentclass / \\usepackage / \\begin{document} / CJK* / markdown). The host wraps a XeLaTeX+ctex preamble.",
+  "CONTENT: all Chinese/English (and any other language) text, heading levels, paragraphs, ordered numbers, footnotes/endnotes, headers, footers, page numbers, watermarks, table cells, special symbols, emoji (keep Unicode).",
+  "MATH/PHYSICS/CHEMISTRY: standard LaTeX. Inline $...$. Display \\[...\\] (never $$). Chemistry \\ce{...}, units \\pu{...}, equation numbers \\tag{...}.",
+  "STYLE: bold \\textbf, italic \\textit, underline \\uline, strike \\sout. Fonts 黑体{\\heiti}, 楷体{\\kaishu}, 仿宋{\\fangsong}, body 宋体. Sizes \\zihao{-3}..\\zihao{6} matching the scan — do not use \\Huge.",
+  "COLOR: sample RGB from the image. \\textcolor[RGB]{r,g,b}{...}, \\colorbox[RGB]{r,g,b}{...} for highlight bars / 彩色标题栏. tcolorbox colback/colframe use the SAME RGB. Never default to blue unless the scan is blue; if unsure use gray 110,110,110.",
+  "BOXES/BORDERS: full-width bar → \\colorbox or full-width tcolorbox. Sidebar 点评/注意 → wrapfigure + compact tcolorbox, not a full-width box. Nested environments must close in order.",
+  "LAYOUT: original is usually ONE page — keep density so it stays one page. No extra blank lines. No \\section/\\subsection (they explode vertical space). Titles: {\\noindent\\heiti\\zihao{-3} ...\\par}. Two columns → multicols{2}. Absolute callouts: textpos textblock* with mm from top-left if a box is clearly floating.",
+  "HEADER/FOOTER/PAGE: \\fancyhead[L/C/R]{...} \\fancyfoot[C]{\\thepage} only when visible. Watermark: \\AddToShipoutPictureBG{\\AtPageCenter{\\rotatebox{30}{\\textcolor{gray!20}{\\zihao{-1} 水印字}}}} or skip if none.",
+  "FIGURES: no external files. Simple rule/arrow: tikz. Otherwise \\fbox{\\parbox{0.92\\linewidth}{\\centering [图：一句话]}}. Tables: tabular + \\rowcolor when the header row is tinted.",
+  "Unreadable glyph → [?]. Do not invent sentences.",
 ].join("\n");
 
 const USER_PROMPT = [
-  "请把这张图里的全部可见内容转成 LaTeX，不要只转公式。",
-  "要求：图上每一个字都要留下，包括中文、英文及其它任何语言的标题、段落、题号、注释、页眉页脚；公式才进数学模式。",
-  "禁止翻译、禁止摘要、禁止只输出方程式。只返回 LaTeX 正文。",
-  "Transcribe ALL visible text in every language. Formulas become math mode; everything else stays as plain UTF-8 LaTeX. Return LaTeX only.",
+  "请作为文档图片转 LaTeX / 高精度版面逆向引擎，1:1 还原本页全部内容、视觉样式与空间布局。",
+  "识别：中英文、标题层级、段落、编号、注释；数理化公式（行内 $...$，行间 \\[...\\]）；背景色块、底纹、彩色标题栏（\\colorbox）、页眉页脚、页码、水印、表格、图示、特殊符号、emoji、边框。",
+  "不要改原文、不要省略。不要输出 documentclass。侧栏框用 wrapfigure，通栏色条用 colorbox/tcolorbox。只返回 LaTeX 正文。",
 ].join("\n");
 
 export async function callMathcodeOcr(input: {
