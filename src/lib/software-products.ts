@@ -26,7 +26,7 @@ export const SOFTWARE_PRODUCTS: SoftwareProduct[] = [
     name: "MathCode 公式转 LaTeX",
     tagline: "数理化公式 AI 识别",
     description:
-      "上传数学、物理、化学公式的截图或 PDF，由 AI 识别为可编辑的 LaTeX 源码；一键复制或下载 .tex 文件，接下来用 pdflatex / xelatex 生成 PDF。",
+      "上传教材、试题截图或 PDF，由 AI 整页转写为可编辑的 LaTeX：中文叙述保留，公式转成数学模式；一键复制或下载 .tex，再用 xelatex 生成 PDF。",
     status: "live",
     href: "/products/mathcode",
     badge: "站长专用 · 立即可用",

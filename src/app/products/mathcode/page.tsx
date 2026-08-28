@@ -35,9 +35,7 @@ export default async function MathcodePage() {
             公式截图 / PDF 转 LaTeX
           </h1>
           <p className="mt-3 text-sm leading-7 text-[var(--muted)] sm:text-base">
-            上传数学、物理、化学公式的截图或整份 PDF，由 AI 识别为可编辑的
-            LaTeX 源码。一键复制、下载完整 .tex 模板，再用 pdflatex / xelatex
-            本地编译成 PDF。
+            上传截图或 PDF，由 AI 把图上全部文字转成 LaTeX：任何语言的叙述都原样保留，只有公式进入数学模式。一键复制或下载 .tex，再用 xelatex 编译成 PDF。
           </p>
         </header>
 

@@ -79,15 +79,17 @@ export const AI_PROVIDER_PRESETS: AiProviderPreset[] = [
     id: "deepseek",
     name: "DeepSeek 深度求索",
     baseUrl: "https://api.deepseek.com/v1",
-    defaultModel: "deepseek-chat",
+    defaultModel: "deepseek-v4-flash-vision-exp",
     region: "cn",
-    vision: false,
+    vision: true,
     models: [
-      { id: "deepseek-chat", label: "deepseek-chat（通用）", recommended: true },
-      { id: "deepseek-reasoner", label: "deepseek-reasoner（推理，慢）" },
+      // 2026-08-21 官方上线的实验性视觉模型：$0.22/M 输入、$0.66/M 输出，一张图 ≤384 tokens
+      { id: "deepseek-v4-flash-vision-exp", label: "deepseek-v4-flash-vision-exp（视觉，MathCode 首选）", vision: true, recommended: true },
+      { id: "deepseek-chat", label: "deepseek-chat（文本，翻译性价比）", recommended: true },
+      { id: "deepseek-reasoner", label: "deepseek-reasoner（推理，慢，无视觉）" },
     ],
     applyUrl: "https://platform.deepseek.com/api_keys",
-    notes: "大陆直连、便宜好用；仅支持文本，翻译可以，MathCode 无视觉不适用。",
+    notes: "大陆直连、极便宜。视觉走 deepseek-v4-flash-vision-exp（实验版，接口可能变动）；翻译用 deepseek-chat。",
   },
   {
     id: "zhipu-glm",

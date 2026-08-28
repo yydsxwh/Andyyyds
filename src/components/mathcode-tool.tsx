@@ -16,6 +16,7 @@
  */
 
 import { useCallback, useMemo, useRef, useState } from "react";
+import { wrapAsLatexDocument, extractLatexBody } from "@/lib/mathcode-doc";
 
 type ItemStatus = "pending" | "processing" | "done" | "error";
 
@@ -40,6 +41,35 @@ const MAX_IMAGE_BYTES = 12 * 1024 * 1024;
 
 function uid(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/**
+ * 一键复制：Clipboard API 在微信内置浏览器、部分 HTTP、无焦点时会静默失败。
+ * 失败则退回隐藏 textarea + execCommand，保证点击必有结果。
+ */
+async function copyTextToClipboard(text: string): Promise<void> {
+  if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch {
+      // 继续走降级
+    }
+  }
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.setAttribute("readonly", "readonly");
+  ta.setAttribute("aria-hidden", "true");
+  // iOS 微信要求元素在视口内且可选中，不能 left:-9999
+  ta.style.cssText =
+    "position:fixed;top:0;left:0;width:2px;height:2px;padding:0;border:0;opacity:0.01;z-index:99999;";
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  ta.setSelectionRange(0, ta.value.length);
+  const ok = document.execCommand("copy");
+  document.body.removeChild(ta);
+  if (!ok) throw new Error("COPY_FAILED");
 }
 
 async function readFileAsPngIfNeeded(file: File): Promise<{
@@ -122,45 +152,28 @@ async function ocrOne(item: Item): Promise<string> {
   return (data.latex || "").trim();
 }
 
-function buildLatexTemplate(body: string): string {
-  const today = new Date().toISOString().slice(0, 10);
-  return [
-    "% MathCode 生成的可编译模板。",
-    "% - 纯英文/公式：pdflatex 或 xelatex 均可",
-    "% - 含中文：改用 xelatex，并把 documentclass 换成 ctexart",
-    "\\documentclass[12pt]{article}",
-    "\\usepackage[utf8]{inputenc}",
-    "\\usepackage{amsmath, amssymb, amsfonts}",
-    "\\usepackage[version=4]{mhchem}",
-    "\\usepackage{geometry}",
-    "\\geometry{a4paper, margin=2.5cm}",
-    "",
-    `% 生成时间：${today}`,
-    "\\begin{document}",
-    "",
-    body.trim() || "% 识别结果为空",
-    "",
-    "\\end{document}",
-    "",
-  ].join("\n");
-}
-
 export function MathcodeTool() {
   const [items, setItems] = useState<Item[]>([]);
   const [processing, setProcessing] = useState(false);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [combinedEdited, setCombinedEdited] = useState<string | null>(null);
+  const [copyHint, setCopyHint] = useState("");
+  const [copyBusy, setCopyBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // 汇总 LaTeX：优先用用户手动编辑过的版本；否则由 items 按序拼接
-  const autoCombined = useMemo(
+  // 编辑框直接展示完整可编译文档，避免用户全选复制时只贴到 \section 正文
+  const bodyOnly = useMemo(
     () =>
       items
         .filter((i) => i.status === "done" && (i.latex || "").trim())
         .map((i) => `% ${i.label}\n${i.latex}`)
         .join("\n\n"),
     [items],
+  );
+  const autoCombined = useMemo(
+    () => (bodyOnly.trim() ? wrapAsLatexDocument(bodyOnly) : ""),
+    [bodyOnly],
   );
   const combined = combinedEdited ?? autoCombined;
 
@@ -287,22 +300,54 @@ export function MathcodeTool() {
   }, []);
 
   const handleCopy = useCallback(async () => {
-    if (!combined.trim()) return;
+    const payload = combined.trim()
+      ? combined.includes("\\documentclass")
+        ? combined
+        : wrapAsLatexDocument(combined)
+      : "";
+    if (!payload.trim()) {
+      setCopyHint("请先识别出内容，再复制");
+      return;
+    }
+    setCopyBusy(true);
+    setCopyHint("正在复制…");
     try {
-      await navigator.clipboard.writeText(combined);
-      setStatus("已复制到剪贴板");
+      await copyTextToClipboard(payload);
+      setCopyHint("已复制完整文档。到 Overleaf 全选 main.tex 粘贴，直接点「重新编译」（不必改编译器）。");
     } catch {
-      setError("复制失败，请手动选中文本再复制");
+      setCopyHint("浏览器拦截了剪贴板。请改点「下载完整 .tex」，或手动全选下方文本框复制。");
+    } finally {
+      setCopyBusy(false);
+    }
+  }, [combined]);
+
+  const handleCopyFragment = useCallback(async () => {
+    const frag = extractLatexBody(combined);
+    if (!frag.trim()) {
+      setCopyHint("请先识别出内容，再复制");
+      return;
+    }
+    setCopyBusy(true);
+    setCopyHint("正在复制…");
+    try {
+      await copyTextToClipboard(frag);
+      setCopyHint("已复制正文片段（不含文档头）。Overleaf 请用「复制给 Overleaf」。");
+    } catch {
+      setCopyHint("复制被拦截，请全选下方文本框手动复制，或下载文件。");
+    } finally {
+      setCopyBusy(false);
     }
   }, [combined]);
 
   const handleDownloadFragment = useCallback(() => {
-    downloadText(combined, `mathcode-${Date.now()}.tex.txt`);
+    downloadText(extractLatexBody(combined), `mathcode-${Date.now()}-body.tex`);
   }, [combined]);
 
   const handleDownloadDocument = useCallback(() => {
-    const tex = buildLatexTemplate(combined);
-    downloadText(tex, `mathcode-${Date.now()}.tex`);
+    const payload = combined.includes("\\documentclass")
+      ? combined
+      : wrapAsLatexDocument(combined);
+    downloadText(payload, `mathcode-${Date.now()}.tex`);
   }, [combined]);
 
   const handleDrop = useCallback(
@@ -388,7 +433,7 @@ export function MathcodeTool() {
                     </pre>
                   ) : it.status === "done" ? (
                     <p className="mt-2 text-xs text-[var(--muted)]">
-                      未识别到公式，可换一张更清晰的截图重试。
+                      未识别到文字或公式，可换一张更清晰的截图重试。
                     </p>
                   ) : it.status === "error" ? (
                     <p className="mt-2 text-xs text-rose-600">{it.error}</p>
@@ -438,63 +483,77 @@ export function MathcodeTool() {
               合并 LaTeX 输出
             </h2>
             <p className="text-xs text-[var(--muted)]">
-              可直接编辑；「下载 .tex」会套一份 amsmath+mhchem 的完整模板。
+              下方已是完整 main.tex。复制后到 Overleaf 覆盖 main.tex，直接点「重新编译」即可，不用改编译器。
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              className="btn btn-secondary"
-              onClick={handleCopy}
-              disabled={!combined.trim()}
+              className="btn btn-primary cursor-pointer"
+              onClick={() => void handleCopy()}
+              disabled={!combined.trim() || copyBusy}
             >
-              复制 LaTeX
+              {copyBusy ? "正在复制…" : "复制给 Overleaf"}
             </button>
             <button
               type="button"
-              className="btn btn-secondary"
-              onClick={handleDownloadFragment}
-              disabled={!combined.trim()}
-            >
-              下载片段
-            </button>
-            <button
-              type="button"
-              className="btn btn-primary"
+              className="btn btn-secondary cursor-pointer"
               onClick={handleDownloadDocument}
               disabled={!combined.trim()}
             >
               下载完整 .tex
             </button>
+            <button
+              type="button"
+              className="btn btn-secondary cursor-pointer"
+              onClick={() => void handleCopyFragment()}
+              disabled={!combined.trim() || copyBusy}
+            >
+              复制片段
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary cursor-pointer"
+              onClick={handleDownloadFragment}
+              disabled={!combined.trim()}
+            >
+              下载片段
+            </button>
           </div>
         </div>
+        {copyHint ? (
+          <p
+            className="mt-3 rounded-xl bg-[var(--brand)]/10 px-3 py-2 text-sm text-[var(--ink)]"
+            role="status"
+          >
+            {copyHint}
+          </p>
+        ) : null}
 
         <textarea
           value={combined}
           onChange={(e) => setCombinedEdited(e.target.value)}
           spellCheck={false}
           className="mt-4 h-[420px] w-full resize-y rounded-2xl border border-[var(--border)] bg-white/60 p-3 font-mono text-sm leading-6 text-[var(--ink)] outline-none focus:border-[var(--brand)]"
-          placeholder="识别结果会汇总到这里；也可以直接编辑或粘贴其他 LaTeX。"
+          placeholder="识别完成后这里会显示完整可编译的 main.tex（含 \documentclass），可直接全选复制到 Overleaf。"
         />
 
-        <details className="mt-4 text-xs leading-6 text-[var(--muted)]">
+        <details className="mt-4 text-xs leading-6 text-[var(--muted)]" open>
           <summary className="cursor-pointer text-[var(--ink)]">
-            如何本地编译成 PDF？
+            Overleaf 报 Missing begin&#123;document&#125;？
           </summary>
           <ol className="ml-5 mt-2 list-decimal space-y-1">
             <li>
-              安装 TeX Live（Mac：<code>brew install --cask mactex</code>，
-              Windows：MiKTeX / TeX Live 官方安装包）。
+              右侧文本框第一行必须是 <code>\documentclass</code>。若第一行就是
+              <code>\section</code>，说明只贴了正文，请点「复制给 Overleaf」或全选本框。
             </li>
             <li>
-              保存下载的 <code>.tex</code> 文件，命令行执行
-              <code className="ml-1">pdflatex mathcode-xxx.tex</code>；含中文改用
-              <code className="ml-1">xelatex</code>，并把 documentclass 换成
-              <code className="ml-1">ctexart</code>。
+              在 Overleaf 里 <strong>全选 main.tex 再粘贴</strong>（Ctrl+A 然后
+              Ctrl+V），不要追加在旧内容后面。
             </li>
             <li>
-              首次编译若提示缺包，按提示 <code>tlmgr install &lt;package&gt;</code>
-              即可（mhchem、amsmath 等大多已自带）。
+              直接点绿色「重新编译」。本模板按 pdfLaTeX 编写，与 Overleaf
+              默认编译器一致。
             </li>
           </ol>
         </details>
