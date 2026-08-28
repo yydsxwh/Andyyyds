@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { NavPageTemplateShell } from "@/components/nav-page-template-shell";
+import { MATHCODE_EDITOR_LINKS } from "@/lib/mathcode-open";
 import {
   SOFTWARE_PRODUCTS,
   SOFTWARE_PRODUCTS_PAGE,
@@ -28,7 +29,29 @@ function ProductCard({ product }: { product: SoftwareProduct }) {
       <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
         {product.description}
       </p>
-      {product.href ? (
+      {product.href && product.id === "mathcode" ? (
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Link href={product.href} className="btn btn-primary min-h-11 px-4 text-sm">
+            进入 MathCode
+          </Link>
+          <a
+            className="btn btn-secondary min-h-11 px-4 text-sm"
+            href={MATHCODE_EDITOR_LINKS.overleaf}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            打开 Overleaf
+          </a>
+          <a
+            className="btn btn-secondary min-h-11 px-4 text-sm"
+            href={MATHCODE_EDITOR_LINKS.vscodeWeb}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            打开 VS Code
+          </a>
+        </div>
+      ) : product.href ? (
         <span className="mt-4 inline-flex min-h-11 items-center text-sm font-medium text-[var(--brand)]">
           了解更多 →
         </span>
@@ -40,6 +63,11 @@ function ProductCard({ product }: { product: SoftwareProduct }) {
 
   const className =
     "surface block rounded-[28px] p-5 transition hover:-translate-y-0.5 sm:p-6";
+
+  // MathCode 卡片上有多个入口，不能整卡包一层 Link（否则套嵌 <a>）
+  if (product.id === "mathcode") {
+    return <article className={className}>{inner}</article>;
+  }
 
   if (product.href) {
     const external = /^https?:\/\//i.test(product.href);

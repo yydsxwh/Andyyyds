@@ -10,6 +10,7 @@ import Link from "next/link";
 import { MathcodeTool } from "@/components/mathcode-tool";
 import { NavPageTemplateShell } from "@/components/nav-page-template-shell";
 import { getSession } from "@/lib/auth";
+import { MATHCODE_EDITOR_LINKS } from "@/lib/mathcode-open";
 import { isAdmin } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
@@ -35,8 +36,29 @@ export default async function MathcodePage() {
             公式截图 / PDF 转 LaTeX
           </h1>
           <p className="mt-3 text-sm leading-7 text-[var(--muted)] sm:text-base">
-            文档图片转 LaTeX：还原文字、公式、色块、标题栏、页眉页脚与版面。输出完整
-            XeLaTeX + ctex 源码，Overleaf 请用 XeLaTeX 编译。
+            文档图片转 LaTeX：只复刻上传画面上有的文字、公式和色块，不编点评、不编公众号、不补没拍到的内容。
+            输出完整 XeLaTeX + ctex 源码，可用下方按钮直接送进 Overleaf 或 VS Code。
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <a
+              className="btn btn-primary min-h-11 px-4"
+              href={MATHCODE_EDITOR_LINKS.overleaf}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              打开 Overleaf
+            </a>
+            <a
+              className="btn btn-secondary min-h-11 px-4"
+              href={MATHCODE_EDITOR_LINKS.vscodeWeb}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              打开 VS Code
+            </a>
+          </div>
+          <p className="mt-2 text-xs text-[var(--muted)]">
+            这是编辑器入口。识别完成后，结果框里的同名按钮会把<strong>当前生成的 .tex</strong>直接送进去。
           </p>
         </header>
 

@@ -51,24 +51,29 @@ export async function resolveMathcodeProvider(): Promise<MathcodeProvider> {
   return { apiKey, baseUrl, model };
 }
 
+// 只转写画面上有的字。之前把「点评/公众号」写进提示词，模型会在原图没有时也编两框。
 const SYSTEM_PROMPT = [
-  "You are a high-precision document-layout reverse engine. Faithfully reconstruct the ENTIRE scanned page in LaTeX (content + visual style + spatial layout). Do not edit wording. Do not omit elements.",
-  "Return BODY only (no \\documentclass / \\usepackage / \\begin{document} / CJK* / markdown). The host wraps a XeLaTeX+ctex preamble.",
-  "CONTENT: all Chinese/English (and any other language) text, heading levels, paragraphs, ordered numbers, footnotes/endnotes, headers, footers, page numbers, watermarks, table cells, special symbols, emoji (keep Unicode).",
-  "MATH/PHYSICS/CHEMISTRY: standard LaTeX. Inline $...$. Display \\[...\\] (never $$). Chemistry \\ce{...}, units \\pu{...}, equation numbers \\tag{...}.",
-  "STYLE: bold \\textbf, italic \\textit, underline \\uline, strike \\sout. Fonts 黑体{\\heiti}, 楷体{\\kaishu}, 仿宋{\\fangsong}, body 宋体. Sizes \\zihao{-3}..\\zihao{6} matching the scan — do not use \\Huge.",
-  "COLOR: sample RGB from the image. \\textcolor[RGB]{r,g,b}{...}, \\colorbox[RGB]{r,g,b}{...} for highlight bars / 彩色标题栏. tcolorbox colback/colframe use the SAME RGB. Never default to blue unless the scan is blue; if unsure use gray 110,110,110.",
-  "BOXES/BORDERS: full-width bar → \\colorbox or full-width tcolorbox. Sidebar 点评/注意 → wrapfigure + compact tcolorbox, not a full-width box. Nested environments must close in order.",
-  "LAYOUT: original is usually ONE page — keep density so it stays one page. No extra blank lines. No \\section/\\subsection (they explode vertical space). Titles: {\\noindent\\heiti\\zihao{-3} ...\\par}. Two columns → multicols{2}. Absolute callouts: textpos textblock* with mm from top-left if a box is clearly floating.",
-  "HEADER/FOOTER/PAGE: \\fancyhead[L/C/R]{...} \\fancyfoot[C]{\\thepage} only when visible. Watermark: \\AddToShipoutPictureBG{\\AtPageCenter{\\rotatebox{30}{\\textcolor{gray!20}{\\zihao{-1} 水印字}}}} or skip if none.",
-  "FIGURES: no external files. Simple rule/arrow: tikz. Otherwise \\fbox{\\parbox{0.92\\linewidth}{\\centering [图：一句话]}}. Tables: tabular + \\rowcolor when the header row is tinted.",
-  "Unreadable glyph → [?]. Do not invent sentences.",
+  "You are a literal transcriber of one scanned page. Not an author. Not a typesetter who 'improves' the page.",
+  "Return BODY only (no documentclass, usepackage, begin{document}, CJK, markdown fences).",
+  "FIDELITY: copy every visible character in the original language. Do not translate. Do not omit. Do not add sentences, titles, comments, examples, headers, footers, watermarks, WeChat account names, or callout boxes that are not printed on this image.",
+  "If the photo is cropped, transcribe only the visible fragment. Do not complete equations from memory.",
+  "Blank parentheses stay as ( ) or （）. Do not fill answers.",
+  "Ignore computer/OS overlays (latency, packet loss, clocks, mouse, status bars).",
+  "Do NOT emit watermarks; the website injects them.",
+  "FORBIDDEN layout (causes overlap): wrapfigure, wraptable, textpos, textblock, overlay, remember picture, AddToShipoutPicture, raisebox with negative height, \\vspace{-...}, absolute positioning.",
+  "LAYOUT: one downward flow. Paragraph, then display math, then next paragraph. Never two blocks at the same vertical position.",
+  "ONLY IF a colored 点评/注意/旁注/公众号 box is actually visible: reproduce that same wording as a full-width tcolorbox AFTER the related text, matching colback/colframe from the scan. If it is not visible, output none.",
+  "MATH: inline $...$; display \\[...\\] (never $$). \\mathrm{d}x. Chemistry \\ce. Unreadable glyph: [?].",
+  "STYLE: \\textbf \\textit \\uline \\heiti \\kaishu. Color via \\textcolor[RGB]{r,g,b}. Visible titles: {\\noindent\\heiti\\zihao{-3} ...\\par} — never \\section.",
+  "Do not split a Chinese word across lines (keep 满足 together).",
 ].join("\n");
 
 const USER_PROMPT = [
-  "请作为文档图片转 LaTeX / 高精度版面逆向引擎，1:1 还原本页全部内容、视觉样式与空间布局。",
-  "识别：中英文、标题层级、段落、编号、注释；数理化公式（行内 $...$，行间 \\[...\\]）；背景色块、底纹、彩色标题栏（\\colorbox）、页眉页脚、页码、水印、表格、图示、特殊符号、emoji、边框。",
-  "不要改原文、不要省略。不要输出 documentclass。侧栏框用 wrapfigure，通栏色条用 colorbox/tcolorbox。只返回 LaTeX 正文。",
+  "请把本页转成 LaTeX 正文：画面上有什么就写什么，不重不漏。",
+  "禁止编造点评、公众号、页眉页脚、水印、例题旁注或任何原图没有的句子。原图没有色块框就不要输出 tcolorbox。",
+  "原图若被裁切，只写看得见的部分，不要凭知识补全。括号空位保持（）。",
+  "忽略屏幕角落的延迟/丢包/时钟等软件浮层。",
+  "禁止 wrapfigure、textpos、叠字。只返回正文。",
 ].join("\n");
 
 export async function callMathcodeOcr(input: {

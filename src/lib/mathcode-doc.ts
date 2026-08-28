@@ -49,6 +49,17 @@ export function sanitizeLatexBody(text: string): string {
     "{\\noindent\\heiti\\zihao{-4} $1\\par}\\vspace{0.15em}\n",
   );
 
+  // wrapfig / textpos 叠在行间公式上会「框压字」；拆成普通流式内容
+  s = s.replace(
+    /\\begin\{wrapfigure\}(?:\{[^}]*\}){0,2}\s*([\s\S]*?)\\end\{wrapfigure\}/gi,
+    "\n$1\n",
+  );
+  s = s.replace(
+    /\\begin\{textblock\*?\}[^\n]*\n([\s\S]*?)\\end\{textblock\*?\}/gi,
+    "\n$1\n",
+  );
+  s = s.replace(/\\AddToShipoutPicture(?:BG|FG)?\{[\s\S]*?\}\s*/g, "");
+
   // 行间公式统一为 \[...\]（保留行内 $...$）
   s = s.replace(/\$\$([\s\S]+?)\$\$/g, "\\[$1\\]");
 
@@ -58,44 +69,192 @@ export function sanitizeLatexBody(text: string): string {
 
 /**
  * 完整 XeLaTeX + ctex 工程模板（Overleaf 须选 Compiler = XeLaTeX）。
- * 预加载色块/页眉页脚/水印/表格/侧栏/绝对定位，供识别正文直接调用。
+ * 完整 XeLaTeX + ctex。不用 wrapfig/textpos：绝对定位会把色块框叠在公式上。
  */
-export function wrapAsLatexDocument(body: string): string {
+export type WatermarkPosition =
+  | "center"
+  | "top"
+  | "bottom"
+  | "left"
+  | "right"
+  | "tl"
+  | "tr"
+  | "bl"
+  | "br";
+
+export type MathcodeWatermark = {
+  textEnabled: boolean;
+  text: string;
+  imageEnabled: boolean;
+  /** Overleaf 项目里的图片文件名，默认 watermark.png */
+  imageFileName: string;
+  /** 0=水平，正数逆时针倾斜 */
+  angle: number;
+  position: WatermarkPosition;
+  rows: number;
+  cols: number;
+  /** 8–40，越大越明显 */
+  opacityPercent: number;
+  /** ctex 字号，如 2、-1、3 */
+  zihao: string;
+  imageWidthCm: number;
+};
+
+export const DEFAULT_WATERMARK: MathcodeWatermark = {
+  textEnabled: false,
+  text: "内部资料",
+  imageEnabled: false,
+  imageFileName: "watermark.png",
+  angle: 30,
+  position: "center",
+  rows: 1,
+  cols: 1,
+  opacityPercent: 12,
+  zihao: "2",
+  imageWidthCm: 3.2,
+};
+
+function escapeLatexText(raw: string): string {
+  return raw
+    .replace(/\\/g, "\\textbackslash{}")
+    .replace(/([{}$&#%_])/g, "\\$1")
+    .replace(/~/g, "\\textasciitilde{}")
+    .replace(/\^/g, "\\textasciicircum{}");
+}
+
+function clampInt(n: number, min: number, max: number): number {
+  if (!Number.isFinite(n)) return min;
+  return Math.min(max, Math.max(min, Math.round(n)));
+}
+
+/** 单枚水印在 A4 上的坐标（cm，原点页脚左下） */
+function positionCm(pos: WatermarkPosition): { x: number; y: number } {
+  switch (pos) {
+    case "tl":
+      return { x: 3.2, y: 26.4 };
+    case "tr":
+      return { x: 17.8, y: 26.4 };
+    case "bl":
+      return { x: 3.2, y: 3.2 };
+    case "br":
+      return { x: 17.8, y: 3.2 };
+    case "top":
+      return { x: 10.5, y: 26.6 };
+    case "bottom":
+      return { x: 10.5, y: 3.0 };
+    case "left":
+      return { x: 3.0, y: 14.85 };
+    case "right":
+      return { x: 18.0, y: 14.85 };
+    default:
+      return { x: 10.5, y: 14.85 };
+  }
+}
+
+/**
+ * 水印画在 shipout 背景层，不占正文位置、不压公式（浅灰 + 低透明度）。
+ */
+export function buildWatermarkPreamble(wm: MathcodeWatermark | undefined): string {
+  if (!wm || (!wm.textEnabled && !wm.imageEnabled)) return "";
+  const angle = clampInt(wm.angle, -90, 90);
+  const rows = clampInt(wm.rows, 1, 8);
+  const cols = clampInt(wm.cols, 1, 8);
+  const op = Math.min(0.4, Math.max(0.05, wm.opacityPercent / 100));
+  const zihao = String(wm.zihao || "2").replace(/[^\d.-]/g, "") || "2";
+  const imgW = Math.min(12, Math.max(0.8, wm.imageWidthCm || 3.2));
+  const file = (wm.imageFileName || "watermark.png").replace(/[^a-zA-Z0-9._-]/g, "")
+    || "watermark.png";
+  const text = escapeLatexText((wm.text || "").slice(0, 80));
+  const useText = Boolean(wm.textEnabled && text);
+  const useImage = Boolean(wm.imageEnabled);
+  if (!useText && !useImage) return "";
+  const tiled = rows * cols > 1;
+
+  // 用 \wmX/\wmY，避免和 TikZ 的 \x 循环变量打架
+  const textNode = useText
+    ? `\\node[rotate=${angle},opacity=${op.toFixed(2)},text=black,anchor=center] at (\\wmX cm,\\wmY cm) {{\\zihao{${zihao}}\\heiti ${text}}};`
+    : "";
+  const imgNode = useImage
+    ? `\\node[rotate=${angle},opacity=${op.toFixed(2)},anchor=center] at (\\wmX cm,\\wmY cm) {\\includegraphics[width=${imgW}cm]{${file}}};`
+    : "";
+
+  let loop: string;
+  if (tiled) {
+    loop = [
+      `\\foreach \\wmRow in {1,...,${rows}} {`,
+      `  \\foreach \\wmCol in {1,...,${cols}} {`,
+      `    \\pgfmathsetmacro{\\wmX}{2.4 + (\\wmCol-0.5)*16.2/${cols}}`,
+      `    \\pgfmathsetmacro{\\wmY}{2.4 + (\\wmRow-0.5)*24.9/${rows}}`,
+      textNode ? `    ${textNode}` : "",
+      imgNode ? `    ${imgNode}` : "",
+      `  }`,
+      `}`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+  } else {
+    const { x, y } = positionCm(wm.position);
+    loop = [
+      `\\pgfmathsetmacro{\\wmX}{${x}}`,
+      `\\pgfmathsetmacro{\\wmY}{${y}}`,
+      textNode,
+      imgNode,
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  return [
+    "\\usepackage{eso-pic}",
+    "\\usepackage{tikz}",
+    "% 水印在 shipout 背景层：不占正文、透明度封顶，避免盖住公式",
+    "\\AddToShipoutPictureBG{%",
+    "  \\AtPageLowerLeft{%",
+    "    \\begin{tikzpicture}[overlay]",
+    loop,
+    "    \\end{tikzpicture}%",
+    "  }%",
+    "}",
+    useImage
+      ? `% 图片水印：把图片以 ${file} 传到 Overleaf 项目根目录（与 main.tex 同级）`
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+export function wrapAsLatexDocument(
+  body: string,
+  wm?: MathcodeWatermark,
+): string {
   const today = new Date().toISOString().slice(0, 10);
   const inner = sanitizeLatexBody(body);
+  const watermarkBlock = buildWatermarkPreamble(wm);
   return [
     "% !TEX program = xelatex",
     "% !TeX TS-program = xelatex",
     "% Overleaf：左上 Menu → Compiler 必须选 XeLaTeX，再点「重新编译」。",
-    "% MathCode 文档版面逆向：ctex 中文 + 色块/框/页眉页脚/公式",
+    "% MathCode 文档版面逆向：ctex 中文 + 色块/框/公式；水印在背景层",
     `% 生成时间：${today}`,
     "\\documentclass[UTF8,a4paper,zihao=5,oneside]{ctexart}",
     "\\usepackage{amsmath,amssymb,amsfonts,bm}",
     "\\usepackage[version=4]{mhchem}",
     "\\usepackage{xcolor}",
     "\\usepackage{graphicx}",
+    ...(watermarkBlock ? [watermarkBlock] : []),
     "\\usepackage{geometry}",
-    "\\geometry{a4paper,top=1.5cm,bottom=1.5cm,left=1.6cm,right=1.6cm,headheight=14pt}",
-    "\\usepackage{fancyhdr}",
-    "\\usepackage{tikz}",
-    "\\usepackage{eso-pic}",
-    "\\usepackage[absolute,overlay]{textpos}",
-    "\\setlength{\\TPHorizModule}{1mm}",
-    "\\setlength{\\TPVertModule}{1mm}",
+    "\\geometry{a4paper,top=1.5cm,bottom=1.6cm,left=1.7cm,right=1.7cm}",
     "\\usepackage{tcolorbox}",
-    "\\tcbuselibrary{breakable,skins,theorems}",
-    "\\tcbset{boxsep=2pt,left=5pt,right=5pt,top=3pt,bottom=3pt,arc=1mm,boxrule=0.6pt,before skip=4pt,after skip=4pt}",
+    "\\tcbuselibrary{breakable,skins}",
+    "\\tcbset{boxsep=3pt,left=6pt,right=6pt,top=4pt,bottom=4pt,arc=1mm,boxrule=0.5pt,before skip=8pt,after skip=8pt}",
     "\\usepackage[normalem]{ulem}",
     "\\usepackage{enumitem}",
-    "\\usepackage{array,booktabs,multirow,colortbl}",
-    "\\usepackage{wrapfig,multicol}",
-    "\\pagestyle{fancy}",
-    "\\fancyhf{}",
-    "\\renewcommand{\\headrulewidth}{0pt}",
-    "\\renewcommand{\\footrulewidth}{0pt}",
-    "\\setlength{\\parskip}{0pt}",
+    "\\usepackage{array,booktabs,colortbl}",
+    "\\usepackage{multicol}",
+    "\\pagestyle{empty}",
+    "\\setlength{\\parskip}{2pt}",
     "\\setlength{\\parindent}{2em}",
-    "\\setlist{nosep,leftmargin=1.6em,itemsep=0pt,topsep=2pt}",
+    "\\setlist{nosep,leftmargin=1.6em,itemsep=2pt,topsep=3pt}",
     "\\raggedbottom",
     "",
     "\\begin{document}",
