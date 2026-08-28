@@ -5,6 +5,9 @@
 
 const OVERLEAF_DOCS = "https://www.overleaf.com/docs";
 const VSCODE_WEB = "https://vscode.dev";
+const VSCODE_DESKTOP = "vscode://";
+/** 等窗口失焦，判断自定义协议是否唤起了客户端 */
+const VSCODE_PROTOCOL_WAIT_MS = 1800;
 /** hidden input 过大时改走 data URL，避免表单被浏览器截断 */
 const OVERLEAF_ENCODED_SNIP_MAX = 1_200_000;
 
@@ -57,12 +60,6 @@ export function openTexInOverleaf(tex: string, fileName = "main.tex") {
   });
 }
 
-function vscodeFileHref(absPath: string): string {
-  const unix = absPath.replace(/\\/g, "/");
-  const withRoot = /^[A-Za-z]:/.test(unix) ? `/${unix}` : unix;
-  return `vscode://file${withRoot.startsWith("/") ? "" : "/"}${withRoot}`;
-}
-
 function clickProtocol(href: string) {
   const a = document.createElement("a");
   a.href = href;
@@ -71,10 +68,6 @@ function clickProtocol(href: string) {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-}
-
-function isWeChatBrowser(): boolean {
-  return /MicroMessenger/i.test(navigator.userAgent || "");
 }
 
 function downloadTexFile(tex: string, fileName: string) {
@@ -89,24 +82,47 @@ function downloadTexFile(tex: string, fileName: string) {
   URL.revokeObjectURL(url);
 }
 
-type SavePickerWindow = Window & {
-  showSaveFilePicker?: (opts: {
-    suggestedName?: string;
-    types?: { description: string; accept: Record<string, string[]> }[];
-  }) => Promise<{
-    getFile: () => Promise<File>;
-    createWritable: () => Promise<{
-      write: (data: string) => Promise<void>;
-      close: () => Promise<void>;
-    }>;
-  }>;
-};
+/**
+ * 先走 vscode:// 唤起桌面客户端；窗口没失焦则视为未安装，再打开网页版。
+ * 必须在点击事件里同步调用 clickProtocol，await 之后再调常会被浏览器拦住。
+ */
+function tryOpenVsCodeDesktop(protocolHref: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
+      window.removeEventListener("blur", onBlur);
+      document.removeEventListener("visibilitychange", onVis);
+      resolve(ok);
+    };
+    const onBlur = () => finish(true);
+    const onVis = () => {
+      if (document.hidden) finish(true);
+    };
+    window.addEventListener("blur", onBlur);
+    document.addEventListener("visibilitychange", onVis);
+    clickProtocol(protocolHref);
+    window.setTimeout(() => finish(false), VSCODE_PROTOCOL_WAIT_MS);
+  });
+}
 
-export type VsCodeOpenResult = "saved-protocol" | "saved" | "download-web" | "cancelled";
+async function launchVsCodePreferDesktop(protocolHref = VSCODE_DESKTOP): Promise<"desktop" | "web"> {
+  const openedDesktop = await tryOpenVsCodeDesktop(protocolHref);
+  if (openedDesktop) return "desktop";
+  window.open(VSCODE_WEB, "_blank", "noopener,noreferrer");
+  return "web";
+}
+
+/** 只打开编辑器（产品页入口）：有客户端先开客户端 */
+export async function openVsCodeApp(): Promise<"desktop" | "web"> {
+  return launchVsCodePreferDesktop(VSCODE_DESKTOP);
+}
+
+export type VsCodeOpenResult = "desktop" | "web" | "cancelled";
 
 /**
- * 电脑：先让用户把 main.tex 存到 VS Code 工程目录，再唤起 vscode://。
- * 微信/无文件选择器：下载文件并打开 vscode.dev（网页版可继续编辑）。
+ * 下载当前 .tex，并优先用桌面 VS Code 打开；唤不起客户端再打开 vscode.dev。
  */
 export async function openTexInVsCode(
   tex: string,
@@ -115,45 +131,12 @@ export async function openTexInVsCode(
   const source = tex.trim();
   if (!source) return "cancelled";
 
-  if (isWeChatBrowser() || typeof (window as SavePickerWindow).showSaveFilePicker !== "function") {
-    downloadTexFile(source, fileName);
-    window.open(VSCODE_WEB, "_blank", "noopener,noreferrer");
-    return "download-web";
-  }
-
-  try {
-    const handle = await (window as SavePickerWindow).showSaveFilePicker!({
-      suggestedName: fileName,
-      types: [
-        {
-          description: "LaTeX",
-          accept: { "text/plain": [".tex"] },
-        },
-      ],
-    });
-    const writable = await handle.createWritable();
-    await writable.write(source);
-    await writable.close();
-    const file = await handle.getFile();
-    const diskPath = (file as File & { path?: string }).path;
-    if (diskPath) {
-      clickProtocol(vscodeFileHref(diskPath));
-      return "saved-protocol";
-    }
-    clickProtocol("vscode://");
-    return "saved";
-  } catch (err) {
-    if (err instanceof DOMException && err.name === "AbortError") {
-      return "cancelled";
-    }
-    downloadTexFile(source, fileName);
-    clickProtocol("vscode://");
-    window.open(VSCODE_WEB, "_blank", "noopener,noreferrer");
-    return "download-web";
-  }
+  downloadTexFile(source, fileName);
+  return launchVsCodePreferDesktop(VSCODE_DESKTOP);
 }
 
 export const MATHCODE_EDITOR_LINKS = {
   overleaf: "https://www.overleaf.com/project",
+  vscodeDesktop: VSCODE_DESKTOP,
   vscodeWeb: VSCODE_WEB,
 } as const;

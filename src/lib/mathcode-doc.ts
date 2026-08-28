@@ -278,3 +278,11 @@ export function extractLatexBody(fullDoc: string): string {
   }
   return sanitizeLatexBody(fullDoc);
 }
+
+export function looksLikeExistingLatex(text: string): boolean {
+  return /\\documentclass\b|\\begin\{document\}|\\\[/.test(text);
+}
+
+export function passthroughLatex(text: string): string {
+  return sanitizeLatexBody(extractLatexBody(text));
+}

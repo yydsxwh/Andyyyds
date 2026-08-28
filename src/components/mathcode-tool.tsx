@@ -4,15 +4,10 @@
  * MathCode 客户端上传工具（仅站长可见）
  *
  * 输入：
- *   - 图片（png/jpg/webp/gif，一次可多张，直接调 /api/mathcode/ocr）
- *   - PDF（浏览器里用 pdfjs-dist 逐页渲染为 PNG 后再走同一个接口）
- * 输出：
- *   - 每张识别结果单独展示（保留原图缩略+对应 LaTeX，便于逐张核对）
- *   - 每一轮上传在右侧新开一框，显示该轮完整 XeLaTeX（可多次上传）
- *   - 一键复制 LaTeX；一键下载完整 .tex 模板（含 amsmath/mhchem，pdflatex 可直接编译）
- *
- * PDF 单独在浏览器里逐页渲染，是为了避开 Node 端的 canvas/PDF 原生依赖；
- * 出错时给用户降级提示「截图上传即可」，不影响图片识别路径。
+ *   - 图片 / PDF：浏览器渲染后走 /api/mathcode/ocr
+ *   - Markdown / txt / csv / html / tex：走 /api/mathcode/convert
+ *   - Word / WPS / PPT / 表格 / OpenDocument：服务端拆成文字块和内嵌图，再分别 convert / ocr
+ * 输出：每一轮上传在右侧新开一框，完整 XeLaTeX，可送进 Overleaf / VS Code。
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -24,18 +19,25 @@ import {
   type WatermarkPosition,
 } from "@/lib/mathcode-doc";
 import { openTexInOverleaf, openTexInVsCode } from "@/lib/mathcode-open";
+import {
+  MATHCODE_ACCEPT,
+  classifyMathcodeFile,
+  maxBytesForKind,
+} from "@/lib/mathcode-filetypes";
 
 type ItemStatus = "pending" | "processing" | "done" | "error";
 
 type Item = {
   id: string;
-  /** 展示名（PDF 会带 · 第 N 页） */
+  /** 展示名（PDF/PPT 会带 · 第 N 页） */
   label: string;
-  /** 缩略预览 URL（object URL 或 data URL） */
+  source: "image" | "text";
+  /** 缩略预览 URL；文本块可为空 */
   previewUrl: string;
-  /** 用于识别的 PNG/JPG Blob */
   blob: Blob;
   mime: string;
+  /** 文本转换用的原文 */
+  sourceText?: string;
   status: ItemStatus;
   latex?: string;
   error?: string;
@@ -49,10 +51,9 @@ type LatexOutput = {
   edited: string | null;
 };
 
-const ACCEPT = "image/png,image/jpeg,image/webp,image/gif,application/pdf";
+const ACCEPT = MATHCODE_ACCEPT;
 /** PDF 页面渲染分辨率倍数；越高识别越清晰，但也更慢/更大 */
 const PDF_RENDER_SCALE = 2;
-const MAX_IMAGE_BYTES = 12 * 1024 * 1024;
 const WATERMARK_STORAGE_KEY = "yyds-mathcode-watermark-v1";
 const WATERMARK_IMAGE_ACCEPT = "image/png,image/jpeg,image/webp,image/gif";
 
@@ -211,6 +212,7 @@ async function renderPdfToItems(file: File): Promise<Item[]> {
     items.push({
       id: uid(),
       label: `${file.name} · 第 ${i}/${total} 页`,
+      source: "image",
       previewUrl: URL.createObjectURL(blob),
       blob,
       mime: "image/png",
@@ -239,6 +241,80 @@ async function ocrOne(item: Item): Promise<string> {
     throw new Error(data.error || `识别失败（HTTP ${res.status}）`);
   }
   return (data.latex || "").trim();
+}
+
+async function convertOne(item: Item): Promise<string> {
+  const text = (item.sourceText || "").trim();
+  if (!text) return "";
+  const res = await fetch("/api/mathcode/convert", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text, filename: item.label }),
+  });
+  const data = (await res.json().catch(() => ({}))) as {
+    latex?: string;
+    error?: string;
+  };
+  if (!res.ok) {
+    throw new Error(data.error || `转换失败（HTTP ${res.status}）`);
+  }
+  return (data.latex || "").trim();
+}
+
+function blobFromBase64(base64: string, mime: string): Blob {
+  const bin = atob(base64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
+}
+
+async function extractOfficeToItems(file: File): Promise<Item[]> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch("/api/mathcode/office", {
+    method: "POST",
+    body: form,
+  });
+  const data = (await res.json().catch(() => ({}))) as {
+    error?: string;
+    units?: {
+      label: string;
+      kind: "text" | "image";
+      text?: string;
+      mime?: string;
+      base64?: string;
+    }[];
+  };
+  if (!res.ok) {
+    throw new Error(data.error || `解析失败（HTTP ${res.status}）`);
+  }
+  const units = data.units || [];
+  return units.map((unit) => {
+    if (unit.kind === "image" && unit.base64) {
+      const mime = unit.mime || "image/png";
+      const blob = blobFromBase64(unit.base64, mime);
+      return {
+        id: uid(),
+        label: unit.label,
+        source: "image" as const,
+        previewUrl: URL.createObjectURL(blob),
+        blob,
+        mime,
+        status: "pending" as const,
+      };
+    }
+    const text = unit.text || "";
+    return {
+      id: uid(),
+      label: unit.label,
+      source: "text" as const,
+      previewUrl: "",
+      blob: new Blob([text], { type: "text/plain" }),
+      mime: "text/plain",
+      sourceText: text,
+      status: "pending" as const,
+    };
+  });
 }
 
 export function MathcodeTool() {
@@ -305,7 +381,8 @@ export function MathcodeTool() {
         prev.map((p) => (p.id === it.id ? { ...p, status: "processing" } : p)),
       );
       try {
-        const latex = await ocrOne(it);
+        const latex =
+          it.source === "text" ? await convertOne(it) : await ocrOne(it);
         setItems((prev) =>
           prev.map((p) =>
             p.id === it.id ? { ...p, status: "done", latex } : p,
@@ -331,7 +408,7 @@ export function MathcodeTool() {
 
       if (processingRef.current) {
         setStatus(
-          `上一轮还在识别，已排队 ${queuedFilesRef.current.length} 个文件，完成后自动开始`,
+          `上一轮还在转换，已排队 ${queuedFilesRef.current.length} 个文件，完成后自动开始`,
         );
         return;
       }
@@ -342,11 +419,14 @@ export function MathcodeTool() {
         while (queuedFilesRef.current.length > 0) {
           const list = queuedFilesRef.current.splice(0);
           setError("");
-          const oversized = list.filter((f) => f.size > MAX_IMAGE_BYTES);
+          const oversized = list.filter((f) => {
+            const kind = classifyMathcodeFile(f.name, f.type);
+            return f.size > maxBytesForKind(kind);
+          });
           if (oversized.length) {
             setError(
-              `以下文件超过 ${MAX_IMAGE_BYTES / 1024 / 1024}MB，请压缩或分批上传：${oversized
-                .map((f) => f.name)
+              `以下文件过大，请压缩或分批上传：${oversized
+                .map((f) => `${f.name}（${Math.ceil(f.size / 1024 / 1024)}MB）`)
                 .join("、")}`,
             );
             continue;
@@ -354,9 +434,8 @@ export function MathcodeTool() {
 
           const newItems: Item[] = [];
           for (const f of list) {
-            const isPdf =
-              f.type === "application/pdf" || /\.pdf$/i.test(f.name);
-            if (isPdf) {
+            const kind = classifyMathcodeFile(f.name, f.type);
+            if (kind === "pdf") {
               setStatus(`正在解析 PDF：${f.name}`);
               try {
                 const pages = await renderPdfToItems(f);
@@ -367,21 +446,49 @@ export function MathcodeTool() {
                   `PDF 解析失败（${f.name}）：${msg}。可先把关键页截图后再上传。`,
                 );
               }
-            } else if (
-              f.type.startsWith("image/") ||
-              /\.(png|jpe?g|webp|gif)$/i.test(f.name)
-            ) {
+            } else if (kind === "image") {
               const { blob, mime, previewUrl } = await readFileAsPngIfNeeded(f);
               newItems.push({
                 id: uid(),
                 label: f.name,
+                source: "image",
                 previewUrl,
                 blob,
                 mime,
                 status: "pending",
               });
+            } else if (kind === "text") {
+              setStatus(`正在读取：${f.name}`);
+              const sourceText = await f.text();
+              newItems.push({
+                id: uid(),
+                label: f.name,
+                source: "text",
+                previewUrl: "",
+                blob: new Blob([sourceText], { type: "text/plain" }),
+                mime: "text/plain",
+                sourceText,
+                status: "pending",
+              });
+            } else if (kind === "office") {
+              setStatus(`正在解析文档：${f.name}`);
+              try {
+                const parts = await extractOfficeToItems(f);
+                newItems.push(...parts);
+              } catch (err) {
+                const msg = err instanceof Error ? err.message : String(err);
+                setError(
+                  (prev) =>
+                    (prev ? `${prev}；` : "") +
+                    `${f.name}：${msg}`,
+                );
+              }
             } else {
-              setError((prev) => (prev ? prev + "；" : "") + `不支持的文件：${f.name}`);
+              setError(
+                (prev) =>
+                  (prev ? `${prev}；` : "") +
+                  `不支持的文件：${f.name}。请改用图片、PDF、Word/WPS、PPT、表格或 Markdown。`,
+              );
             }
           }
 
@@ -400,7 +507,7 @@ export function MathcodeTool() {
               edited: null,
             },
           ]);
-          setStatus("已加入待识别，正在调用 AI…右侧会新开一框");
+          setStatus("已加入队列，正在转换…右侧会新开一框");
           await runQueue(newItems);
           setStatus("本轮完成。可继续上传，右侧会再开新框显示最新代码。");
         }
@@ -529,18 +636,12 @@ export function MathcodeTool() {
       }
       const result = await openTexInVsCode(tex, "main.tex");
       if (result === "cancelled") return;
-      if (result === "saved-protocol") {
-        setCopyHint("已保存 main.tex 并唤起 VS Code。");
-        return;
-      }
-      if (result === "saved") {
-        setCopyHint(
-          "已保存 main.tex。若 VS Code 已打开该文件夹，资源管理器里会出现这个文件；也可在 VS Code 里用 Ctrl+O 打开它。",
-        );
+      if (result === "desktop") {
+        setCopyHint("已下载 main.tex，并优先打开 VS Code 客户端。请在客户端里打开刚下载的文件。");
         return;
       }
       setCopyHint(
-        "已下载 main.tex，并打开 VS Code 网页版。电脑已安装 VS Code 时可直接打开刚下载的文件。",
+        "未检测到 VS Code 客户端，已下载 main.tex 并打开网页版。安装客户端后可再点一次本按钮。",
       );
     },
     [items, wm],
@@ -844,12 +945,12 @@ export function MathcodeTool() {
           onDrop={handleDrop}
         >
           <p className="text-sm font-medium text-[var(--ink)]">
-            拖拽公式截图 / PDF 到这里
+            拖拽截图、PDF、Word / WPS、PPT、表格或 Markdown 到这里
           </p>
           <p className="text-xs text-[var(--muted)]">
-            支持 png / jpg / webp / gif / pdf（单张≤12MB，PDF 在浏览器里逐页识别）。
-            识别只复刻画面：有点评才出点评，没有的不编。
-            每上传一轮，右侧都会新开一框显示这一轮的代码。
+            图片 / PDF 按页识别；Word、WPS、PPT、Excel、Markdown 抽正文再转 LaTeX。
+            旧版 .doc / .ppt / .xls 请先另存为 docx / pptx / xlsx，或导出 PDF。
+            每上传一轮，右侧都会新开一框。
           </p>
           <label className="btn btn-primary cursor-pointer">
             选择文件
@@ -882,7 +983,7 @@ export function MathcodeTool() {
         <ul className="mt-5 space-y-3">
           {items.length === 0 ? (
             <li className="text-xs text-[var(--muted)]">
-              还没有内容。识别过程只用于生成 LaTeX，不会把图片入库。
+              还没有内容。转换过程只用于生成 LaTeX，不会把文件入库。
             </li>
           ) : (
             items.map((it) => (
@@ -890,13 +991,22 @@ export function MathcodeTool() {
                 key={it.id}
                 className="flex items-start gap-3 rounded-2xl border border-[var(--border)] p-3"
               >
-                {/* 缩略图用 <img> 直接指向 object URL，避免 next/image 对动态 blob 的处理开销 */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={it.previewUrl}
-                  alt={it.label}
-                  className="h-16 w-16 flex-none rounded-lg object-cover"
-                />
+                {it.source === "image" && it.previewUrl ? (
+                  // 缩略图用 <img> 直接指向 object URL，避免 next/image 对动态 blob 的处理开销
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={it.previewUrl}
+                    alt={it.label}
+                    className="h-16 w-16 flex-none rounded-lg object-cover"
+                  />
+                ) : (
+                  <div
+                    className="flex h-16 w-16 flex-none items-center justify-center rounded-lg bg-[var(--brand)]/10 text-[10px] font-medium text-[var(--brand)]"
+                    aria-hidden="true"
+                  >
+                    文本
+                  </div>
+                )}
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="truncate text-sm font-medium text-[var(--ink)]">
@@ -910,7 +1020,7 @@ export function MathcodeTool() {
                     </pre>
                   ) : it.status === "done" ? (
                     <p className="mt-2 text-xs text-[var(--muted)]">
-                      未识别到文字或公式，可换一张更清晰的截图重试。
+                      未识别到内容，可换更清晰的截图或另存为 PDF 再试。
                     </p>
                   ) : it.status === "error" ? (
                     <p className="mt-2 text-xs text-rose-600">{it.error}</p>
@@ -922,7 +1032,7 @@ export function MathcodeTool() {
                       onClick={() => handleRetry(it.id)}
                       disabled={processing || it.status === "processing"}
                     >
-                      重新识别
+                      重试
                     </button>
                     <button
                       type="button"
@@ -1113,7 +1223,7 @@ export function MathcodeTool() {
           <ol className="ml-5 mt-2 list-decimal space-y-1">
             <li>
               点「打开 Overleaf」会把当前 .tex 送进新工程（Compiler = XeLaTeX）。
-              「打开 VS Code」会先保存 main.tex，再唤起本机 VS Code；微信里则下载文件并打开 vscode.dev。
+              「打开 VS Code」会先唤起电脑上的 VS Code 客户端；没有客户端再打开网页版。同时会下载 main.tex。
             </li>
             <li>
               也可「复制源码」后，在 Overleaf 里全选 main.tex 粘贴（Ctrl+A → Ctrl+V）。

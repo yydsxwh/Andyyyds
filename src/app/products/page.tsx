@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { NavPageTemplateShell } from "@/components/nav-page-template-shell";
+import { OpenVsCodeButton } from "@/components/open-vscode-button";
 import { MATHCODE_EDITOR_LINKS } from "@/lib/mathcode-open";
 import {
   SOFTWARE_PRODUCTS,
@@ -42,14 +43,15 @@ function ProductCard({ product }: { product: SoftwareProduct }) {
           >
             打开 Overleaf
           </a>
-          <a
-            className="btn btn-secondary min-h-11 px-4 text-sm"
-            href={MATHCODE_EDITOR_LINKS.vscodeWeb}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
+          <OpenVsCodeButton className="btn btn-secondary min-h-11 px-4 text-sm">
             打开 VS Code
-          </a>
+          </OpenVsCodeButton>
+          <Link
+            href="/app/windows"
+            className="btn btn-secondary min-h-11 px-4 text-sm"
+          >
+            Windows 客户端
+          </Link>
         </div>
       ) : product.href ? (
         <span className="mt-4 inline-flex min-h-11 items-center text-sm font-medium text-[var(--brand)]">

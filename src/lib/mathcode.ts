@@ -121,6 +121,65 @@ export async function callMathcodeOcr(input: {
   return sanitizeLatexBody(stripCodeFences(raw));
 }
 
+const TEXT_SYSTEM_PROMPT = [
+  "You convert an existing digital document into LaTeX BODY. Not an author.",
+  "Return BODY only (no documentclass, usepackage, begin{document}, CJK, markdown fences).",
+  "FIDELITY: keep the source language. Do not translate. Do not omit. Do not add titles, comments, watermarks, WeChat accounts, or callout boxes that are not in the source.",
+  "Source may be Markdown, HTML, CSV/TSV, Word/PPT extracted text, or a spreadsheet dump.",
+  "MATH: inline $...$; display \\[...\\] (never $$). \\mathrm{d}x. Chemistry \\ce.",
+  "TABLES: booktabs tabular or longtable. Preserve every cell. Wide sheets may use \\small or resizebox.",
+  "Headings: {\\noindent\\heiti\\zihao{-3} ...\\par} for top titles; {\\noindent\\heiti\\zihao{-4} ...\\par} for subtitles. You may use \\section* / \\subsection* when the source clearly has heading levels.",
+  "FORBIDDEN: wrapfigure, wraptable, textpos, textblock, overlay, AddToShipoutPicture, negative vspace.",
+  "If the source already contains LaTeX math, keep it. Do not invent problems or answers.",
+].join("\n");
+
+/** 把 Markdown / 表格 / 从办公文档抽出的纯文本转成 LaTeX 正文（不走视觉） */
+export async function callMathcodeTextConvert(input: {
+  provider: MathcodeProvider;
+  text: string;
+  sourceLabel: string;
+}): Promise<string> {
+  const { provider } = input;
+  const source = input.text.trim();
+  if (!source) return "";
+  const url = `${provider.baseUrl}/chat/completions`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${provider.apiKey}`,
+    },
+    body: JSON.stringify({
+      model: provider.model,
+      temperature: 0,
+      max_tokens: 8192,
+      messages: [
+        { role: "system", content: TEXT_SYSTEM_PROMPT },
+        {
+          role: "user",
+          content: [
+            `请把下面这份文档转成 LaTeX 正文。来源：${input.sourceLabel}`,
+            "只写原文有的内容，禁止编造。禁止 wrapfigure / textpos。只返回正文。",
+            "",
+            source.slice(0, 80_000),
+          ].join("\n"),
+        },
+      ],
+    }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(
+      `MathCode 转换失败 ${res.status}: ${body.slice(0, 400) || res.statusText}`,
+    );
+  }
+  const data = (await res.json()) as {
+    choices?: { message?: { content?: string } }[];
+  };
+  const raw = (data.choices?.[0]?.message?.content || "").trim();
+  return sanitizeLatexBody(stripCodeFences(raw));
+}
+
 /** 兼容部分模型仍会包 ```latex ... ``` 的情况，剥去外壳后仍是纯 LaTeX */
 function stripCodeFences(text: string): string {
   const fence = /^```(?:latex|tex|math)?\s*([\s\S]*?)\s*```$/i;

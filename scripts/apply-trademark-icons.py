@@ -191,6 +191,12 @@ def main() -> None:
     master = square_from_mark(raw, mark, 256, scale=0.82)
     save_ico(master, ROOT / "public" / "favicon.ico", [16, 32, 48, 64, 128, 256])
     save_ico(master, ROOT / "src" / "app" / "favicon.ico", [16, 32, 48, 64, 128, 256])
+    # Windows 任务栏 / 快捷方式 / 托盘需要多尺寸 ICO，单张 PNG 经常显示成空白
+    save_ico(
+        master,
+        ROOT / "desktop" / "icon.ico",
+        [16, 20, 24, 32, 40, 48, 64, 256],
+    )
 
     # Android mipmap
     densities = {
