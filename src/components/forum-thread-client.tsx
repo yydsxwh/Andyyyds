@@ -18,6 +18,10 @@ type Comment = {
 type Props = {
   postId: string;
   shareUrl: string;
+  shareTitle: string;
+  shareSummary?: string;
+  campusName?: string;
+  shareImage?: string;
   loggedIn: boolean;
   loginNext: string;
   initialComments: Comment[];
@@ -39,6 +43,10 @@ type Props = {
 export function ForumThreadClient({
   postId,
   shareUrl,
+  shareTitle,
+  shareSummary = "",
+  campusName = "",
+  shareImage = "",
   loggedIn,
   loginNext,
   initialComments,
@@ -102,6 +110,10 @@ export function ForumThreadClient({
         my={my}
         loggedIn={loggedIn}
         shareUrl={shareUrl}
+        shareTitle={shareTitle}
+        shareSummary={shareSummary}
+        campusName={campusName}
+        shareImage={shareImage}
         allowInteract={allowInteract}
       />
 

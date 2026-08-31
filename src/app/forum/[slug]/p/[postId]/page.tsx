@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { ForumPlaceLinks } from "@/components/forum-place-links";
 import { ForumMediaGallery } from "@/components/forum-media-gallery";
@@ -11,6 +12,7 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import {
   displayPostTitle,
+  excerptBody,
   formatForumTime,
   forumMemberMay,
   parseForumMedia,
@@ -24,10 +26,60 @@ import { resolveStoredAccessUrl } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
+type PageParams = { slug: string; postId: string };
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<PageParams>;
+}): Promise<Metadata> {
+  const { slug, postId } = await params;
+  const post = await prisma.forumPost.findUnique({
+    where: { id: postId },
+    select: {
+      title: true,
+      body: true,
+      status: true,
+      university: { select: { slug: true, name: true, enabled: true } },
+    },
+  });
+  if (
+    !post ||
+    post.university.slug !== slug ||
+    !post.university.enabled ||
+    post.status !== "PUBLISHED"
+  ) {
+    return { title: "帖子" };
+  }
+  const title = displayPostTitle(post.title, post.body);
+  const description =
+    excerptBody(post.body, 80) || `${post.university.name}大学论坛`;
+  const site = await getPublicSiteUrl();
+  const url = `${site}/forum/${slug}/p/${postId}`;
+  const image = `${site}/brand/icon-192.png`;
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      url,
+      type: "article",
+      siteName: `${post.university.name}大学论坛`,
+      images: [{ url: image, width: 192, height: 192 }],
+    },
+    twitter: {
+      card: "summary",
+      title,
+      description,
+    },
+  };
+}
+
 export default async function ForumPostPage({
   params,
 }: {
-  params: Promise<{ slug: string; postId: string }>;
+  params: Promise<PageParams>;
 }) {
   const { slug, postId } = await params;
   const session = await getSession();
@@ -86,6 +138,10 @@ export default async function ForumPostPage({
   const site = await getPublicSiteUrl();
   const path = `/forum/${slug}/p/${postId}`;
   const shareUrl = `${site}${path}`;
+  const shareTitle = displayPostTitle(post.title, post.body);
+  const shareSummary = excerptBody(post.body, 80);
+  // 第三方分享页会把图片地址写进外链，不能用带签名的 OSS 临时地址
+  const shareImage = `${site}/brand/icon-192.png`;
   const [flags, notice, hideSocial] = await Promise.all([
     getForumSiteConfig(),
     getPublicForumNotice(),
@@ -138,6 +194,10 @@ export default async function ForumPostPage({
         <ForumThreadClient
           postId={post.id}
           shareUrl={shareUrl}
+          shareTitle={shareTitle}
+          shareSummary={shareSummary}
+          campusName={post.university.name}
+          shareImage={shareImage}
           loggedIn={Boolean(session)}
           loginNext={path}
           initialComments={comments}
