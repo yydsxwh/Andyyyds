@@ -1162,6 +1162,44 @@ html[data-theme-fx="island-breath"]::after {
   min-width: min(80vw, 36rem);
 }
 
+/* 高校分区帖子：小红书式瀑布流。列数随屏宽变，不依赖 hover / JS 库 */
+.forum-feed-masonry {
+  column-count: 2;
+  column-gap: 0.7rem;
+}
+
+.forum-feed-masonry > * {
+  display: inline-block;
+  width: 100%;
+  margin-bottom: 0.7rem;
+  break-inside: avoid;
+  -webkit-column-break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+@media (min-width: 640px) {
+  .forum-feed-masonry {
+    column-count: 3;
+    column-gap: 0.85rem;
+  }
+
+  .forum-feed-masonry > * {
+    margin-bottom: 0.85rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .forum-feed-masonry {
+    column-count: 4;
+  }
+}
+
+@media (min-width: 1280px) {
+  .forum-feed-masonry {
+    column-count: 5;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html[data-theme-fx^="island-"]::before,
   html[data-theme-fx^="island-"]::after {

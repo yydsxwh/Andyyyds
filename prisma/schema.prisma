@@ -471,6 +471,9 @@ model SiteSettings {
   /// 大学论坛全站配置（JSON）：成员发帖/评论/互动/私信开关 + 顶部公告栏
   forumJson String @default("")
 
+  /// 高德 Web 服务 Key：论坛/约搭搜国内店名与反查地址；空则回退 OSM
+  amapWebKey String @default("")
+
   updatedAt DateTime @updatedAt
 }
 

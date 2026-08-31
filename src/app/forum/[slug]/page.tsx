@@ -2,9 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ForumAccountBar } from "@/components/forum-account-bar";
 import { ForumAdBanner } from "@/components/forum-ad-banner";
-import { ForumJoinBar } from "@/components/forum-join-bar";
+import { ForumFeedCard } from "@/components/forum-feed-card";
+import { ForumComposeFab, ForumJoinBar } from "@/components/forum-join-bar";
 import { ForumNoticeBar } from "@/components/forum-notice-bar";
-import { ForumPostCard } from "@/components/forum-post-card";
 import { NavPageTemplateShell } from "@/components/nav-page-template-shell";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -16,12 +16,20 @@ import { resolveStoredAccessUrl } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
+function campusHref(path: string, zoneKey: string, keyword: string) {
+  const params = new URLSearchParams();
+  if (zoneKey) params.set("zone", zoneKey);
+  if (keyword) params.set("q", keyword);
+  const qs = params.toString();
+  return qs ? `${path}?${qs}` : path;
+}
+
 export default async function ForumUniversityPage({
   params,
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ zone?: string }>;
+  searchParams: Promise<{ zone?: string; q?: string }>;
 }) {
   const { slug } = await params;
   const query = await searchParams;
@@ -55,6 +63,7 @@ export default async function ForumUniversityPage({
     otherCampusName = other?.name || "";
   }
   const zoneKey = query.zone?.trim() || "";
+  const keyword = query.q?.trim().slice(0, 40) || "";
   const activeZone = university.zones.find(
     (z) => z.enabled && (z.key === zoneKey || z.id === zoneKey),
   );
@@ -64,6 +73,15 @@ export default async function ForumUniversityPage({
       universityId: university.id,
       status: "PUBLISHED",
       ...(activeZone ? { zoneId: activeZone.id } : {}),
+      ...(keyword
+        ? {
+            OR: [
+              { title: { contains: keyword } },
+              { body: { contains: keyword } },
+              { place: { contains: keyword } },
+            ],
+          }
+        : {}),
     },
     include: {
       author: { select: { name: true, avatarUrl: true } },
@@ -91,10 +109,11 @@ export default async function ForumUniversityPage({
     })),
   );
   const path = `/forum/${university.slug}`;
+  const showFab = (isMember || isAdminUser) && allowPost;
 
   return (
     <NavPageTemplateShell type="forum">
-      <div className="container space-y-5 py-8 sm:py-10">
+      <div className="container space-y-4 py-5 pb-24 sm:py-8">
         {notice ? <ForumNoticeBar notice={notice} /> : null}
         <ForumAdBanner
           imageUrl={adImageUrl}
@@ -102,16 +121,18 @@ export default async function ForumUniversityPage({
           alt={university.adAlt}
         />
 
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
             <Link href="/forum" className="text-sm text-[var(--brand)]">
               ← 全部高校
             </Link>
-            <h1 className="mt-2 text-3xl font-semibold">{university.name}</h1>
-            <p className="mt-2 max-w-xl text-sm leading-6 text-[var(--muted)]">
+            <h1 className="mt-1 text-2xl font-semibold sm:text-3xl">
+              {university.name}
+            </h1>
+            <p className="mt-1 max-w-xl truncate text-sm text-[var(--muted)]">
               {university.slogan || university.description || "本校同学的交流专区"}
             </p>
-            <div className="mt-3 max-w-xl">
+            <div className="mt-2 max-w-xl">
               <ForumAccountBar
                 loggedIn={Boolean(session)}
                 name={session?.name}
@@ -121,7 +142,7 @@ export default async function ForumUniversityPage({
             {session ? (
               <Link
                 href="/forum/mine"
-                className="mt-2 inline-flex min-h-11 items-center text-sm text-[var(--brand)]"
+                className="mt-1 inline-flex min-h-11 items-center text-sm text-[var(--brand)]"
               >
                 我的帖子 / 收藏 / 草稿
               </Link>
@@ -137,40 +158,70 @@ export default async function ForumUniversityPage({
             loginNext={path}
             otherCampusName={otherCampusName}
             allowPost={allowPost}
+            hideComposeOnMobile
           />
         </div>
 
-        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-          <FilterChip href={path} active={!activeZone} label="全部" />
+        <form className="relative mx-auto w-full max-w-xl" action={path} method="get">
+          {activeZone ? (
+            <input type="hidden" name="zone" value={activeZone.key} />
+          ) : null}
+          <input
+            id="forum-campus-search"
+            name="q"
+            defaultValue={keyword}
+            maxLength={40}
+            placeholder="搜索本校帖子"
+            aria-label="搜索本校帖子"
+            className="min-h-11 w-full rounded-full border border-[var(--line)] bg-[var(--line)]/25 py-2 pl-4 pr-14 text-sm"
+          />
+          <button
+            type="submit"
+            className="absolute right-1 top-1/2 inline-flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-full text-[var(--muted)]"
+            aria-label="搜索"
+          >
+            <SearchIcon />
+          </button>
+        </form>
+
+        <nav className="-mx-1 flex gap-1 overflow-x-auto px-1">
+          <ZoneTab
+            href={campusHref(path, "", keyword)}
+            active={!activeZone}
+            label="推荐"
+          />
           {university.zones
             .filter((z) => z.enabled)
             .map((zone) => (
-              <FilterChip
+              <ZoneTab
                 key={zone.id}
-                href={`${path}?zone=${encodeURIComponent(zone.key)}`}
+                href={campusHref(path, zone.key, keyword)}
                 active={activeZone?.id === zone.id}
                 label={zone.name}
               />
             ))}
-        </div>
+        </nav>
 
-        <div className="space-y-3">
-          {posts.length === 0 ? (
-            <p className="surface rounded-[24px] px-5 py-10 text-center text-sm text-[var(--muted)]">
-              这一栏还没有内容，加入本校后发第一篇吧。
-            </p>
-          ) : (
-            cards.map((post) => (
-              <ForumPostCard key={post.id} post={post} />
-            ))
-          )}
-        </div>
+        {posts.length === 0 ? (
+          <p className="rounded-[24px] border border-dashed border-[var(--line)] px-5 py-16 text-center text-sm text-[var(--muted)]">
+            {keyword
+              ? "没有搜到相关帖子，换个词试试。"
+              : "这一栏还没有内容，加入本校后发第一篇吧。"}
+          </p>
+        ) : (
+          <div className="forum-feed-masonry">
+            {cards.map((post) => (
+              <ForumFeedCard key={post.id} post={post} />
+            ))}
+          </div>
+        )}
       </div>
+      {showFab ? <ForumComposeFab slug={university.slug} /> : null}
     </NavPageTemplateShell>
   );
 }
 
-function FilterChip({
+function ZoneTab({
   href,
   active,
   label,
@@ -182,13 +233,29 @@ function FilterChip({
   return (
     <Link
       href={href}
-      className={`inline-flex min-h-11 shrink-0 items-center rounded-full px-4 text-sm ${
+      className={`inline-flex min-h-11 shrink-0 items-center px-3 text-sm ${
         active
-          ? "bg-[var(--brand)] text-white"
-          : "bg-[var(--line)]/40 text-[var(--ink)]"
+          ? "border-b-2 border-[var(--brand)] font-semibold text-[var(--brand)]"
+          : "border-b-2 border-transparent text-[var(--ink)]"
       }`}
     >
       {label}
     </Link>
+  );
+}
+
+function SearchIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-5 w-5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden
+    >
+      <circle cx="11" cy="11" r="7" />
+      <path d="M20 20 16.5 16.5" />
+    </svg>
   );
 }

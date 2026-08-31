@@ -6,6 +6,7 @@
  * 发帖与写笔记是同一入口：最多 30 张图/视频，正文最多 4000 字。
  */
 
+import { wgs84ToGcj02 } from "./geo-china";
 import { isAdmin, type RoleInput } from "./roles";
 
 export const FORUM_POST_KIND = ["POST", "NOTE"] as const;
@@ -363,14 +364,34 @@ export function parseForumCoords(
   return { latitude, longitude };
 }
 
-/** 与约搭详情相同：用地点文案打开高德/腾讯/苹果/Google */
-export function forumPlaceMapLinks(place: string) {
+/** 与约搭详情相同：有坐标时钉到点上（高德/腾讯用 GCJ-02），否则按地点文案搜 */
+export function forumPlaceMapLinks(
+  place: string,
+  lat?: number | null,
+  lng?: number | null,
+) {
   const q = encodeURIComponent(place.trim());
+  if (
+    lat == null ||
+    lng == null ||
+    !Number.isFinite(lat) ||
+    !Number.isFinite(lng)
+  ) {
+    return {
+      amap: `https://uri.amap.com/search?keyword=${q}`,
+      tencent: `https://apis.map.qq.com/uri/v1/search?keyword=${q}&referer=yyds`,
+      apple: `https://maps.apple.com/?q=${q}`,
+      google: `https://www.google.com/maps/search/?api=1&query=${q}`,
+    };
+  }
+  const gcj = wgs84ToGcj02(lat, lng);
+  const name = place.trim() || "地点";
+  const encName = encodeURIComponent(name);
   return {
-    amap: `https://uri.amap.com/search?keyword=${q}`,
-    tencent: `https://apis.map.qq.com/uri/v1/search?keyword=${q}&referer=yyds`,
-    apple: `https://maps.apple.com/?q=${q}`,
-    google: `https://www.google.com/maps/search/?api=1&query=${q}`,
+    amap: `https://uri.amap.com/marker?position=${gcj.lng},${gcj.lat}&name=${encName}&coordinate=gaode&callnative=1`,
+    tencent: `https://apis.map.qq.com/uri/v1/marker?marker=coord:${gcj.lat},${gcj.lng};title:${encName}&referer=yyds`,
+    apple: `https://maps.apple.com/?ll=${lat},${lng}&q=${encName}`,
+    google: `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`,
   };
 }
 

@@ -616,6 +616,7 @@ export function MeetupEditorForm({
             ? Number(longitude)
             : null
         }
+        autoLocateOnOpen
         onClose={() => setMapOpen(false)}
         onConfirm={(result) => {
           setLatitude(String(result.latitude));

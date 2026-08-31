@@ -3,14 +3,18 @@ import { forumPlaceMapLinks } from "@/lib/forum";
 /** 帖子地点：文案 + 外链导航（与约搭详情同一套地图 App） */
 export function ForumPlaceLinks({
   place,
+  latitude,
+  longitude,
   compact = false,
 }: {
   place: string;
+  latitude?: number | null;
+  longitude?: number | null;
   compact?: boolean;
 }) {
   const text = place.trim();
   if (!text) return null;
-  const links = forumPlaceMapLinks(text);
+  const links = forumPlaceMapLinks(text, latitude, longitude);
   if (compact) {
     return (
       <p className="mt-2 truncate text-xs text-[var(--muted)]">📍 {text}</p>

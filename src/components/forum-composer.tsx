@@ -42,6 +42,7 @@ type Props = {
   zones: Zone[];
   defaultZoneId?: string;
   initial?: ForumComposerInitial | null;
+  cityHint?: string;
 };
 
 export function ForumComposer({
@@ -50,6 +51,7 @@ export function ForumComposer({
   zones,
   defaultZoneId,
   initial = null,
+  cityHint = "",
 }: Props) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -260,6 +262,7 @@ export function ForumComposer({
         onLatitude={setLatitude}
         onLongitude={setLongitude}
         onMessage={setError}
+        cityHint={cityHint}
       />
 
       <div>

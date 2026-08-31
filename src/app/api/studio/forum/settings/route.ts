@@ -29,6 +29,8 @@ const mediaSchema = z.object({
 });
 
 const patchSchema = z.object({
+  /** 分块保存：开关与公告栏互不覆盖未提交的另一块 */
+  section: z.enum(["toggles", "notice"]).optional(),
   allowMemberPost: z.boolean().optional(),
   allowMemberComment: z.boolean().optional(),
   allowMemberInteract: z.boolean().optional(),
@@ -69,30 +71,43 @@ export async function PATCH(req: Request) {
     }
     const body = patchSchema.parse(await req.json());
     const current = await getForumSiteConfig();
-    let media = current.notice.media;
-    if (body.notice?.media) {
-      media = body.notice.media.filter((item) =>
-        isOwnedForumMediaUrl(item.url, session.id),
-      );
-      if (media.length !== body.notice.media.length) {
-        return NextResponse.json(
-          { error: "公告附件无效，请重新上传后再保存" },
-          { status: 400 },
-        );
+    const next: ForumSiteConfig = { ...current, notice: { ...current.notice } };
+
+    // 保存开关时不要改公告；保存公告时不要改开关
+    if (body.section !== "notice") {
+      if (body.allowMemberPost !== undefined) {
+        next.allowMemberPost = body.allowMemberPost;
+      }
+      if (body.allowMemberComment !== undefined) {
+        next.allowMemberComment = body.allowMemberComment;
+      }
+      if (body.allowMemberInteract !== undefined) {
+        next.allowMemberInteract = body.allowMemberInteract;
+      }
+      if (body.allowMemberMessage !== undefined) {
+        next.allowMemberMessage = body.allowMemberMessage;
       }
     }
-    const nextNotice = parseForumNotice({
-      ...current.notice,
-      ...body.notice,
-      media,
-    });
-    const next: ForumSiteConfig = {
-      allowMemberPost: body.allowMemberPost ?? current.allowMemberPost,
-      allowMemberComment: body.allowMemberComment ?? current.allowMemberComment,
-      allowMemberInteract: body.allowMemberInteract ?? current.allowMemberInteract,
-      allowMemberMessage: body.allowMemberMessage ?? current.allowMemberMessage,
-      notice: nextNotice,
-    };
+
+    if (body.section !== "toggles" && body.notice) {
+      let media = current.notice.media;
+      if (body.notice.media) {
+        media = body.notice.media.filter((item) =>
+          isOwnedForumMediaUrl(item.url, session.id),
+        );
+        if (media.length !== body.notice.media.length) {
+          return NextResponse.json(
+            { error: "公告附件无效，请重新上传后再保存" },
+            { status: 400 },
+          );
+        }
+      }
+      next.notice = parseForumNotice({
+        ...current.notice,
+        ...body.notice,
+        media,
+      });
+    }
     const config = await saveForumSiteConfig(next);
     const noticePreview = await getSignedForumNotice(config.notice);
     return NextResponse.json({ config, noticePreview });

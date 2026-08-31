@@ -75,6 +75,8 @@ export type PublicSettings = {
   smsTestMode: boolean;
   smsTestFixedCode: string;
   smsLoginReady?: boolean;
+  amapWebKey?: string;
+  amapConfigured?: boolean;
 };
 
 type Props = { initial: PublicSettings };
@@ -111,7 +113,8 @@ type SettingsSectionId =
   | "sms"
   | "alipay"
   | "vod"
-  | "oss";
+  | "oss"
+  | "geo";
 
 /** 系统设置分区：点击标题展开/收起；可同时展开多块 */
 function SettingsSection({
@@ -227,6 +230,8 @@ export function SiteSettingsPanel({ initial }: Props) {
     smsTestMode: initial.smsTestMode !== false,
     smsTestFixedCode: initial.smsTestFixedCode || "123456",
     smsLoginReady: Boolean(initial.smsLoginReady),
+    amapWebKey: initial.amapWebKey || "",
+    amapConfigured: Boolean(initial.amapConfigured),
   }));
   // 用集合记录展开项，互不影响，方便对照填写多块配置
   const [openSections, setOpenSections] = useState<Set<SettingsSectionId>>(
@@ -361,6 +366,8 @@ export function SiteSettingsPanel({ initial }: Props) {
           ossPublicBaseUrl: form.ossPublicBaseUrl,
           ossPrefix: form.ossPrefix,
         };
+      case "geo":
+        return { amapWebKey: form.amapWebKey };
       default:
         return {};
     }
@@ -378,6 +385,7 @@ export function SiteSettingsPanel({ initial }: Props) {
     alipay: "支付宝支付已保存",
     vod: "点播设置已保存",
     oss: "OSS 设置已保存",
+    geo: "地图选点设置已保存",
   };
 
   async function saveSection(id: SettingsSectionId) {
@@ -1357,6 +1365,45 @@ export function SiteSettingsPanel({ initial }: Props) {
           与桶同属一个账号。预览由站点签发临时链接，无需公共读。
         </p>
         {sectionSaveBar("oss")}
+      </SettingsSection>
+
+      <SettingsSection
+        id="geo"
+        title="地图选点 · 高德"
+        summary={
+          form.amapConfigured ? "已配置高德 Key，可搜国内店名" : "未配置，国内餐厅可能搜不到"
+        }
+        open={openSections.has("geo")}
+        onToggle={toggleSection}
+      >
+        <p className="text-sm leading-6 text-[var(--muted)]">
+          约搭和大学论坛搜地点默认走高德 Web 服务（国内店名比 OpenStreetMap
+          全得多）。请到
+          <a
+            className="mx-1 text-[var(--brand)] underline"
+            href="https://console.amap.com/dev/key/app"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            高德开放平台
+          </a>
+          创建应用，服务平台选「Web 服务」，把 Key 贴到下面。也可在服务器环境变量
+          <code className="mx-1">AMAP_WEB_KEY</code> 里配置。
+        </p>
+        <Field
+          label="高德 Web 服务 Key"
+          hint="已保存的显示为打码；留空保存表示不修改。无 Key 时搜索会回退 OSM，广州小店常搜不到。"
+        >
+          <input
+            className={inputClass}
+            type="password"
+            autoComplete="off"
+            value={form.amapWebKey || ""}
+            onChange={(e) => set("amapWebKey", e.target.value)}
+            placeholder="Web 服务 Key"
+          />
+        </Field>
+        {sectionSaveBar("geo")}
       </SettingsSection>
     </div>
   );

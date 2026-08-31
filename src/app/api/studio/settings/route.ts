@@ -80,6 +80,7 @@ const patchSchema = z.object({
   enabledLocales: z.array(z.string().max(16)).max(20).optional(),
   translateApiBaseUrl: z.string().max(300).optional(),
   translateApiKey: z.string().max(500).optional(),
+  amapWebKey: z.string().max(128).optional(),
   translateApiModel: z.string().max(128).optional(),
   smsEnabled: z.boolean().optional(),
   smsProvider: z.enum(["test", "aliyun"]).optional(),
@@ -200,6 +201,7 @@ export async function PATCH(req: Request) {
       ["vodAccessKeySecret", body.vodAccessKeySecret],
       ["smsAccessKeySecret", body.smsAccessKeySecret],
       ["translateApiKey", body.translateApiKey],
+      ["amapWebKey", body.amapWebKey],
     ] as const;
 
     for (const [key, incoming] of secretKeys) {
