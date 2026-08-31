@@ -3,15 +3,15 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { StudioProductDeleteButton } from "@/components/studio-product-delete-button";
+import { StudioProductDeleteButton } from "@andyyyds/courses/components/studio-product-delete-button";
 import {
   isMeetupProductType,
   meetupActivityEditPath,
   productDetailPath,
   productTypeLabel,
   type ProductType,
-} from "@/lib/product-types";
-import { formatPrice } from "@/lib/utils";
+} from "@andyyyds/shared/product-types";
+import { formatPrice } from "@andyyyds/shared/utils";
 
 export type AdminProductRow = {
   id: string;

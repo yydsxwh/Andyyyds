@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/db";
+import { prisma } from "@andyyyds/shared/db";
 import {
   ASSET_DESC_MAX,
   ASSET_NAME_MAX,
@@ -9,13 +9,13 @@ import {
   inferMimeType,
   isAllowedUpload,
   isMediaKind,
-} from "@/lib/media";
-import { completeOssBrowserMultipart } from "@/lib/storage";
-import { requireCourseStudioUser, studioErrorResponse } from "@/lib/studio";
+} from "@andyyyds/shared/media";
+import { completeOssBrowserMultipart } from "@andyyyds/shared/storage";
+import { requireCourseStudioUser, studioErrorResponse } from "@andyyyds/shared/studio";
 import {
   completeVodBrowserMultipart,
   vodUrlFromVideoId,
-} from "@/lib/aliyun-vod";
+} from "@andyyyds/shared/aliyun-vod";
 
 export const runtime = "nodejs";
 

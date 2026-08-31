@@ -6,8 +6,8 @@ import {
   useMemo,
   type ReactNode,
 } from "react";
-import type { AppLocale } from "@/lib/i18n/locales";
-import { translateMessage } from "@/lib/i18n/messages";
+import type { AppLocale } from "@andyyyds/shared/i18n/locales";
+import { translateMessage } from "@andyyyds/shared/i18n/messages";
 
 type LocaleContextValue = {
   locale: AppLocale;

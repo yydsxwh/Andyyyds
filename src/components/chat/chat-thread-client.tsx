@@ -8,7 +8,7 @@ import {
   CHAT_KIND,
   CHAT_MEMBER_ROLE,
   CHAT_STATUS,
-} from "@/lib/chat/constants";
+} from "@andyyyds/shared/chat/constants";
 
 type Msg = {
   id: string;

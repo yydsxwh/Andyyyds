@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CreateGroupForm } from "@/components/chat/create-group-form";
-import { getSession } from "@/lib/auth";
-import { getHideSocialChatFlag } from "@/lib/site-settings";
+import { getSession } from "@andyyyds/shared/auth";
+import { getHideSocialChatFlag } from "@andyyyds/shared/site-settings";
 
 export const dynamic = "force-dynamic";
 

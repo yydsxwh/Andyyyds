@@ -5,17 +5,17 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createSession, hashPassword, makeReferralCode } from "@/lib/auth";
-import { prisma } from "@/lib/db";
+import { createSession, hashPassword, makeReferralCode } from "@andyyyds/shared/auth";
+import { prisma } from "@andyyyds/shared/db";
 import {
   fieldsForSignup,
   PENDING_REVIEW_MESSAGE,
-} from "@/lib/role-applications";
+} from "@andyyyds/shared/role-applications";
 import {
   APPLYABLE_ROLES,
   isElevatedApplyRole,
   type Role,
-} from "@/lib/roles";
+} from "@andyyyds/shared/roles";
 
 const schema = z.object({
   name: z.string().min(1),
@@ -38,7 +38,7 @@ export async function POST(req: Request) {
 
     let referredById: string | undefined;
     if (body.referralCode) {
-      const { normalizeReferralCode } = await import("@/lib/referral-code");
+      const { normalizeReferralCode } = await import("@andyyyds/shared/referral-code");
       const code = normalizeReferralCode(body.referralCode);
       if (code) {
         const inviter = await prisma.user.findFirst({

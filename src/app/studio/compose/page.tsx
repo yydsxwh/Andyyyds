@@ -1,16 +1,4 @@
-import { redirect } from "next/navigation";
-
+/** Next.js 路由入口（网址不变）。dynamic/metadata 必须写在本文件，Next 才能静态识别。 */
 export const dynamic = "force-dynamic";
 
-/** 旧入口：跳转到课程中心内的「创建课程/资料」 */
-export default async function StudioComposeRedirectPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ assets?: string }>;
-}) {
-  const params = await searchParams;
-  const qs = params.assets
-    ? `?assets=${encodeURIComponent(params.assets)}`
-    : "";
-  redirect(`/studio/courses/compose${qs}`);
-}
+export { default } from "@andyyyds/courses/routes/studio/compose/page";

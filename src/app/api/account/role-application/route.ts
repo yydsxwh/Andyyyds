@@ -6,14 +6,14 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSession } from "@/lib/auth";
-import { prisma } from "@/lib/db";
+import { getSession } from "@andyyyds/shared/auth";
+import { prisma } from "@andyyyds/shared/db";
 import {
   ACCOUNT_APPLY_SUCCESS_MESSAGE,
   fieldsForApplyFromAccount,
   validateAccountRoleApply,
-} from "@/lib/role-applications";
-import { ELEVATED_APPLY_ROLES, ROLE_LABEL } from "@/lib/roles";
+} from "@andyyyds/shared/role-applications";
+import { ELEVATED_APPLY_ROLES, ROLE_LABEL } from "@andyyyds/shared/roles";
 
 const schema = z.object({
   requestedRole: z.enum(ELEVATED_APPLY_ROLES),

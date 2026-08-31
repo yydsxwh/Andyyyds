@@ -1,14 +1,14 @@
 import { redirect } from "next/navigation";
 import { CmsPanel } from "@/components/cms-panel";
 import { StudioNav } from "@/components/studio-nav";
-import { getSession } from "@/lib/auth";
-import { isAdmin } from "@/lib/roles";
+import { getSession } from "@andyyyds/shared/auth";
+import { isAdmin } from "@andyyyds/shared/roles";
 import {
   getOrderFormConfig,
   getPortalConfig,
   getStudioNavConfig,
   getUiCopy,
-} from "@/lib/site-settings";
+} from "@andyyyds/shared/site-settings";
 
 export const dynamic = "force-dynamic";
 

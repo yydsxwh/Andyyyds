@@ -8,10 +8,10 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { findOrCreateUserByPhone } from "@/lib/auth-providers";
-import { isValidCnMobile, normalizePhone } from "@/lib/phone";
-import { APPLYABLE_ROLES } from "@/lib/roles";
-import { verifySmsCode } from "@/lib/sms";
+import { findOrCreateUserByPhone } from "@andyyyds/shared/auth-providers";
+import { isValidCnMobile, normalizePhone } from "@andyyyds/shared/phone";
+import { APPLYABLE_ROLES } from "@andyyyds/shared/roles";
+import { verifySmsCode } from "@andyyyds/shared/sms";
 
 const schema = z.object({
   phone: z.string().min(6).max(20),

@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
-import { canViewAllStudioData } from "@/lib/roles";
+import { prisma } from "@andyyyds/shared/db";
+import { canViewAllStudioData } from "@andyyyds/shared/roles";
 import {
   LOCAL_MEDIA_MISSING_MESSAGE,
   pickLessonMediaSource,
   resolveMediaAccessUrl,
-} from "@/lib/storage";
-import { requireCourseStudioUser, studioErrorResponse } from "@/lib/studio";
+} from "@andyyyds/shared/storage";
+import { requireCourseStudioUser, studioErrorResponse } from "@andyyyds/shared/studio";
 
 export const runtime = "nodejs";
 

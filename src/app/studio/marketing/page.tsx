@@ -2,8 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { MarketingSubnav } from "@/components/marketing-subnav";
 import { StudioNav } from "@/components/studio-nav";
-import { getSession } from "@/lib/auth";
-import { canManageMarketing } from "@/lib/roles";
+import { getSession } from "@andyyyds/shared/auth";
+import { canManageMarketing } from "@andyyyds/shared/roles";
 
 export const dynamic = "force-dynamic";
 

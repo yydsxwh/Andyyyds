@@ -1,0 +1,12 @@
+{
+  "name": "@andyyyds/company",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Andyyyds 公司介绍",
+  "exports": {
+    "./*": "./*"
+  },
+  "dependencies": {
+    "@andyyyds/shared": "*"
+  }
+}

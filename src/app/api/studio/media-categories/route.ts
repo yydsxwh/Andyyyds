@@ -1,8 +1,8 @@
 ﻿import { NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/db";
-import { MEDIA_CATEGORY_NAME_MAX } from "@/lib/media";
-import { requireCourseStudioUser, studioErrorResponse } from "@/lib/studio";
+import { prisma } from "@andyyyds/shared/db";
+import { MEDIA_CATEGORY_NAME_MAX } from "@andyyyds/shared/media";
+import { requireCourseStudioUser, studioErrorResponse } from "@andyyyds/shared/studio";
 
 const createSchema = z.object({
   name: z.string().trim().min(1).max(MEDIA_CATEGORY_NAME_MAX),

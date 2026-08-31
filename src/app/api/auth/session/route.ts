@@ -5,8 +5,8 @@
  */
 
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
-import { resolveStoredAccessUrl } from "@/lib/storage";
+import { getSession } from "@andyyyds/shared/auth";
+import { resolveStoredAccessUrl } from "@andyyyds/shared/storage";
 
 export const dynamic = "force-dynamic";
 

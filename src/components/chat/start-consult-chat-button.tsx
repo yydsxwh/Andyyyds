@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { useLocale } from "@/components/i18n/locale-provider";
-import type { ChatSource } from "@/lib/chat/constants";
+import type { ChatSource } from "@andyyyds/shared/chat/constants";
 
 type Props = {
   peerUserId: string;

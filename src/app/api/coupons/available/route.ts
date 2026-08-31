@@ -4,14 +4,14 @@
  */
 
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
+import { getSession } from "@andyyyds/shared/auth";
 import {
   calcCouponDiscount,
   couponAppliesToProduct,
   formatCouponBenefit,
   validateCouponForOrder,
-} from "@/lib/coupons";
-import { prisma } from "@/lib/db";
+} from "@andyyyds/shared/coupons";
+import { prisma } from "@andyyyds/shared/db";
 
 export async function GET(req: Request) {
   const session = await getSession();

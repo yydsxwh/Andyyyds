@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { CHAT_SOURCE } from "@/lib/chat/constants";
+import { CHAT_SOURCE } from "@andyyyds/shared/chat/constants";
 
 type UserHit = {
   id: string;

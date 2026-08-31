@@ -5,7 +5,7 @@ import {
   DEFAULT_STUDIO_NAV,
   type StudioNavConfig,
   type StudioNavLink,
-} from "@/lib/studio-nav-config";
+} from "@andyyyds/shared/studio-nav-config";
 
 type Props = {
   value: StudioNavConfig;

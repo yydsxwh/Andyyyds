@@ -3,21 +3,45 @@ import { ChatUnreadBadge } from "@/components/chat/chat-unread-badge";
 import { SiteHeaderNav, type HeaderNavLink } from "@/components/site-header-nav";
 import { SiteHomeClock } from "@/components/site-home-clock";
 import { UserAvatar } from "@/components/user-avatar";
-import { getSession } from "@/lib/auth";
-import { DEFAULT_LOGO_URL } from "@/lib/decorate";
+import { getSession } from "@andyyyds/shared/auth";
+import { DEFAULT_LOGO_URL } from "@andyyyds/shared/decorate";
 import { BilingualHover } from "@/components/i18n/bilingual-hover";
-import { resolveContentText } from "@/lib/i18n/content-resolve";
-import { getRequestLocaleContext } from "@/lib/i18n/get-request-locale";
-import { translateMessage } from "@/lib/i18n/messages";
-import { navMessageKey } from "@/lib/i18n/nav-labels";
-import { typoRoleClass, typoRoleStyle } from "@/lib/site-typography";
-import { canAccessStudio, hasRole, isAdmin } from "@/lib/roles";
+import { resolveContentText } from "@andyyyds/shared/i18n/content-resolve";
+import { getRequestLocaleContext } from "@andyyyds/shared/i18n/get-request-locale";
+import { translateMessage } from "@andyyyds/shared/i18n/messages";
+import { navHoverMessageKey, navMessageKey } from "@andyyyds/shared/i18n/nav-labels";
+import { typoRoleClass, typoRoleStyle } from "@andyyyds/shared/site-typography";
+import { canAccessStudio, hasRole, isAdmin } from "@andyyyds/shared/roles";
 import {
   getDecorateConfig,
   getPortalConfig,
   getStudioNavConfig,
-} from "@/lib/site-settings";
-import { resolveStoredAccessUrl } from "@/lib/storage";
+} from "@andyyyds/shared/site-settings";
+import { resolveStoredAccessUrl } from "@andyyyds/shared/storage";
+
+/**
+ * 游戏中心并进「软件产品」下拉，少占顶栏一位；软件产品关掉时仍单独露出游戏。
+ */
+function nestGamesUnderProducts(links: HeaderNavLink[]): HeaderNavLink[] {
+  const isGames = (item: HeaderNavLink) => item.href === "/games";
+  const isProducts = (item: HeaderNavLink) => item.href === "/products";
+  const games = links.find(isGames);
+  if (!games?.href) return links;
+  const rest = links.filter((item) => !isGames(item));
+  const productsIndex = rest.findIndex(isProducts);
+  if (productsIndex < 0) return links;
+  const products = rest[productsIndex];
+  const children = [...(products.children || [])];
+  if (!children.some((child) => child.href === games.href)) {
+    children.push({
+      href: games.href,
+      label: games.label,
+      labelSecondary: games.labelSecondary,
+    });
+  }
+  rest[productsIndex] = { ...products, children };
+  return rest;
+}
 
 /**
  * 全站顶栏：门户导航（公司/个人/网课资料/商城等）+ 登录态相关入口
@@ -73,17 +97,19 @@ export async function SiteHeader() {
           { key: "games", href: "/games", label: "游戏中心" },
         ];
 
-  const links: HeaderNavLink[] = await Promise.all(
+  const mappedPortalLinks: HeaderNavLink[] = await Promise.all(
     portalNavSource.map(async (item) => {
-      const key = navMessageKey({ label: item.label, href: item.href });
-      if (key) {
-        return {
-          href: item.href,
-          label: bilingual ? t(key) : t(key),
-          labelSecondary: bilingual ? tEn(key) : undefined,
-        };
-      }
-      if (item.key) {
+      const displayKey = navMessageKey({ label: item.label });
+      const hoverKey = navHoverMessageKey({
+        label: item.label,
+        href: item.href,
+        key: item.key,
+      });
+      // 主文案：改过的 CMS 名称（如「论坛」）必须保留；未改过的才走语言包
+      let label = item.label;
+      if (displayKey) {
+        label = bilingual ? item.label : t(displayKey);
+      } else if (item.key) {
         const resolved = await resolveContentText({
           entityType: "portal",
           entityId: "default",
@@ -91,18 +117,21 @@ export async function SiteHeader() {
           source: item.label,
           locale: contentLocale,
         });
-        return {
-          href: item.href,
-          label: bilingual ? resolved.source : resolved.text,
-          labelSecondary:
-            bilingual && resolved.text !== resolved.source
-              ? resolved.text
-              : undefined,
-        };
+        label = bilingual ? resolved.source : resolved.text;
       }
-      return { href: item.href, label: item.label };
+      const fromCatalogEn = hoverKey ? tEn(hoverKey) : "";
+      return {
+        href: item.href,
+        label,
+        labelSecondary:
+          bilingual && fromCatalogEn && fromCatalogEn !== label
+            ? fromCatalogEn
+            : undefined,
+      };
     }),
   );
+
+  const links: HeaderNavLink[] = nestGamesUnderProducts(mappedPortalLinks);
 
   if (session) {
     links.push({
@@ -132,8 +161,8 @@ export async function SiteHeader() {
   }
 
   return (
-    <header className="glass-bar tilt-glass-bar sticky top-0 z-40 border-b">
-      <div className="grid min-h-14 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-3 py-2 sm:min-h-16 sm:gap-3 sm:px-3 lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:px-4">
+    <header className="glass-bar tilt-glass-bar sticky top-0 z-40 overflow-visible border-b">
+      <div className="relative grid min-h-14 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-3 py-2 sm:min-h-16 sm:gap-3 sm:px-3 lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:px-4">
         <Link
           href="/"
           className="flex min-w-0 items-center gap-1.5 self-center sm:gap-2"
@@ -162,7 +191,6 @@ export async function SiteHeader() {
         </div>
 
         <div className="flex shrink-0 items-center justify-end gap-1 sm:gap-3 lg:gap-4">
-          <SiteHomeClock />
           <SiteHeaderNav links={links} variant="mobile" />
           {session ? (
             <>
@@ -214,6 +242,8 @@ export async function SiteHeader() {
             </>
           )}
         </div>
+        {/* 时钟不进菜单行：贴在顶栏右上、头像下方，避免把「站长管理」挤成半截 */}
+        <SiteHomeClock className="absolute right-3 top-full z-30 mt-1.5 sm:right-4" />
       </div>
     </header>
   );

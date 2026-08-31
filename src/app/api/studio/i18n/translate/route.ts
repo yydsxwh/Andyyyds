@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { collectAllTranslateItems } from "@/lib/i18n/collect-translate-items";
-import { translateItemsToLocale } from "@/lib/i18n/content-translate";
-import { isAppLocale, SOURCE_LOCALE } from "@/lib/i18n/locales";
-import { getSiteSettings } from "@/lib/site-settings";
-import { requireAdmin, studioErrorResponse } from "@/lib/studio";
+import { collectAllTranslateItems } from "@andyyyds/shared/i18n/collect-translate-items";
+import { translateItemsToLocale } from "@andyyyds/shared/i18n/content-translate";
+import { isAppLocale, SOURCE_LOCALE } from "@andyyyds/shared/i18n/locales";
+import { getSiteSettings } from "@andyyyds/shared/site-settings";
+import { requireAdmin, studioErrorResponse } from "@andyyyds/shared/studio";
 
 export const dynamic = "force-dynamic";
 /** 一键翻译可能较久 */

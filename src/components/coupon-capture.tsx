@@ -9,8 +9,8 @@ import { useEffect } from "react";
 import {
   COUPON_QUERY_KEY,
   COUPON_STORAGE_KEY,
-} from "@/lib/coupon-share";
-import { normalizeCouponCode } from "@/lib/coupons";
+} from "@andyyyds/shared/coupon-share";
+import { normalizeCouponCode } from "@andyyyds/shared/coupons";
 
 export function CouponCapture() {
   useEffect(() => {

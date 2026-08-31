@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/db";
+import { prisma } from "@andyyyds/shared/db";
 import {
   ASSET_DESC_MAX,
   ASSET_NAME_MAX,
@@ -11,11 +11,11 @@ import {
   inferMimeType,
   isAllowedUpload,
   isMediaKind,
-} from "@/lib/media";
-import { canDeleteMedia } from "@/lib/roles";
-import { formatVodError } from "@/lib/aliyun-vod";
-import { deleteStoredFile, storeUpload } from "@/lib/storage";
-import { requireCourseStudioUser, studioErrorResponse } from "@/lib/studio";
+} from "@andyyyds/shared/media";
+import { canDeleteMedia } from "@andyyyds/shared/roles";
+import { formatVodError } from "@andyyyds/shared/aliyun-vod";
+import { deleteStoredFile, storeUpload } from "@andyyyds/shared/storage";
+import { requireCourseStudioUser, studioErrorResponse } from "@andyyyds/shared/studio";
 
 export const runtime = "nodejs";
 

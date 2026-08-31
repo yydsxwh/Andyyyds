@@ -9,19 +9,19 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createAlipayPagePay, createAlipayWapPay } from "@/lib/alipay";
-import { getSession } from "@/lib/auth";
-import { prisma } from "@/lib/db";
-import { answersComplete } from "@/lib/order-form";
-import { fulfillPaidOrder } from "@/lib/orders";
-import { getPaymentChannels, getPublicSiteUrl } from "@/lib/payments";
-import { getOrderFormConfig } from "@/lib/site-settings";
+import { createAlipayPagePay, createAlipayWapPay } from "@andyyyds/shared/alipay";
+import { getSession } from "@andyyyds/shared/auth";
+import { prisma } from "@andyyyds/shared/db";
+import { answersComplete } from "@andyyyds/shared/order-form";
+import { fulfillPaidOrder } from "@andyyyds/shared/orders";
+import { getPaymentChannels, getPublicSiteUrl } from "@andyyyds/shared/payments";
+import { getOrderFormConfig } from "@andyyyds/shared/site-settings";
 import {
   createH5Payment,
   createJsapiPayment,
   createNativePayment,
   isWechatOAuthConfigured,
-} from "@/lib/wechat-pay";
+} from "@andyyyds/shared/wechat-pay";
 
 const bodySchema = z
   .object({

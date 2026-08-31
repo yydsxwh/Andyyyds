@@ -5,10 +5,10 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSession } from "@/lib/auth";
-import { prisma } from "@/lib/db";
-import { buildSpecLabel, parseSpecs, SHOP_PRODUCT_TYPE } from "@/lib/shop";
-import { resolveStoredAccessUrl } from "@/lib/storage";
+import { getSession } from "@andyyyds/shared/auth";
+import { prisma } from "@andyyyds/shared/db";
+import { buildSpecLabel, parseSpecs, SHOP_PRODUCT_TYPE } from "@andyyyds/shared/shop";
+import { resolveStoredAccessUrl } from "@andyyyds/shared/storage";
 
 export const runtime = "nodejs";
 

@@ -8,7 +8,7 @@ import paramiko
 
 HOST = "47.242.157.181"
 USER = "admin"
-LOCAL_PROJECT = Path(r"E:\source\repos\yyds-course-platform")
+LOCAL_PROJECT = Path(r"E:\source\repos\Andyyyds")
 REMOTE_DIR = "/var/www/yyds-course-platform"
 DOMAIN = "www.yydsxwh.com"
 AUTH_SECRET = "yyds-prod-secret-change-me-" + str(int(time.time()))

@@ -11,18 +11,18 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/db";
+import { prisma } from "@andyyyds/shared/db";
 import {
   approveSuccessMessage,
   fieldsAfterManualRoleChange,
   fieldsForApprove,
   fieldsForReject,
   REJECT_SUCCESS_MESSAGE,
-} from "@/lib/role-applications";
+} from "@andyyyds/shared/role-applications";
 import {
   isValidReferralCode,
   normalizeReferralCode,
-} from "@/lib/referral-code";
+} from "@andyyyds/shared/referral-code";
 import {
   hasRole,
   isElevatedApplyRole,
@@ -30,8 +30,8 @@ import {
   roleLabels,
   ROLES,
   type Role,
-} from "@/lib/roles";
-import { requireAdmin, studioErrorResponse } from "@/lib/studio";
+} from "@andyyyds/shared/roles";
+import { requireAdmin, studioErrorResponse } from "@andyyyds/shared/studio";
 
 const userSelect = {
   id: true,

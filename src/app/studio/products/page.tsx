@@ -4,11 +4,11 @@ import {
   type AdminProductRow,
 } from "@/components/admin-products-panel";
 import { StudioNav } from "@/components/studio-nav";
-import { getSession } from "@/lib/auth";
-import { prisma } from "@/lib/db";
-import { PRODUCT_PLAZA_ORDER_BY } from "@/lib/product-display-order";
-import { MEETUP_PRODUCT_TYPE } from "@/lib/meetup";
-import { isAdmin } from "@/lib/roles";
+import { getSession } from "@andyyyds/shared/auth";
+import { prisma } from "@andyyyds/shared/db";
+import { PRODUCT_PLAZA_ORDER_BY } from "@andyyyds/shared/product-display-order";
+import { MEETUP_PRODUCT_TYPE } from "@andyyyds/meetup/lib/meetup";
+import { isAdmin } from "@andyyyds/shared/roles";
 
 export const dynamic = "force-dynamic";
 

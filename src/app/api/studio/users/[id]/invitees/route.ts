@@ -5,14 +5,14 @@
  */
 
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { prisma } from "@andyyyds/shared/db";
 import {
   inviteesToCsv,
   inviteesToExcelXml,
   safeExportFilename,
   type InviteeExportRow,
-} from "@/lib/invitee-export";
-import { requireAdmin, studioErrorResponse } from "@/lib/studio";
+} from "@andyyyds/shared/invitee-export";
+import { requireAdmin, studioErrorResponse } from "@andyyyds/shared/studio";
 
 async function loadInvitees(inviterId: string) {
   const inviter = await prisma.user.findUnique({

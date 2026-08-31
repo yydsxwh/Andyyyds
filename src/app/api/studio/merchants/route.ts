@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { hashPassword, makeReferralCode } from "@/lib/auth";
-import { prisma } from "@/lib/db";
+import { hashPassword, makeReferralCode } from "@andyyyds/shared/auth";
+import { prisma } from "@andyyyds/shared/db";
 import {
   MERCHANT_JOIN_TYPES,
   MERCHANT_STATUSES,
   roleFieldsForMerchantStatus,
-} from "@/lib/merchants";
-import { hasRole } from "@/lib/roles";
-import { requireAdmin, studioErrorResponse } from "@/lib/studio";
-import type { MerchantJoinType, MerchantStatus, Role } from "@/lib/types";
+} from "@andyyyds/shared/merchants";
+import { hasRole } from "@andyyyds/shared/roles";
+import { requireAdmin, studioErrorResponse } from "@andyyyds/shared/studio";
+import type { MerchantJoinType, MerchantStatus, Role } from "@andyyyds/shared/types";
 
 const createSchema = z.object({
   email: z.string().email(),

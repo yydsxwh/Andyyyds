@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSession } from "@/lib/auth";
-import { canPreviewAllLessons } from "@/lib/course-access";
-import { prisma } from "@/lib/db";
+import { getSession } from "@andyyyds/shared/auth";
+import { canPreviewAllLessons } from "@andyyyds/courses/lib/course-access";
+import { prisma } from "@andyyyds/shared/db";
 import {
   LOCAL_MEDIA_MISSING_MESSAGE,
   pickLessonMediaSource,
   resolveMediaAccessUrl,
-} from "@/lib/storage";
+} from "@andyyyds/shared/storage";
 
 export const runtime = "nodejs";
 

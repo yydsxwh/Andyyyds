@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSession } from "@/lib/auth";
-import { listMessages, sendTextMessage } from "@/lib/chat/service";
+import { getSession } from "@andyyyds/shared/auth";
+import { listMessages, sendTextMessage } from "@andyyyds/shared/chat/service";
 
 export const dynamic = "force-dynamic";
 

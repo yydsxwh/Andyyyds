@@ -8,17 +8,17 @@ import { z } from "zod";
 import {
   couponProductsInclude,
   serializeStudioCoupon,
-} from "@/lib/coupon-serialize";
+} from "@andyyyds/shared/coupon-serialize";
 import {
   isCouponProductScope,
   isCouponType,
   normalizeCouponCode,
   validateCouponProductScopeInput,
   validateCouponValueInput,
-} from "@/lib/coupons";
-import { prisma } from "@/lib/db";
-import { canManageCoupons, canViewAllStudioData } from "@/lib/roles";
-import { requireStudioUser, studioErrorResponse } from "@/lib/studio";
+} from "@andyyyds/shared/coupons";
+import { prisma } from "@andyyyds/shared/db";
+import { canManageCoupons, canViewAllStudioData } from "@andyyyds/shared/roles";
+import { requireStudioUser, studioErrorResponse } from "@andyyyds/shared/studio";
 
 export async function GET() {
   try {

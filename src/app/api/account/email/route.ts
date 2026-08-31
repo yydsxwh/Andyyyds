@@ -13,11 +13,11 @@ import {
   getSession,
   hashPassword,
   verifyPassword,
-} from "@/lib/auth";
-import { isPlaceholderEmail } from "@/lib/auth-email";
-import { bindEmailToUser } from "@/lib/auth-providers";
-import { prisma } from "@/lib/db";
-import type { Role } from "@/lib/roles";
+} from "@andyyyds/shared/auth";
+import { isPlaceholderEmail } from "@andyyyds/shared/auth-email";
+import { bindEmailToUser } from "@andyyyds/shared/auth-providers";
+import { prisma } from "@andyyyds/shared/db";
+import type { Role } from "@andyyyds/shared/roles";
 
 const schema = z
   .object({

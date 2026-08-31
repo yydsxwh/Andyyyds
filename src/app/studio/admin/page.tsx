@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { StudioNav } from "@/components/studio-nav";
-import { shanghaiDayBounds } from "@/lib/admin-dashboard";
-import { getSession } from "@/lib/auth";
-import { prisma } from "@/lib/db";
-import { isAdmin } from "@/lib/roles";
-import { getStudioNavConfig } from "@/lib/site-settings";
-import { formatPrice } from "@/lib/utils";
+import { shanghaiDayBounds } from "@andyyyds/shared/admin-dashboard";
+import { getSession } from "@andyyyds/shared/auth";
+import { prisma } from "@andyyyds/shared/db";
+import { isAdmin } from "@andyyyds/shared/roles";
+import { getStudioNavConfig } from "@andyyyds/shared/site-settings";
+import { formatPrice } from "@andyyyds/shared/utils";
 
 export const dynamic = "force-dynamic";
 

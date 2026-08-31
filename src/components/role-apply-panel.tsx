@@ -10,14 +10,14 @@ import { useState } from "react";
 import {
   ACCOUNT_APPLY_LABEL,
   ACCOUNT_APPLY_SUCCESS_MESSAGE,
-} from "@/lib/role-applications";
+} from "@andyyyds/shared/role-applications";
 import {
   ROLE_APPLICATION_STATUS_LABEL,
   ROLE_HINT,
   ROLE_LABEL,
   type ElevatedApplyRole,
   type RoleApplicationStatus,
-} from "@/lib/roles";
+} from "@andyyyds/shared/roles";
 
 type Props = {
   availableRoles: ElevatedApplyRole[];

@@ -19,6 +19,14 @@
       }
     ],
     "paths": {
+      "@andyyyds/shared/*": ["./packages/shared/src/*"],
+      "@andyyyds/company/*": ["./packages/company/*"],
+      "@andyyyds/person/*": ["./packages/person/*"],
+      "@andyyyds/forum/*": ["./packages/forum/*"],
+      "@andyyyds/meetup/*": ["./packages/meetup/*"],
+      "@andyyyds/courses/*": ["./packages/courses/*"],
+      "@andyyyds/mathcode/*": ["./packages/mathcode/*"],
+      "@/lib/*": ["./packages/shared/src/*"],
       "@/*": ["./src/*"]
     }
   },
@@ -30,5 +38,5 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "tmp"]
 }

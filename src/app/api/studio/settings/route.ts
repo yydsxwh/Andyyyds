@@ -1,20 +1,20 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/db";
+import { prisma } from "@andyyyds/shared/db";
 import {
   DEFAULT_ORDER_FORM,
   stringifyOrderForm,
   type OrderFormFieldType,
-} from "@/lib/order-form";
-import { normalizePublicSiteUrl } from "@/lib/payments";
+} from "@andyyyds/shared/order-form";
+import { normalizePublicSiteUrl } from "@andyyyds/shared/payments";
 import {
   getSiteSettings,
   invalidateSiteSettingsCache,
   pickSecretUpdate,
   publicSiteSettings,
-} from "@/lib/site-settings";
-import { requireAdmin, studioErrorResponse } from "@/lib/studio";
-import { DEFAULT_UI_COPY, stringifyUiCopy } from "@/lib/ui-copy";
+} from "@andyyyds/shared/site-settings";
+import { requireAdmin, studioErrorResponse } from "@andyyyds/shared/studio";
+import { DEFAULT_UI_COPY, stringifyUiCopy } from "@andyyyds/shared/ui-copy";
 
 const composeCopySchema = z.object({
   step2Title: z.string().max(80).optional(),

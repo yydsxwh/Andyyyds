@@ -3,15 +3,15 @@ import { AdminReferralCodesPanel } from "@/components/admin-referral-codes-panel
 import { DistributionPanel } from "@/components/distribution-panel";
 import { InviteSharePanel } from "@/components/invite-share-panel";
 import { StudioNav } from "@/components/studio-nav";
-import { getSession } from "@/lib/auth";
-import { prisma } from "@/lib/db";
-import { getDistributionSettings } from "@/lib/distribution";
+import { getSession } from "@andyyyds/shared/auth";
+import { prisma } from "@andyyyds/shared/db";
+import { getDistributionSettings } from "@andyyyds/shared/distribution";
 import {
   canManageDistributionSettings,
   canViewDistribution,
   canViewAllStudioData,
   isAdmin,
-} from "@/lib/roles";
+} from "@andyyyds/shared/roles";
 
 export const dynamic = "force-dynamic";
 

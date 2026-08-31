@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSession } from "@/lib/auth";
+import { getSession } from "@andyyyds/shared/auth";
 import {
   acceptGroupInvite,
   rejectGroupInvite,
-} from "@/lib/chat/group-service";
+} from "@andyyyds/shared/chat/group-service";
 
 export const dynamic = "force-dynamic";
 

@@ -7,23 +7,23 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSession } from "@/lib/auth";
-import { grantProductAccess } from "@/lib/course-bundle";
+import { getSession } from "@andyyyds/shared/auth";
+import { grantProductAccess } from "@andyyyds/courses/lib/course-bundle";
 import {
   calcCouponDiscount,
   normalizeCouponCode,
   validateCouponForOrder,
-} from "@/lib/coupons";
-import { prisma } from "@/lib/db";
-import { fromMeetupPeopleDb, MEETUP_PRODUCT_TYPE } from "@/lib/meetup";
-import { sumMeetupPartySize } from "@/lib/meetup-service-contact";
+} from "@andyyyds/shared/coupons";
+import { prisma } from "@andyyyds/shared/db";
+import { fromMeetupPeopleDb, MEETUP_PRODUCT_TYPE } from "@andyyyds/meetup/lib/meetup";
+import { sumMeetupPartySize } from "@andyyyds/meetup/lib/meetup-service-contact";
 import {
   stringifyStoredAnswers,
   validateOrderFormAnswers,
-} from "@/lib/order-form";
-import { buildSpecLabel, parseSpecs, SHOP_PRODUCT_TYPE } from "@/lib/shop";
-import { getOrderFormConfig } from "@/lib/site-settings";
-import { makeOrderNo } from "@/lib/utils";
+} from "@andyyyds/shared/order-form";
+import { buildSpecLabel, parseSpecs, SHOP_PRODUCT_TYPE } from "@andyyyds/shared/shop";
+import { getOrderFormConfig } from "@andyyyds/shared/site-settings";
+import { makeOrderNo } from "@andyyyds/shared/utils";
 
 const schema = z.object({
   courseId: z.string().min(1),

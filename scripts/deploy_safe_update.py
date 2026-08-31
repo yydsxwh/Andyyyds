@@ -17,7 +17,7 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 HOST = "47.242.157.181"
 USER = "admin"
-LOCAL_PROJECT = Path(r"E:\source\repos\yyds-course-platform")
+LOCAL_PROJECT = Path(r"E:\source\repos\Andyyyds")
 REMOTE_DIR = "/var/www/yyds-course-platform"
 REMOTE_TAR = "/tmp/yyds-safe-deploy.tar.gz"
 REMOTE_STAGE = "/tmp/yyds-safe-deploy-stage"

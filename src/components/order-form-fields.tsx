@@ -1,7 +1,7 @@
 "use client";
 
-import type { OrderFormAnswers, OrderFormConfig } from "@/lib/order-form";
-import { activeOrderFormFields } from "@/lib/order-form";
+import type { OrderFormAnswers, OrderFormConfig } from "@andyyyds/shared/order-form";
+import { activeOrderFormFields } from "@andyyyds/shared/order-form";
 
 type Props = {
   config: OrderFormConfig;

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { storeUpload } from "@/lib/storage";
-import { requireAdmin, studioErrorResponse } from "@/lib/studio";
+import { storeUpload } from "@andyyyds/shared/storage";
+import { requireAdmin, studioErrorResponse } from "@andyyyds/shared/studio";
 
 export const runtime = "nodejs";
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
-import { acceptDirectChat } from "@/lib/chat/service";
+import { getSession } from "@andyyyds/shared/auth";
+import { acceptDirectChat } from "@andyyyds/shared/chat/service";
 
 export const dynamic = "force-dynamic";
 

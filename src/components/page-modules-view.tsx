@@ -1,12 +1,12 @@
 import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
-import { CourseCard } from "@/components/course-card";
+import { CourseCard } from "@andyyyds/courses/components/course-card";
 import { PageModuleCountdown } from "@/components/page-module-countdown";
-import { getSession } from "@/lib/auth";
-import { prisma } from "@/lib/db";
-import { PRODUCT_PLAZA_ORDER_BY } from "@/lib/product-display-order";
-import { isAdmin } from "@/lib/roles";
-import { typoRoleClass, typoRoleStyle } from "@/lib/site-typography";
+import { getSession } from "@andyyyds/shared/auth";
+import { prisma } from "@andyyyds/shared/db";
+import { PRODUCT_PLAZA_ORDER_BY } from "@andyyyds/shared/product-display-order";
+import { isAdmin } from "@andyyyds/shared/roles";
+import { typoRoleClass, typoRoleStyle } from "@andyyyds/shared/site-typography";
 import type {
   AnimationModuleProps,
   AudioModuleProps,
@@ -40,13 +40,13 @@ import type {
   TeachersModuleProps,
   TestimonialModuleProps,
   VideoModuleProps,
-} from "@/lib/page-templates";
+} from "@andyyyds/shared/page-templates";
 import {
   isStudioOnlyRichtextHint,
   resolveModuleLayout,
-} from "@/lib/page-templates";
-import { getHideAllPricesFlag } from "@/lib/site-settings";
-import { withSignedCoverUrls } from "@/lib/storage";
+} from "@andyyyds/shared/page-templates";
+import { getHideAllPricesFlag } from "@andyyyds/shared/site-settings";
+import { withSignedCoverUrls } from "@andyyyds/shared/storage";
 
 export type PageModuleSlots = Partial<Record<PageSlotId, ReactNode>>;
 

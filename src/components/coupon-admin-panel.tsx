@@ -23,9 +23,9 @@ import {
   generateCouponCode,
   type CouponProductScope,
   type CouponType,
-} from "@/lib/coupons";
-import { productTypeLabel } from "@/lib/product-types";
-import { formatPrice } from "@/lib/utils";
+} from "@andyyyds/shared/coupons";
+import { productTypeLabel } from "@andyyyds/shared/product-types";
+import { formatPrice } from "@andyyyds/shared/utils";
 
 export type CouponProductOption = {
   id: string;

@@ -4,7 +4,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { reverseAmapPlace } from "@/lib/amap-place";
+import { reverseAmapPlace } from "@andyyyds/shared/amap-place";
 
 export const dynamic = "force-dynamic";
 

@@ -11,9 +11,9 @@ import {
   couponShareTitle,
   qqShareUrl,
   resolveCouponShareUrl,
-} from "@/lib/coupon-share";
-import { formatCouponBenefit } from "@/lib/coupons";
-import { isWeChatBrowser } from "@/lib/wechat-env";
+} from "@andyyyds/shared/coupon-share";
+import { formatCouponBenefit } from "@andyyyds/shared/coupons";
+import { isWeChatBrowser } from "@andyyyds/shared/wechat-env";
 
 export type CouponShareTarget = {
   code: string;

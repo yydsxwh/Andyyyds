@@ -28,22 +28,19 @@ export function BilingualHover({
   const tip = (secondary || "").trim();
   const showTip = Boolean(tip && tip !== primary);
 
-  if (!showTip) {
-    return <Tag className={className}>{children ?? primary}</Tag>;
-  }
-
+  // 有无英文提示都用同一套 inline-block + block，避免顶栏里「有双语」和「无双语」基线对不齐
   return (
     <Tag
       className={`relative inline-block max-w-full ${className || ""}`}
-      title={tip}
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
-      onFocus={() => setOpen(true)}
-      onBlur={() => setOpen(false)}
-      aria-describedby={open ? tipId : undefined}
+      title={showTip ? tip : undefined}
+      onMouseEnter={showTip ? () => setOpen(true) : undefined}
+      onMouseLeave={showTip ? () => setOpen(false) : undefined}
+      onFocus={showTip ? () => setOpen(true) : undefined}
+      onBlur={showTip ? () => setOpen(false) : undefined}
+      aria-describedby={showTip && open ? tipId : undefined}
     >
-      <span className="block truncate">{children ?? primary}</span>
-      {open ? (
+      <span className="block truncate leading-[inherit]">{children ?? primary}</span>
+      {showTip && open ? (
         <span
           id={tipId}
           role="tooltip"

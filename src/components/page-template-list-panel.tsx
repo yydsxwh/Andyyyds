@@ -12,13 +12,13 @@ import {
   SaveFeedback,
   type SaveStatus,
 } from "@/components/save-feedback";
-import { NAV_PAGE_TEMPLATE_DEFS } from "@/lib/nav-page-templates";
+import { NAV_PAGE_TEMPLATE_DEFS } from "@andyyyds/shared/nav-page-templates";
 import {
   PAGE_TEMPLATE_TYPE_LABEL,
   publicTemplatePath,
   type PageTemplate,
   type PageTemplateType,
-} from "@/lib/page-templates";
+} from "@andyyyds/shared/page-templates";
 
 type Props = {
   initial: PageTemplate[];

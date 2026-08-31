@@ -1,0 +1,32 @@
+---
+description: 每个产品单独一个 @andyyyds 包；新产品默认建新库
+alwaysApply: true
+---
+
+# 产品源码分库
+
+每个面向用户的产品，源码放在独立包 `packages/<英文名>`，npm 名为 `@andyyyds/<英文名>`。不要把产品业务写进 `src/` 或 `packages/shared`。
+
+## 已有产品（6）
+
+| 产品 | 包 |
+|---|---|
+| 公司介绍 | `@andyyyds/company` |
+| 个人IP | `@andyyyds/person` |
+| 网课资料 | `@andyyyds/courses` |
+| 约搭 | `@andyyyds/meetup` |
+| 论坛 | `@andyyyds/forum` |
+| 识图转LaTeX | `@andyyyds/mathcode` |
+
+公共能力（登录、支付、权限、国际化、存储）才进 `@andyyyds/shared`。
+
+## 新产品（默认）
+
+一出现新产品，先建库再写业务：
+
+1. `packages/<产品英文名>/`，`package.json` 的 `name` 为 `@andyyyds/<产品英文名>`
+2. 根 `package.json` 的 `dependencies`、`tsconfig.json` 的 `paths`、`next.config.ts` 的 `transpilePackages` 都加上这个包
+3. `src/app` 只留路由薄入口。`dynamic` / `runtime` / `maxDuration` / `metadata` 必须写在入口文件里，不能从产品包再导出
+4. 产品之间互相引用用 `@andyyyds/<名>/...`，不要往 `src/lib` 塞产品代码
+
+英文名用小写、可作 npm 包名：论坛 `forum`，约搭 `meetup`，网课资料 `courses`。

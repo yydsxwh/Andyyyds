@@ -2,16 +2,16 @@ import { redirect } from "next/navigation";
 import { DecorateSubnav } from "@/components/decorate-subnav";
 import { PageTemplateListPanel } from "@/components/page-template-list-panel";
 import { StudioNav } from "@/components/studio-nav";
-import { getSession } from "@/lib/auth";
-import { prisma } from "@/lib/db";
-import { ensureNavDefaultTemplates } from "@/lib/nav-page-templates";
-import { stringifyPageTemplates } from "@/lib/page-templates";
-import { isAdmin } from "@/lib/roles";
+import { getSession } from "@andyyyds/shared/auth";
+import { prisma } from "@andyyyds/shared/db";
+import { ensureNavDefaultTemplates } from "@andyyyds/shared/nav-page-templates";
+import { stringifyPageTemplates } from "@andyyyds/shared/page-templates";
+import { isAdmin } from "@andyyyds/shared/roles";
 import {
   getPageTemplatesConfig,
   getSiteSettings,
   invalidateSiteSettingsCache,
-} from "@/lib/site-settings";
+} from "@andyyyds/shared/site-settings";
 
 export const dynamic = "force-dynamic";
 

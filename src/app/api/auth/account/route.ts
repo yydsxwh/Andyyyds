@@ -10,8 +10,8 @@ import { z } from "zod";
 import {
   loginUserByUsername,
   registerUserByUsername,
-} from "@/lib/auth-providers";
-import { APPLYABLE_ROLES } from "@/lib/roles";
+} from "@andyyyds/shared/auth-providers";
+import { APPLYABLE_ROLES } from "@andyyyds/shared/roles";
 
 const schema = z.object({
   username: z.string().min(1).max(40),

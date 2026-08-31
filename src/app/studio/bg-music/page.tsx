@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation";
 import { BgMusicStudioPanel } from "@/components/bg-music-studio-panel";
 import { StudioNav } from "@/components/studio-nav";
-import { getSession } from "@/lib/auth";
-import { parseBgMusic } from "@/lib/bg-music";
-import { isAdmin } from "@/lib/roles";
-import { getSiteSettings } from "@/lib/site-settings";
+import { getSession } from "@andyyyds/shared/auth";
+import { parseBgMusic } from "@andyyyds/shared/bg-music";
+import { isAdmin } from "@andyyyds/shared/roles";
+import { getSiteSettings } from "@andyyyds/shared/site-settings";
 
 export const dynamic = "force-dynamic";
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { MEDIA_KIND_LABEL, isMediaKind, type MediaKind } from "@/lib/media";
+import { MEDIA_KIND_LABEL, isMediaKind, type MediaKind } from "@andyyyds/shared/media";
 
 export type PickerMediaAsset = {
   id: string;

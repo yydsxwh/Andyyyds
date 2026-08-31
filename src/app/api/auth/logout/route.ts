@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { destroySession } from "@/lib/auth";
-import { getPublicSiteUrl } from "@/lib/payments";
-import { getRequestPublicOrigin } from "@/lib/request-origin";
+import { destroySession } from "@andyyyds/shared/auth";
+import { getPublicSiteUrl } from "@andyyyds/shared/payments";
+import { getRequestPublicOrigin } from "@andyyyds/shared/request-origin";
 
 /**
  * 退出登录：清会话 Cookie，再 303 回首页。

@@ -7,9 +7,9 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSession, verifyPassword } from "@/lib/auth";
-import { bindUsernameToUser } from "@/lib/auth-providers";
-import { prisma } from "@/lib/db";
+import { getSession, verifyPassword } from "@andyyyds/shared/auth";
+import { bindUsernameToUser } from "@andyyyds/shared/auth-providers";
+import { prisma } from "@andyyyds/shared/db";
 
 const schema = z
   .object({

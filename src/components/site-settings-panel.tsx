@@ -11,7 +11,7 @@ import {
   AI_PROVIDER_PRESETS,
   findProviderPreset,
   REGION_LABEL,
-} from "@/lib/ai-providers";
+} from "@andyyyds/shared/ai-providers";
 
 export type PublicSettings = {
   siteUrl: string;

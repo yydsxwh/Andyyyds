@@ -3,7 +3,7 @@
  * 字段由内容管理配置；首页上下位置与区块显隐由 portal.homeSectionOrder 决定（CMS「首页区块顺序」）。
  */
 
-import type { PortalContact } from "@/lib/portal";
+import type { PortalContact } from "@andyyyds/shared/portal";
 
 type Props = {
   contact: PortalContact;

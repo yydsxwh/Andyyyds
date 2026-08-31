@@ -1,27 +1,4 @@
-import { redirect } from "next/navigation";
-import { StudioNav } from "@/components/studio-nav";
-import { WechatMpPromoPanel } from "@/components/wechat-mp-promo-panel";
-import { getSession } from "@/lib/auth";
-import { isAdmin } from "@/lib/roles";
-
+/** Next.js 路由入口（网址不变）。segment 配置必须写在本文件。 */
 export const dynamic = "force-dynamic";
 
-/** 站长：公众号图文与合集 → 公司宣传 */
-export default async function StudioWechatMpPage() {
-  const session = await getSession();
-  if (!session) redirect("/login");
-  if (!isAdmin(session.role)) redirect("/studio");
-
-  return (
-    <div className="container space-y-6 py-10 sm:py-12">
-      <StudioNav current="wechat-mp" area="admin" />
-      <div>
-        <h1 className="text-2xl font-semibold">公众号宣传</h1>
-        <p className="mt-2 text-sm text-[var(--muted)]">
-          同步自己公众号的已发表图文与主页合集，展示在前台「公司介绍」。
-        </p>
-      </div>
-      <WechatMpPromoPanel />
-    </div>
-  );
-}
+export { default } from "@andyyyds/company/routes/studio/wechat-mp/page";

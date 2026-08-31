@@ -3,8 +3,8 @@ import {
   PageModulesView,
   shouldUseDiyLayout,
 } from "@/components/page-modules-view";
-import { getCustomTemplateBySlug } from "@/lib/page-templates";
-import { getPageTemplatesConfig } from "@/lib/site-settings";
+import { getCustomTemplateBySlug } from "@andyyyds/shared/page-templates";
+import { getPageTemplatesConfig } from "@andyyyds/shared/site-settings";
 
 export const dynamic = "force-dynamic";
 

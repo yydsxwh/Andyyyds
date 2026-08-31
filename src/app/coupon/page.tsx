@@ -5,10 +5,10 @@
 
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { formatCouponBenefit, normalizeCouponCode } from "@/lib/coupons";
-import { prisma } from "@/lib/db";
-import { productDetailPath, productTypeLabel } from "@/lib/product-types";
-import { formatPrice } from "@/lib/utils";
+import { formatCouponBenefit, normalizeCouponCode } from "@andyyyds/shared/coupons";
+import { prisma } from "@andyyyds/shared/db";
+import { productDetailPath, productTypeLabel } from "@andyyyds/shared/product-types";
+import { formatPrice } from "@andyyyds/shared/utils";
 
 export const dynamic = "force-dynamic";
 

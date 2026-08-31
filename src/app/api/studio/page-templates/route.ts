@@ -5,8 +5,8 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/db";
-import { ensureNavDefaultTemplates } from "@/lib/nav-page-templates";
+import { prisma } from "@andyyyds/shared/db";
+import { ensureNavDefaultTemplates } from "@andyyyds/shared/nav-page-templates";
 import {
   cloneModulesForDuplicate,
   createTemplate,
@@ -19,12 +19,12 @@ import {
   type PageTemplate,
   type PageTemplateType,
   PAGE_MODULE_TYPES,
-} from "@/lib/page-templates";
+} from "@andyyyds/shared/page-templates";
 import {
   getSiteSettings,
   invalidateSiteSettingsCache,
-} from "@/lib/site-settings";
-import { requireAdmin, studioErrorResponse } from "@/lib/studio";
+} from "@andyyyds/shared/site-settings";
+import { requireAdmin, studioErrorResponse } from "@andyyyds/shared/studio";
 
 const typeSchema = z.enum([
   "home",

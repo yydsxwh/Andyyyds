@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { BilingualHover } from "@/components/i18n/bilingual-hover";
 import { useLocale } from "@/components/i18n/locale-provider";
-import { typoRoleClass, typoRoleStyle } from "@/lib/site-typography";
+import { translateMessage } from "@andyyyds/shared/i18n/messages";
+import { typoRoleClass, typoRoleStyle } from "@andyyyds/shared/site-typography";
 
 export type HeaderNavLink = {
   label: string;
@@ -24,7 +25,6 @@ function NavLabel({
   label: string;
   secondary?: string;
 }) {
-  if (!secondary) return <>{label}</>;
   return <BilingualHover primary={label} secondary={secondary} />;
 }
 
@@ -34,7 +34,7 @@ type Props = {
   variant?: "desktop" | "mobile";
 };
 
-/** 门户默认入口 key：文案走 i18n，避免汉堡菜单空壳 */
+/** 门户默认入口：游戏中心挂在软件产品下，不占顶栏一位 */
 const FALLBACK_MOBILE_HREFS = [
   { href: "/", key: "nav.home" },
   { href: "/about/company", key: "nav.company" },
@@ -42,9 +42,12 @@ const FALLBACK_MOBILE_HREFS = [
   { href: "/courses", key: "nav.courses" },
   { href: "/meetup", key: "nav.meetup" },
   { href: "/shop", key: "nav.shop" },
-  { href: "/products", key: "nav.products" },
+  {
+    href: "/products",
+    key: "nav.products",
+    children: [{ href: "/games", key: "nav.games" }],
+  },
   { href: "/forum", key: "nav.forum" },
-  { href: "/games", key: "nav.games" },
 ] as const;
 
 function DesktopDropdown({
@@ -79,7 +82,7 @@ function DesktopDropdown({
   }, [open]);
 
   const titleClass =
-    "inline-flex items-center gap-1 whitespace-nowrap hover:text-[var(--ink)]";
+    "inline-flex shrink-0 items-center gap-1 whitespace-nowrap hover:text-[var(--ink)]";
 
   return (
     <div
@@ -145,37 +148,152 @@ function DesktopDropdown({
   );
 }
 
+function DesktopNavItem({ link }: { link: HeaderNavLink }) {
+  if (link.children?.length) {
+    return (
+      <DesktopDropdown
+        label={link.label}
+        labelSecondary={link.labelSecondary}
+        href={link.href}
+        children={link.children}
+      />
+    );
+  }
+  if (!link.href) return null;
+  return (
+    <Link
+      href={link.href}
+      className="inline-flex shrink-0 items-center whitespace-nowrap hover:text-[var(--ink)]"
+    >
+      <NavLabel label={link.label} secondary={link.labelSecondary} />
+    </Link>
+  );
+}
+
+/** 塞进「更多」：父级入口 + 子菜单都列出，避免只露出半个标题 */
+function flattenOverflowLinks(
+  links: HeaderNavLink[],
+): { href: string; label: string; labelSecondary?: string }[] {
+  const items: { href: string; label: string; labelSecondary?: string }[] = [];
+  for (const link of links) {
+    if (link.href) {
+      items.push({
+        href: link.href,
+        label: link.label,
+        labelSecondary: link.labelSecondary,
+      });
+    }
+    if (link.children?.length) {
+      for (const child of link.children) {
+        items.push(child);
+      }
+    }
+  }
+  return items;
+}
+
 function DesktopNav({ links }: { links: HeaderNavLink[] }) {
+  const { t, bilingual } = useLocale();
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const measureRef = useRef<HTMLDivElement>(null);
+  const moreMeasureRef = useRef<HTMLDivElement>(null);
+  const itemMeasureRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const [visibleCount, setVisibleCount] = useState(links.length);
+
+  useLayoutEffect(() => {
+    const wrap = wrapRef.current;
+    const measureRow = measureRef.current;
+    if (!wrap || !measureRow) return;
+
+    const update = () => {
+      const available = wrap.clientWidth;
+      const moreWidth = moreMeasureRef.current?.offsetWidth ?? 72;
+      const styles = window.getComputedStyle(measureRow);
+      const gap = Number.parseFloat(styles.columnGap || styles.gap || "20") || 20;
+      const widths = itemMeasureRefs.current
+        .slice(0, links.length)
+        .map((el) => el?.offsetWidth ?? 0);
+      const total =
+        widths.reduce((sum, w) => sum + w, 0) +
+        gap * Math.max(0, widths.length - 1);
+      if (total <= available || widths.length === 0) {
+        setVisibleCount(links.length);
+        return;
+      }
+      // 预留「更多」；点按展开（手机/微信没有 hover）
+      let count = 0;
+      let itemsWidth = 0;
+      for (let i = 0; i < widths.length; i++) {
+        const nextItems = itemsWidth + (i > 0 ? gap : 0) + widths[i];
+        if (nextItems + gap + moreWidth > available) break;
+        itemsWidth = nextItems;
+        count = i + 1;
+      }
+      setVisibleCount(count);
+    };
+
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(wrap);
+    return () => observer.disconnect();
+  }, [links]);
+
+  const overflowLinks = links.slice(visibleCount);
+  const overflowItems = flattenOverflowLinks(overflowLinks);
+  const moreLabel = t("nav.more");
+  const moreSecondary = bilingual
+    ? translateMessage("en", "nav.more")
+    : undefined;
+
   return (
     <nav
-      className={`flex max-w-full items-center justify-center overflow-x-auto text-[var(--muted)] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${typoRoleClass("nav")}`}
+      className={`w-full min-w-0 text-[var(--muted)] ${typoRoleClass("nav")}`}
       aria-label="主导航"
       style={typoRoleStyle("nav")}
     >
-      {/* 单行横向滚动，避免换行溢出盖住页面主按钮 */}
-      <div className="flex flex-nowrap items-center justify-center gap-x-5 xl:gap-x-7">
-        {links.map((link) =>
-          link.children?.length ? (
-            <DesktopDropdown
-              key={`dd-${link.label}`}
-              label={link.label}
-              labelSecondary={link.labelSecondary}
-              href={link.href}
-              children={link.children}
-            />
-          ) : link.href ? (
-            <Link
-              key={link.href + link.label}
-              href={link.href}
-              className="whitespace-nowrap hover:text-[var(--ink)]"
+      <div ref={wrapRef} className="relative w-full min-w-0">
+        {/* 隐形测量行：按真实宽度决定露出几项，避免半截「站长管」 */}
+        <div
+          ref={measureRef}
+          className="pointer-events-none invisible absolute left-0 top-0 flex flex-nowrap items-center gap-x-5 xl:gap-x-7"
+          aria-hidden
+        >
+          {links.map((link, index) => (
+            <div
+              key={`m-${link.href || link.label}-${index}`}
+              ref={(el) => {
+                itemMeasureRefs.current[index] = el;
+              }}
+              className="shrink-0"
             >
-              <NavLabel
-                label={link.label}
-                secondary={link.labelSecondary}
-              />
-            </Link>
-          ) : null,
-        )}
+              <DesktopNavItem link={link} />
+            </div>
+          ))}
+          <div ref={moreMeasureRef} className="shrink-0">
+            <span className="inline-flex items-center gap-1 whitespace-nowrap">
+              {moreLabel}
+              <span className="text-xs opacity-70">▾</span>
+            </span>
+          </div>
+        </div>
+
+        <div className="flex flex-nowrap items-center justify-center gap-x-5 xl:gap-x-7">
+          {links.slice(0, visibleCount).map((link, index) => (
+            <div
+              key={`v-${link.href || link.label}-${index}`}
+              className="shrink-0"
+            >
+              <DesktopNavItem link={link} />
+            </div>
+          ))}
+          {overflowItems.length > 0 ? (
+            <DesktopDropdown
+              label={moreLabel}
+              labelSecondary={moreSecondary}
+              children={overflowItems}
+            />
+          ) : null}
+        </div>
       </div>
     </nav>
   );
@@ -196,6 +314,13 @@ function MobileNav({ links }: { links: HeaderNavLink[] }) {
   const fallbackLinks: HeaderNavLink[] = FALLBACK_MOBILE_HREFS.map((item) => ({
     href: item.href,
     label: t(item.key),
+    children:
+      "children" in item && item.children
+        ? item.children.map((child) => ({
+            href: child.href,
+            label: t(child.key),
+          }))
+        : undefined,
   }));
   const menuLinks =
     links.filter((l) => l.href || (l.children && l.children.length > 0))

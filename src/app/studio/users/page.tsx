@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
 import { StudioNav } from "@/components/studio-nav";
 import { UserAdminPanel } from "@/components/user-admin-panel";
-import { getSession } from "@/lib/auth";
-import { prisma } from "@/lib/db";
-import { isAdmin, normalizeRoles, roleLabels } from "@/lib/roles";
+import { getSession } from "@andyyyds/shared/auth";
+import { prisma } from "@andyyyds/shared/db";
+import { isAdmin, normalizeRoles, roleLabels } from "@andyyyds/shared/roles";
 
 export const dynamic = "force-dynamic";
 

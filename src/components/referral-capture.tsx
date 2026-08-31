@@ -6,8 +6,8 @@
  */
 
 import { useEffect } from "react";
-import { REFERRAL_STORAGE_KEY } from "@/lib/invite";
-import { normalizeReferralCode } from "@/lib/referral-code";
+import { REFERRAL_STORAGE_KEY } from "@andyyyds/shared/invite";
+import { normalizeReferralCode } from "@andyyyds/shared/referral-code";
 
 export function ReferralCapture() {
   useEffect(() => {

@@ -8,8 +8,8 @@ import {
   validateOrderFormAnswers,
   type OrderFormAnswers,
   type OrderFormConfig,
-} from "@/lib/order-form";
-import { formatPrice } from "@/lib/utils";
+} from "@andyyyds/shared/order-form";
+import { formatPrice } from "@andyyyds/shared/utils";
 import { OrderFormFields } from "@/components/order-form-fields";
 
 type CartItem = {

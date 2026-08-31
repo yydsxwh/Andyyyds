@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
 import { SiteSettingsPanel } from "@/components/site-settings-panel";
 import { StudioNav } from "@/components/studio-nav";
-import { getSession } from "@/lib/auth";
-import { isAdmin } from "@/lib/roles";
-import { getSiteSettings, publicSiteSettings } from "@/lib/site-settings";
+import { getSession } from "@andyyyds/shared/auth";
+import { isAdmin } from "@andyyyds/shared/roles";
+import { getSiteSettings, publicSiteSettings } from "@andyyyds/shared/site-settings";
 
 export const dynamic = "force-dynamic";
 

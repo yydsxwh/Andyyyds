@@ -1,0 +1,12 @@
+{
+  "name": "@andyyyds/mathcode",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Andyyyds 识图转LaTeX",
+  "exports": {
+    "./*": "./*"
+  },
+  "dependencies": {
+    "@andyyyds/shared": "*"
+  }
+}

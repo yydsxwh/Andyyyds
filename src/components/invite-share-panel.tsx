@@ -12,15 +12,15 @@ import {
   inviteHomeUrl,
   inviteProductUrl,
   inviteRegisterUrl,
-} from "@/lib/invite";
-import { productTypeLabel } from "@/lib/product-types";
+} from "@andyyyds/shared/invite";
+import { productTypeLabel } from "@andyyyds/shared/product-types";
 import {
   DEFAULT_POSTER_TEMPLATE_ID,
   POSTER_TEMPLATES,
   posterTemplateById,
   type PosterTemplate,
-} from "@/lib/poster-templates";
-import { isWeChatBrowser } from "@/lib/wechat-env";
+} from "@andyyyds/shared/poster-templates";
+import { isWeChatBrowser } from "@andyyyds/shared/wechat-env";
 
 type Props = {
   inviteCode: string;

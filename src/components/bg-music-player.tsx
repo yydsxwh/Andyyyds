@@ -8,7 +8,7 @@ import {
   neteaseEmbedSrc,
   qqmusicEmbedSrc,
   qishuiEmbedSrc,
-} from "@/lib/bg-music";
+} from "@andyyyds/shared/bg-music";
 
 type PublicTrack = {
   id: string;

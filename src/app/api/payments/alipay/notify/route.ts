@@ -6,9 +6,9 @@
  */
 
 import { NextResponse } from "next/server";
-import { getAlipayConfig, verifyAlipayNotify } from "@/lib/alipay";
-import { prisma } from "@/lib/db";
-import { fulfillPaidOrder } from "@/lib/orders";
+import { getAlipayConfig, verifyAlipayNotify } from "@andyyyds/shared/alipay";
+import { prisma } from "@andyyyds/shared/db";
+import { fulfillPaidOrder } from "@andyyyds/shared/orders";
 
 export const runtime = "nodejs";
 

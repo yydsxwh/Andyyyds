@@ -8,8 +8,8 @@ import {
   type SaveStatus,
 } from "@/components/save-feedback";
 import { SiteFontLoader } from "@/components/site-font-loader";
-import type { DecorateConfig } from "@/lib/decorate";
-import { resolveThemeFx } from "@/lib/site-theme-islands";
+import type { DecorateConfig } from "@andyyyds/shared/decorate";
+import { resolveThemeFx } from "@andyyyds/shared/site-theme-islands";
 import {
   DEFAULT_FONT_SIZES,
   FONT_SIZE_FIELDS,
@@ -32,7 +32,7 @@ import {
   type LayoutDensity,
   type ThemePackCategory,
   type ThemePaletteCategory,
-} from "@/lib/site-theme";
+} from "@andyyyds/shared/site-theme";
 import {
   DEFAULT_TYPOGRAPHY,
   FONT_CATEGORIES,
@@ -56,7 +56,7 @@ import {
   type TextAnimationId,
   type TextEffectId,
   type TypographyConfig,
-} from "@/lib/site-typography";
+} from "@andyyyds/shared/site-typography";
 
 type TabKey = "packs" | "backgrounds" | "palettes" | "layout" | "type";
 type PaletteFilter = "all" | ThemePaletteCategory;

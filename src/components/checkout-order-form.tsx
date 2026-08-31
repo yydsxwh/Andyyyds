@@ -8,7 +8,7 @@ import {
   validateOrderFormAnswers,
   type OrderFormAnswers,
   type OrderFormConfig,
-} from "@/lib/order-form";
+} from "@andyyyds/shared/order-form";
 
 type Props = {
   orderId: string;

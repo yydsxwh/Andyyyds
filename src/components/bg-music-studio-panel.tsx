@@ -10,7 +10,7 @@ import {
   type BgMusicConfig,
   type BgMusicSource,
   type BgMusicTrack,
-} from "@/lib/bg-music";
+} from "@andyyyds/shared/bg-music";
 import {
   postSave,
   SaveFeedback,

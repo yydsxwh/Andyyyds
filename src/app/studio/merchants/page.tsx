@@ -1,11 +1,11 @@
 import { redirect } from "next/navigation";
 import { MerchantPanel } from "@/components/merchant-panel";
 import { StudioNav } from "@/components/studio-nav";
-import { getSession } from "@/lib/auth";
-import { prisma } from "@/lib/db";
-import { MERCHANT_STATUSES } from "@/lib/merchants";
-import { isAdmin } from "@/lib/roles";
-import type { MerchantStatus } from "@/lib/types";
+import { getSession } from "@andyyyds/shared/auth";
+import { prisma } from "@andyyyds/shared/db";
+import { MERCHANT_STATUSES } from "@andyyyds/shared/merchants";
+import { isAdmin } from "@andyyyds/shared/roles";
+import type { MerchantStatus } from "@andyyyds/shared/types";
 
 export const dynamic = "force-dynamic";
 

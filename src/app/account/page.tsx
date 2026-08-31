@@ -2,17 +2,18 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AccountAuthPanel } from "@/components/account-auth-panel";
 import { AccountProfilePanel } from "@/components/account-profile-panel";
-import { ForumCampusPanel } from "@/components/forum-campus-panel";
+import { ForumCampusPanel } from "@andyyyds/forum/components/forum-campus-panel";
 import { InviteSharePanel } from "@/components/invite-share-panel";
 import { NavPageTemplateShell } from "@/components/nav-page-template-shell";
 import { RoleApplyPanel } from "@/components/role-apply-panel";
 import { TiltParallaxToggle } from "@/components/tilt-parallax-provider";
-import { getSession } from "@/lib/auth";
-import { isPlaceholderEmail } from "@/lib/auth-email";
-import { prisma } from "@/lib/db";
+import { getSession } from "@andyyyds/shared/auth";
+import { isPlaceholderEmail } from "@andyyyds/shared/auth-email";
+import { prisma } from "@andyyyds/shared/db";
+import { FORUM_UNIVERSITY_LIST_ORDER_BY } from "@andyyyds/forum/lib/forum-university";
 import {
   availableAccountApplyRoles,
-} from "@/lib/role-applications";
+} from "@andyyyds/shared/role-applications";
 import {
   canAccessStudio,
   canCreateSellableProducts,
@@ -26,9 +27,9 @@ import {
   roleLabels,
   type Role,
   type RoleApplicationStatus,
-} from "@/lib/roles";
-import { resolveStoredAccessUrl } from "@/lib/storage";
-import { formatPrice } from "@/lib/utils";
+} from "@andyyyds/shared/roles";
+import { resolveStoredAccessUrl } from "@andyyyds/shared/storage";
+import { formatPrice } from "@andyyyds/shared/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -54,6 +55,7 @@ export default async function AccountPage() {
     teamCount,
     recruitedMerchants,
     forumUniversities,
+    forumVerifySlots,
   ] = await Promise.all([
     prisma.user.findUnique({
       where: { id: session.id },
@@ -131,8 +133,12 @@ export default async function AccountPage() {
       : Promise.resolve([]),
     prisma.forumUniversity.findMany({
       where: { enabled: true },
-      select: { id: true, name: true, slug: true },
-      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      select: { id: true, name: true, slug: true, region: true },
+      orderBy: FORUM_UNIVERSITY_LIST_ORDER_BY,
+    }),
+    prisma.forumSchoolVerification.findMany({
+      where: { userId: session.id },
+      include: { university: { select: { name: true, slug: true } } },
     }),
   ]);
 
@@ -204,8 +210,17 @@ export default async function AccountPage() {
 
       <ForumCampusPanel
         universities={forumUniversities}
-        currentId={user?.forumUniversityId || ""}
-        currentName={user?.forumUniversity?.name || ""}
+        slots={forumVerifySlots.map((row) => ({
+          degreeLevel: row.degreeLevel,
+          universityId: row.universityId,
+          universityName: row.university.name,
+          universitySlug: row.university.slug,
+          status: row.status,
+          realName: row.realName,
+          studentId: row.studentId,
+          campusEmail: row.campusEmail,
+          reviewNote: row.reviewNote,
+        }))}
       />
 
       {/* —— 按角色的快捷入口 —— */}

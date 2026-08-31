@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { NavPageTemplateShell } from "@/components/nav-page-template-shell";
-import { OpenVsCodeButton } from "@/components/open-vscode-button";
-import { MATHCODE_EDITOR_LINKS } from "@/lib/mathcode-open";
+import { OpenVsCodeButton } from "@andyyyds/mathcode/components/open-vscode-button";
+import { MATHCODE_EDITOR_LINKS } from "@andyyyds/mathcode/lib/mathcode-open";
 import {
   SOFTWARE_PRODUCTS,
   SOFTWARE_PRODUCTS_PAGE,
   type SoftwareProduct,
-} from "@/lib/software-products";
+} from "@andyyyds/shared/software-products";
 
 export const metadata = {
   title: "软件产品",
@@ -107,6 +107,35 @@ export default function SoftwareProductsPage() {
             <ProductCard key={product.id} product={product} />
           ))}
         </div>
+
+        <section className="mt-12 border-t border-[var(--line)] pt-10">
+          <h2 className="text-xl font-semibold text-[var(--ink)] sm:text-2xl">
+            游戏中心
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm leading-7 text-[var(--muted)]">
+            休闲与学习向游戏入口规划中，先从这里进入专区。
+          </p>
+          <Link
+            href="/games"
+            className="surface mt-5 block rounded-[28px] p-5 transition hover:-translate-y-0.5 sm:p-6"
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-[var(--brand)]/12 px-2.5 py-0.5 text-xs font-medium text-[var(--brand)]">
+                即将开放
+              </span>
+              <span className="text-xs text-[var(--muted)]">软件产品分区</span>
+            </div>
+            <h3 className="mt-3 text-xl font-semibold text-[var(--ink)]">
+              游戏中心
+            </h3>
+            <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
+              休闲与学习向游戏入口正在规划，稍后与你见面。
+            </p>
+            <span className="mt-4 inline-flex min-h-11 items-center text-sm font-medium text-[var(--brand)]">
+              进入游戏中心 →
+            </span>
+          </Link>
+        </section>
 
         <p className="mt-10 text-center text-xs text-[var(--muted)]">
           更多颗秒系列产品将陆续加入本专栏。
