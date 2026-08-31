@@ -178,7 +178,13 @@ export default async function ForumPostPage({
         {post.status === "HIDDEN" ? (
           <p className="text-sm text-amber-700">此帖已隐藏，仅作者和站长可见。</p>
         ) : null}
-        {post.place.trim() ? <ForumPlaceLinks place={post.place} /> : null}
+        {post.place.trim() ? (
+          <ForumPlaceLinks
+            place={post.place}
+            latitude={post.latitude}
+            longitude={post.longitude}
+          />
+        ) : null}
         {post.body.trim() ? (
           <div className="whitespace-pre-wrap text-sm leading-7 sm:text-base">
             {post.body}

@@ -7,11 +7,12 @@ type Props = {
   name: string;
   /** 已可直接访问的 URL（签名后或本地路径） */
   src?: string | null;
-  size?: "sm" | "md" | "lg";
+  size?: "xs" | "sm" | "md" | "lg";
   className?: string;
 };
 
 const SIZE: Record<NonNullable<Props["size"]>, string> = {
+  xs: "h-5 w-5 text-[10px]",
   sm: "h-9 w-9 text-sm",
   md: "h-11 w-11 text-base",
   lg: "h-20 w-20 text-2xl",

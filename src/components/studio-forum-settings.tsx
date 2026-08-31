@@ -2,6 +2,7 @@
 
 /**
  * 站长：成员发帖/评论/互动/私信开关 + 顶部公告栏编辑。
+ * 开关与公告栏分开保存，避免改一块时把另一块未提交的修改一并覆盖。
  * 关开关只限制其他用户；站长自己发帖、评论、私信不受影响。
  */
 
@@ -85,8 +86,9 @@ export function StudioForumSettings({
       status: "done" as const,
     })),
   );
-  const [message, setMessage] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [toggleMessage, setToggleMessage] = useState("");
+  const [noticeMessage, setNoticeMessage] = useState("");
+  const [busy, setBusy] = useState<"" | "toggles" | "notice">("");
 
   const uploading = media.some((item) => item.status === "uploading");
   const doneMedia = useMemo(
@@ -109,10 +111,10 @@ export function StudioForumSettings({
 
   async function addFiles(fileList: FileList | null) {
     if (!fileList?.length) return;
-    setMessage("");
+    setNoticeMessage("");
     const remaining = FORUM_NOTICE_MEDIA_MAX - media.length;
     if (remaining <= 0) {
-      setMessage(`公告最多 ${FORUM_NOTICE_MEDIA_MAX} 张图片或视频`);
+      setNoticeMessage(`公告最多 ${FORUM_NOTICE_MEDIA_MAX} 张图片或视频`);
       return;
     }
     const picked = Array.from(fileList).slice(0, remaining);
@@ -159,18 +161,46 @@ export function StudioForumSettings({
     }
   }
 
-  async function save() {
-    setBusy(true);
-    setMessage("");
+  async function saveToggles() {
+    setBusy("toggles");
+    setToggleMessage("");
     try {
       const res = await fetch("/api/studio/forum/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          section: "toggles",
           allowMemberPost,
           allowMemberComment,
           allowMemberInteract,
           allowMemberMessage,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setToggleMessage(data.error || "保存失败");
+        return;
+      }
+      const next = data.config as ForumSiteConfig;
+      setAllowMemberPost(next.allowMemberPost);
+      setAllowMemberComment(next.allowMemberComment);
+      setAllowMemberInteract(next.allowMemberInteract);
+      setAllowMemberMessage(next.allowMemberMessage);
+      setToggleMessage("已保存开关。站长自己发帖、评论、私信不受这些开关影响。");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function saveNotice() {
+    setBusy("notice");
+    setNoticeMessage("");
+    try {
+      const res = await fetch("/api/studio/forum/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          section: "notice",
           notice: {
             enabled,
             title,
@@ -184,21 +214,17 @@ export function StudioForumSettings({
       });
       const data = await res.json();
       if (!res.ok) {
-        setMessage(data.error || "保存失败");
+        setNoticeMessage(data.error || "保存失败");
         return;
       }
       const next = data.config as ForumSiteConfig;
-      setAllowMemberPost(next.allowMemberPost);
-      setAllowMemberComment(next.allowMemberComment);
-      setAllowMemberInteract(next.allowMemberInteract);
-      setAllowMemberMessage(next.allowMemberMessage);
+      const preview = data.noticePreview as ForumSiteConfig["notice"];
       setEnabled(next.notice.enabled);
       setTitle(next.notice.title);
       setBody(next.notice.body);
       setHref(next.notice.href);
       setTheme(next.notice.theme);
       setAnimation(next.notice.animation);
-      const preview = data.noticePreview as ForumSiteConfig["notice"];
       setMedia(
         next.notice.media.map((item, index) => ({
           id: `saved-${index}`,
@@ -208,9 +234,9 @@ export function StudioForumSettings({
           status: "done",
         })),
       );
-      setMessage("已保存。站长自己发帖、评论、私信不受这些开关影响。");
+      setNoticeMessage("已保存公告栏。");
     } finally {
-      setBusy(false);
+      setBusy("");
     }
   }
 
@@ -245,6 +271,17 @@ export function StudioForumSettings({
           label="允许其他用户论坛私信"
           hint="帖子页「私信作者」。关闭后仅站长能从论坛发起私信"
         />
+        {toggleMessage ? (
+          <p className="text-sm text-[var(--brand)]">{toggleMessage}</p>
+        ) : null}
+        <button
+          type="button"
+          className="btn btn-primary min-h-11 px-6"
+          disabled={busy !== ""}
+          onClick={() => void saveToggles()}
+        >
+          {busy === "toggles" ? "保存中…" : "保存开关"}
+        </button>
       </section>
 
       <section className="space-y-3">
@@ -389,17 +426,18 @@ export function StudioForumSettings({
             </p>
           )}
         </div>
+        {noticeMessage ? (
+          <p className="text-sm text-[var(--brand)]">{noticeMessage}</p>
+        ) : null}
+        <button
+          type="button"
+          className="btn btn-primary min-h-11 px-6"
+          disabled={busy !== "" || uploading}
+          onClick={() => void saveNotice()}
+        >
+          {busy === "notice" ? "保存中…" : "保存公告栏"}
+        </button>
       </section>
-
-      {message ? <p className="text-sm text-[var(--brand)]">{message}</p> : null}
-      <button
-        type="button"
-        className="btn btn-primary min-h-11 px-6"
-        disabled={busy || uploading}
-        onClick={() => void save()}
-      >
-        {busy ? "保存中…" : "保存开关与公告"}
-      </button>
     </div>
   );
 }

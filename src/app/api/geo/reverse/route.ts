@@ -1,10 +1,10 @@
 /**
  * GET /api/geo/reverse?lat=&lng=
- * 活动选点后反查地址文案；服务端代理 Nominatim，避免浏览器 CORS/无 User-Agent 被拒。
- * 失败时前端保留手填地点，不阻断发布。
+ * 优先高德（可反查到店名）；失败再 Nominatim。坐标按 WGS84 传入。
  */
 
 import { NextResponse } from "next/server";
+import { reverseAmapPlace } from "@/lib/amap-place";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +26,15 @@ export async function GET(req: Request) {
   }
 
   try {
+    const amapLabel = await reverseAmapPlace(lat, lng);
+    if (amapLabel) {
+      return NextResponse.json({ displayName: amapLabel, provider: "amap" });
+    }
+  } catch {
+    // 继续 Nominatim
+  }
+
+  try {
     const nominatim = new URL("https://nominatim.openstreetmap.org/reverse");
     nominatim.searchParams.set("lat", String(lat));
     nominatim.searchParams.set("lon", String(lng));
@@ -36,11 +45,10 @@ export async function GET(req: Request) {
 
     const res = await fetch(nominatim.toString(), {
       headers: {
-        // Nominatim 要求可识别的 UA；站点域名便于对方限流排查
-        "User-Agent": "yyds-course-platform/1.0 (https://www.yydsxwh.com; meetup-place-picker)",
+        "User-Agent":
+          "yyds-course-platform/1.0 (https://www.yydsxwh.com; meetup-place-picker)",
         Accept: "application/json",
       },
-      // 反查失败不应拖垮选点确认
       signal: AbortSignal.timeout(8_000),
       cache: "no-store",
     });
@@ -59,7 +67,11 @@ export async function GET(req: Request) {
     };
 
     const displayName = pickPlaceLabel(data);
-    return NextResponse.json({ displayName, raw: data.display_name || null });
+    return NextResponse.json({
+      displayName,
+      raw: data.display_name || null,
+      provider: "osm",
+    });
   } catch {
     return NextResponse.json(
       { error: "反查地址超时或不可用", displayName: null },
@@ -68,7 +80,6 @@ export async function GET(req: Request) {
   }
 }
 
-/** 优先拼中文短地址，过长则截断，适配地点字段 120 字上限 */
 function pickPlaceLabel(data: {
   display_name?: string;
   name?: string;

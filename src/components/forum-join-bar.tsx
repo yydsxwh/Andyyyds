@@ -15,6 +15,8 @@ type Props = {
   otherCampusName?: string;
   /** 站长或后台仍开放成员发帖时为 true */
   allowPost?: boolean;
+  /** 窄屏用右下角发帖按钮时，隐藏顶栏发帖，避免重复 */
+  hideComposeOnMobile?: boolean;
 };
 
 export function ForumJoinBar({
@@ -27,6 +29,7 @@ export function ForumJoinBar({
   loginNext,
   otherCampusName = "",
   allowPost = true,
+  hideComposeOnMobile = false,
 }: Props) {
   const router = useRouter();
   const [error, setError] = useState("");
@@ -75,7 +78,9 @@ export function ForumJoinBar({
     return (
       <a
         href={`/forum/${universitySlug}/new`}
-        className="btn btn-primary inline-flex min-h-11 items-center justify-center px-5"
+        className={`btn btn-primary inline-flex min-h-11 items-center justify-center px-5 ${
+          hideComposeOnMobile ? "hidden sm:inline-flex" : ""
+        }`}
       >
         发帖
       </a>
@@ -96,5 +101,19 @@ export function ForumJoinBar({
       </button>
       {error ? <p className="text-sm text-[var(--brand)]">{error}</p> : null}
     </div>
+  );
+}
+
+/** 手机微信：右下角发帖，避开刘海与底部安全区 */
+export function ForumComposeFab({ slug }: { slug: string }) {
+  return (
+    <a
+      href={`/forum/${slug}/new`}
+      className="fixed right-4 z-40 flex min-h-12 min-w-12 items-center justify-center rounded-full bg-[var(--brand)] text-2xl leading-none text-white shadow-lg sm:hidden"
+      style={{ bottom: "max(1.25rem, env(safe-area-inset-bottom, 0px))" }}
+      aria-label="发帖"
+    >
+      +
+    </a>
   );
 }

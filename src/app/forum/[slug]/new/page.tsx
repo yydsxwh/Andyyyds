@@ -13,6 +13,7 @@ import {
   forumMemberMay,
   parseForumMedia,
 } from "@/lib/forum";
+import { forumCampusCityHint } from "@/lib/geo-china";
 import { signForumMedia } from "@/lib/forum-media";
 import { getForumSiteConfig, getPublicForumNotice } from "@/lib/forum-settings";
 
@@ -162,6 +163,7 @@ export default async function ForumComposePage({
               key={editing?.id || "new"}
               universityId={university.id}
               universitySlug={university.slug}
+              cityHint={forumCampusCityHint(university)}
               zones={university.zones}
               defaultZoneId={defaultZone?.id}
               initial={

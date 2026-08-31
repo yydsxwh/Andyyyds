@@ -8,6 +8,7 @@
 import { useState } from "react";
 import { MeetupPlaceMapPicker } from "@/components/meetup-place-map-picker";
 import { FORUM_PLACE_MAX } from "@/lib/forum";
+import { GEO_GPS_OPTIONS } from "@/lib/geo-china";
 
 type Props = {
   place: string;
@@ -17,6 +18,7 @@ type Props = {
   onLatitude: (value: string) => void;
   onLongitude: (value: string) => void;
   onMessage?: (value: string) => void;
+  cityHint?: string;
 };
 
 export function ForumPlaceField({
@@ -27,6 +29,7 @@ export function ForumPlaceField({
   onLatitude,
   onLongitude,
   onMessage,
+  cityHint = "",
 }: Props) {
   const [mapOpen, setMapOpen] = useState(false);
   const [geoBusy, setGeoBusy] = useState(false);
@@ -62,11 +65,7 @@ export function ForumPlaceField({
         onMessage?.("定位失败，请检查授权或改用「地图选点」");
         setGeoBusy(false);
       },
-      {
-        enableHighAccuracy: true,
-        timeout: 12_000,
-        maximumAge: 30_000,
-      },
+      GEO_GPS_OPTIONS,
     );
   }
 
@@ -79,11 +78,13 @@ export function ForumPlaceField({
           value={place}
           onChange={(e) => onPlace(e.target.value)}
           maxLength={FORUM_PLACE_MAX}
-          placeholder="城市 + 具体地点"
+          placeholder={
+            cityHint ? `${cityHint} + 店名或具体地点` : "城市 + 具体地点"
+          }
         />
       </label>
       <p className="text-xs leading-relaxed text-[var(--muted)]">
-        地图与搜索供参考，请核对地点文案；精确导航请用高德/腾讯/苹果/Google 地图打开。
+        可搜店名。建议带城市，例如「广州 永隆茶餐厅」。地图选点会按本校城市偏置。
       </p>
       <div className="flex flex-col gap-2 sm:flex-row">
         <button
@@ -137,8 +138,10 @@ export function ForumPlaceField({
             : null
         }
         title="地图选择地点"
-        subtitle="搜索地点后选点，或点击地图/拖动标记微调。可与约搭一样用手填地点文案。"
+        subtitle="搜店名后选点，或点击地图/拖动标记微调。国内餐厅走高德检索。"
         locateSuccessHint="已定位到当前位置"
+        cityHint={cityHint}
+        autoLocateOnOpen
         onClose={() => setMapOpen(false)}
         onConfirm={(result) => {
           onLatitude(String(result.latitude));

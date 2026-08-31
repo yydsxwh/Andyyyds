@@ -1,10 +1,11 @@
 /**
- * GET /api/geo/search?q=&lat=&lng=
- * 地点搜索（名称 + 地址 + 坐标）。浏览器侧 Nominatim/Photon 在国内常超时，
- * 故由服务端代理；可选 lat/lng 做附近偏置，更接近打车类「搜附近再选点」。
+ * GET /api/geo/search?q=&lat=&lng=&city=
+ * 国内店名优先走高德 POI（需 Web 服务 Key）；没有 Key 或未命中时再 OSM。
+ * 不要用「中国中部」默认视野做 viewbox，会把广州餐厅搜丢。
  */
 
 import { NextResponse } from "next/server";
+import { searchAmapPlaces } from "@/lib/amap-place";
 
 export const dynamic = "force-dynamic";
 
@@ -49,15 +50,30 @@ export async function GET(req: Request) {
 
   const biasLat = parseCoord(url.searchParams.get("lat"), "lat");
   const biasLng = parseCoord(url.searchParams.get("lng"), "lng");
+  const city = url.searchParams.get("city")?.trim().slice(0, 20) || "";
 
-  const nominatim = await searchNominatim(q, biasLat, biasLng);
-  if (nominatim.length > 0) {
-    return NextResponse.json({ results: nominatim });
+  try {
+    const amap = await searchAmapPlaces({
+      q,
+      city,
+      biasLat,
+      biasLng,
+    });
+    if (amap.length > 0) {
+      return NextResponse.json({ results: amap, provider: "amap" });
+    }
+  } catch {
+    // 高德失败不阻断，继续 OSM
   }
 
-  // Nominatim 偶发限流时用 Photon 兜底（同样由服务端出网）
-  const photon = await searchPhoton(q, biasLat, biasLng);
-  return NextResponse.json({ results: photon });
+  const nominatimQ = city && !q.includes(city) ? `${city} ${q}` : q;
+  const nominatim = await searchNominatim(nominatimQ, biasLat, biasLng);
+  if (nominatim.length > 0) {
+    return NextResponse.json({ results: nominatim, provider: "osm" });
+  }
+
+  const photon = await searchPhoton(nominatimQ, biasLat, biasLng);
+  return NextResponse.json({ results: photon, provider: "osm" });
 }
 
 async function searchNominatim(
@@ -72,9 +88,10 @@ async function searchNominatim(
     api.searchParams.set("addressdetails", "1");
     api.searchParams.set("limit", "8");
     api.searchParams.set("accept-language", "zh-CN,zh,en");
-    // 有当前视野中心时给 viewbox 偏置，但不强制 bounded，避免搜不到外地
+    api.searchParams.set("countrycodes", "cn");
+    // 仅在已有真实选点/GPS 时偏置，避免默认中国中部把广州店搜没
     if (biasLat != null && biasLng != null) {
-      const d = 0.35;
+      const d = 0.45;
       api.searchParams.set(
         "viewbox",
         `${biasLng - d},${biasLat + d},${biasLng + d},${biasLat - d}`,

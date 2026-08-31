@@ -97,6 +97,7 @@ export type SiteSettingsRow = {
   bgMusicJson: string;
   jamendoClientId: string;
   forumJson: string;
+  amapWebKey: string;
   updatedAt: Date;
 };
 
@@ -138,6 +139,7 @@ export async function getSiteSettings(): Promise<SiteSettingsRow> {
     jamendoClientId:
       (row as { jamendoClientId?: string }).jamendoClientId || "",
     forumJson: (row as { forumJson?: string }).forumJson || "",
+    amapWebKey: (row as { amapWebKey?: string }).amapWebKey || "",
   } as SiteSettingsRow;
   cache = { at: Date.now(), row: normalized };
   return normalized;
@@ -362,6 +364,10 @@ export function publicSiteSettings(row: SiteSettingsRow) {
     bgMusic: parseBgMusic(row.bgMusicJson),
     jamendoClientId: row.jamendoClientId || "",
     jamendoConfigured: Boolean(row.jamendoClientId?.trim()),
+    amapWebKey: row.amapWebKey ? maskSecret(row.amapWebKey) : "",
+    amapConfigured: Boolean(
+      row.amapWebKey?.trim() || process.env.AMAP_WEB_KEY?.trim(),
+    ),
     updatedAt: row.updatedAt.toISOString(),
   };
 }

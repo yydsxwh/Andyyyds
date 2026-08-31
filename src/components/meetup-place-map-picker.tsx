@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Map as LeafletMap, Marker as LeafletMarker } from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { cityMapCenter, GEO_GPS_OPTIONS } from "@/lib/geo-china";
 
 export type MeetupMapPickResult = {
   latitude: number;
@@ -35,12 +36,17 @@ type Props = {
   title?: string;
   subtitle?: string;
   locateSuccessHint?: string;
+  /** 搜索偏置城市，如「广州」——国内店名必须带城才准 */
+  cityHint?: string;
+  /** 打开时若无已有坐标，用 GPS 拉近视野再搜附近 */
+  autoLocateOnOpen?: boolean;
 };
 
-/** 无已有坐标时的默认视野（大致中国中部），避免空白海图 */
+/** 无已有坐标且无城市时的默认视野（大致中国中部），避免空白海图 */
 const DEFAULT_CENTER: [number, number] = [35.0, 105.0];
 const DEFAULT_ZOOM = 4;
-const PICKED_ZOOM = 16;
+const CITY_ZOOM = 12;
+const PICKED_ZOOM = 18;
 const SEARCH_DEBOUNCE_MS = 380;
 /** 同源代理：国内微信/Chrome 不直连被墙的 OSM CDN */
 const TILE_URL = "/api/geo/tile/{z}/{x}/{y}";
@@ -83,6 +89,8 @@ export function MeetupPlaceMapPicker({
   title = "地图选择活动地点",
   subtitle = "搜索地点后选点，或点击地图/拖动标记微调；坐标用于广场「距离最近」",
   locateSuccessHint = "已定位到当前位置（将作为活动举办地坐标）",
+  cityHint = "",
+  autoLocateOnOpen = false,
 }: Props) {
   const mapHostRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<LeafletMap | null>(null);
@@ -182,16 +190,22 @@ export function MeetupPlaceMapPicker({
         initialLng != null &&
         Number.isFinite(initialLat) &&
         Number.isFinite(initialLng);
+      const cityCenter = cityHint ? cityMapCenter(cityHint) : null;
+      const startLatLng: [number, number] = hasInitial
+        ? [initialLat!, initialLng!]
+        : cityCenter
+          ? [cityCenter.lat, cityCenter.lng]
+          : DEFAULT_CENTER;
+      const startZoom = hasInitial
+        ? PICKED_ZOOM
+        : cityCenter
+          ? CITY_ZOOM
+          : DEFAULT_ZOOM;
 
       map = L.map(mapHostRef.current, {
         zoomControl: true,
         attributionControl: true,
-      }).setView(
-        hasInitial
-          ? ([initialLat!, initialLng!] as [number, number])
-          : DEFAULT_CENTER,
-        hasInitial ? PICKED_ZOOM : DEFAULT_ZOOM,
-      );
+      }).setView(startLatLng, startZoom);
 
       L.tileLayer(TILE_URL, {
         maxZoom: 19,
@@ -257,20 +271,15 @@ export function MeetupPlaceMapPicker({
       return;
     }
 
-    // 偏置只在发请求时读取，不把坐标放进 deps，避免选点后反复搜
+    // 只把已选点/GPS 当偏置，不用中国中部默认视野，否则广州店搜不到
     searchTimerRef.current = setTimeout(() => {
       const seq = ++searchSeqRef.current;
       setSearchBusy(true);
-      const biasLat =
-        pickedLat ??
-        (mapRef.current ? mapRef.current.getCenter().lat : null);
-      const biasLng =
-        pickedLng ??
-        (mapRef.current ? mapRef.current.getCenter().lng : null);
       const params = new URLSearchParams({ q });
-      if (biasLat != null && biasLng != null) {
-        params.set("lat", String(biasLat));
-        params.set("lng", String(biasLng));
+      if (cityHint.trim()) params.set("city", cityHint.trim());
+      if (pickedLat != null && pickedLng != null) {
+        params.set("lat", String(pickedLat));
+        params.set("lng", String(pickedLng));
       }
       void fetch(`/api/geo/search?${params.toString()}`)
         .then(async (res) => {
@@ -295,7 +304,7 @@ export function MeetupPlaceMapPicker({
         searchTimerRef.current = null;
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- bias read at request time
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- bias/city read at request time
   }, [open, searchQuery]);
 
   async function selectSearchHit(hit: PlaceHit) {
@@ -339,16 +348,31 @@ export function MeetupPlaceMapPicker({
             map.invalidateSize();
           }
           setGeoBusy(false);
-          setHint(locateSuccessHint);
+          const acc = Math.round(pos.coords.accuracy || 0);
+          const accHint = acc > 0 ? `（约 ${acc} 米精度）` : "";
+          setHint(`${locateSuccessHint}${accHint}`);
         })();
       },
       () => {
         setGeoBusy(false);
         setHint("定位失败，请检查授权、搜索地点或直接在地图上点选");
       },
-      { enableHighAccuracy: true, timeout: 12_000, maximumAge: 30_000 },
+      GEO_GPS_OPTIONS,
     );
   }
+
+  useEffect(() => {
+    if (!open || !mapReady || !autoLocateOnOpen) return;
+    const hasInitial =
+      initialLat != null &&
+      initialLng != null &&
+      Number.isFinite(initialLat) &&
+      Number.isFinite(initialLng);
+    if (hasInitial) return;
+    locateMe();
+    // 打开弹层时拉一次 GPS，便于附近店搜索
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, mapReady, autoLocateOnOpen]);
 
   async function handleConfirm() {
     if (pickedLat == null || pickedLng == null) {
@@ -407,7 +431,7 @@ export function MeetupPlaceMapPicker({
           className="border-b border-[var(--line)] bg-[var(--line)]/25 px-4 py-2.5 text-xs leading-relaxed text-[var(--ink)] sm:px-5 sm:text-sm"
           role="note"
         >
-          地图与搜索供参考，请核对地点文案；精确导航请用高德/腾讯/苹果/google地图打开。
+          地图用于选点；国内店名走高德检索。选完请核对地点文案，导航请用高德/腾讯/苹果/Google 打开。
         </p>
 
         <div className="relative z-20 border-b border-[var(--line)] px-4 py-3 sm:px-5">
@@ -421,7 +445,11 @@ export function MeetupPlaceMapPicker({
               enterKeyHint="search"
               autoComplete="off"
               className="field min-h-12 w-full touch-manipulation pr-20 text-base"
-              placeholder="搜索地点，如：广州塔、附近咖啡馆"
+              placeholder={
+                cityHint
+                  ? `搜店名，如：${cityHint} 永隆茶餐厅`
+                  : "搜店名或地址，建议带城市，如：广州 永隆茶餐厅"
+              }
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
@@ -464,7 +492,7 @@ export function MeetupPlaceMapPicker({
           searchQuery.trim().length >= 2 &&
           searchHits.length === 0 ? (
             <p className="mt-2 text-xs text-[var(--muted)]">
-              未找到匹配地点，可换个关键词或直接点地图
+              未找到。试试加上城市（如「广州 永隆茶餐厅」），或先点「定位到我」再搜。国内店铺需站长配置高德 Web Key。
             </p>
           ) : null}
         </div>
