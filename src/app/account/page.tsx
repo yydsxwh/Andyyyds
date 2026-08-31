@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AccountAuthPanel } from "@/components/account-auth-panel";
 import { AccountProfilePanel } from "@/components/account-profile-panel";
+import { ForumCampusPanel } from "@/components/forum-campus-panel";
 import { InviteSharePanel } from "@/components/invite-share-panel";
 import { NavPageTemplateShell } from "@/components/nav-page-template-shell";
 import { RoleApplyPanel } from "@/components/role-apply-panel";
@@ -52,6 +53,7 @@ export default async function AccountPage() {
     paidOrdersAgg,
     teamCount,
     recruitedMerchants,
+    forumUniversities,
   ] = await Promise.all([
     prisma.user.findUnique({
       where: { id: session.id },
@@ -68,6 +70,8 @@ export default async function AccountPage() {
         wechatMobileOpenId: true,
         avatarUrl: true,
         passwordSet: true,
+        forumUniversityId: true,
+        forumUniversity: { select: { id: true, name: true, slug: true } },
       },
     }),
     prisma.enrollment.findMany({
@@ -125,6 +129,11 @@ export default async function AccountPage() {
           take: 8,
         })
       : Promise.resolve([]),
+    prisma.forumUniversity.findMany({
+      where: { enabled: true },
+      select: { id: true, name: true, slug: true },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    }),
   ]);
 
   const inviteCode = user?.referralCode || "";
@@ -192,6 +201,12 @@ export default async function AccountPage() {
           </p>
         </div>
       ) : null}
+
+      <ForumCampusPanel
+        universities={forumUniversities}
+        currentId={user?.forumUniversityId || ""}
+        currentName={user?.forumUniversity?.name || ""}
+      />
 
       {/* —— 按角色的快捷入口 —— */}
       <RoleQuickLinks
@@ -526,6 +541,7 @@ function RoleQuickLinks({
   const links: { href: string; label: string }[] = [
     { href: "/learn", label: "我的学习" },
     { href: "/courses", label: "课程广场" },
+    { href: "/forum", label: "大学论坛" },
   ];
   if (canStudio) {
     links.push({ href: studioHref, label: studioLabel });

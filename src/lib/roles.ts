@@ -233,6 +233,11 @@ export function canManageMeetups(roleOrRoles: RoleInput): boolean {
   return isAdmin(roleOrRoles);
 }
 
+/** 站长后台管理大学论坛高校分区（/studio/forum） */
+export function canManageForum(roleOrRoles: RoleInput): boolean {
+  return isAdmin(roleOrRoles);
+}
+
 export function canManageSiteSettings(roleOrRoles: RoleInput): boolean {
   return isAdmin(roleOrRoles);
 }

@@ -3,6 +3,8 @@
  * 但保留商品/约搭页面向商家或发起人的咨询私信。
  */
 import { CHAT_KIND, CHAT_SOURCE, type ChatSource } from "@/lib/chat/constants";
+import { FORUM_CLOSED } from "@/lib/forum";
+import { isAdmin, type RoleInput } from "@/lib/roles";
 
 /** 合规模式下仍允许的会话来源（产品/约搭咨询私信） */
 export const CONSULT_CHAT_SOURCES: ChatSource[] = [
@@ -27,8 +29,23 @@ export async function assertSocialChatEnabled(): Promise<void> {
   }
 }
 
-/** 发起直聊时：合规模式下只允许咨询来源 */
-export async function assertCanStartDirectChat(source: ChatSource): Promise<void> {
+/** 发起直聊时：合规模式下只允许咨询来源；论坛私信另受论坛开关约束，站长不受限 */
+export async function assertCanStartDirectChat(
+  source: ChatSource,
+  requester?: RoleInput | null,
+): Promise<void> {
+  if (source === CHAT_SOURCE.FORUM_DM) {
+    if (requester && isAdmin(requester)) return;
+    const { getForumSiteConfig } = await import("@/lib/forum-settings");
+    const cfg = await getForumSiteConfig();
+    if (!cfg.allowMemberMessage) {
+      throw new Error(FORUM_CLOSED.message);
+    }
+    if (await getHideSocialChatFlag()) {
+      throw new Error("站内社交私聊已关闭，请通过产品页咨询商家");
+    }
+    return;
+  }
   if (!(await getHideSocialChatFlag())) return;
   if (!isConsultChatSource(source)) {
     throw new Error("站内社交私聊已关闭，请通过产品页咨询商家");

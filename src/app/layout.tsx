@@ -55,7 +55,7 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     applicationName: siteName,
     description:
-      "多功能门户：公司与个人介绍、知识付费、商城/论坛/游戏中心陆续开放",
+      "多功能门户：公司与个人介绍、知识付费、商城、大学论坛；游戏中心陆续开放",
     icons: {
       icon: [
         { url: "/favicon.ico", sizes: "any" },

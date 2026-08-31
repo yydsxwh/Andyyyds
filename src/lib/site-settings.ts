@@ -96,6 +96,7 @@ export type SiteSettingsRow = {
   smsTestFixedCode: string;
   bgMusicJson: string;
   jamendoClientId: string;
+  forumJson: string;
   updatedAt: Date;
 };
 
@@ -136,6 +137,7 @@ export async function getSiteSettings(): Promise<SiteSettingsRow> {
     bgMusicJson: (row as { bgMusicJson?: string }).bgMusicJson || "",
     jamendoClientId:
       (row as { jamendoClientId?: string }).jamendoClientId || "",
+    forumJson: (row as { forumJson?: string }).forumJson || "",
   } as SiteSettingsRow;
   cache = { at: Date.now(), row: normalized };
   return normalized;

@@ -33,6 +33,7 @@ export async function StudioNav({
     | "products"
     | "shop"
     | "meetup"
+    | "forum"
     | "decorate"
     /** @deprecated 页面模板已归入装修子导航；传入时高亮「装修」 */
     | "templates"

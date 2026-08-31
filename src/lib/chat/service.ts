@@ -65,8 +65,13 @@ export async function requestDirectChat(input: {
   if (peerUserId === input.requesterId) {
     throw new Error("不能与自己发起私聊");
   }
-  // 合规关闭社交私聊时，仅允许产品/约搭咨询来源
-  await assertCanStartDirectChat(input.source);
+
+  const requester = await prisma.user.findUnique({
+    where: { id: input.requesterId },
+    select: { name: true, role: true, roles: true },
+  });
+  if (!requester) throw new Error("用户不存在");
+  await assertCanStartDirectChat(input.source, requester);
 
   const peer = await prisma.user.findUnique({
     where: { id: peerUserId },
@@ -89,17 +94,15 @@ export async function requestDirectChat(input: {
     return { conversation: existing, created: false as const };
   }
 
-  const requester = await prisma.user.findUnique({
-    where: { id: input.requesterId },
-    select: { name: true },
-  });
   const sourceLabel =
     input.source === CHAT_SOURCE.PRODUCT_CONSULT
       ? "通过产品咨询"
       : input.source === CHAT_SOURCE.MEETUP_CONSULT
         ? "通过约搭咨询"
-        : "通过站内搜索";
-  const systemBody = `${requester?.name || "用户"} ${sourceLabel}请求与你私聊，请确认是否接受。`;
+        : input.source === CHAT_SOURCE.FORUM_DM
+          ? "通过大学论坛"
+          : "通过站内搜索";
+  const systemBody = `${requester.name || "用户"} ${sourceLabel}请求与你私聊，请确认是否接受。`;
 
   const conversation = await prisma.$transaction(async (tx) => {
     const conv = await tx.chatConversation.create({
