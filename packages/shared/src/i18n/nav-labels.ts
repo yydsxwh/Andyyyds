@@ -8,6 +8,7 @@ const LABEL_TO_KEY: Record<string, string> = {
   商城: "nav.shop",
   软件产品: "nav.products",
   大学论坛: "nav.forum",
+  论坛: "nav.forum",
   游戏中心: "nav.games",
   个人中心: "nav.account",
   创作者中心: "nav.studio",

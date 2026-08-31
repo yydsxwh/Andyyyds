@@ -1,4 +1,4 @@
-/** Next.js 路由入口（网址不变）。dynamic/metadata 必须写在本文件，Next 才能静态识别。 */
+/** Next.js 路由入口。dynamic/metadata 必须写在本文件，Next 才能静态识别。 */
 import type { Metadata } from "next";
 import { getPortalNavPageTitle } from "@andyyyds/shared/portal-nav-title";
 
@@ -8,8 +8,8 @@ export async function generateMetadata(): Promise<Metadata> {
   const title = await getPortalNavPageTitle("forum", "论坛");
   return {
     title,
-    description: "大学论坛、兴趣圈子与本地同城，按分区交流",
+    description: "按高校分区交流：日常、美食、选课、二手、跑腿、资料与交友",
   };
 }
 
-export { default } from "@andyyyds/forum/routes/forum/page";
+export { default } from "@andyyyds/forum/routes/forum/campus/page";

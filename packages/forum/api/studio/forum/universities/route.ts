@@ -6,7 +6,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
-  DEFAULT_FORUM_ZONES,
   FORUM_DESC_MAX,
   FORUM_NAME_MAX,
   FORUM_RESERVED_SLUGS,
@@ -14,6 +13,10 @@ import {
   normalizeForumSlug,
   slugifyUniversity,
 } from "@andyyyds/forum/lib/forum";
+import {
+  defaultZonesForForumKind,
+  parseForumSpaceKind,
+} from "@andyyyds/forum/lib/forum-space";
 import {
   FORUM_UNIVERSITY_LIST_ORDER_BY,
   guessForumUniversityRegion,
@@ -36,6 +39,7 @@ const createSchema = z.object({
   emailDomains: z.string().trim().max(200).optional(),
   enabled: z.boolean().optional(),
   region: z.enum(["CHINA", "INTERNATIONAL"]).optional(),
+  kind: z.enum(["UNIVERSITY", "CIRCLE", "CITY"]).optional(),
 });
 
 export async function GET() {
@@ -70,11 +74,14 @@ export async function POST(req: Request) {
     if (exists) {
       return NextResponse.json({ error: "该路径已被占用" }, { status: 400 });
     }
+    const kind = parseForumSpaceKind(body.kind);
     const region = body.region
       ? parseForumUniversityRegion(body.region)
-      : guessForumUniversityRegion(body.name, slug);
+      : kind === "UNIVERSITY"
+        ? guessForumUniversityRegion(body.name, slug)
+        : "CHINA";
     const maxSort = await prisma.forumUniversity.aggregate({
-      where: { region },
+      where: { kind, region },
       _max: { sortOrder: true },
     });
     const university = await prisma.forumUniversity.create({
@@ -87,12 +94,13 @@ export async function POST(req: Request) {
         adImageUrl: body.adImageUrl || "",
         adHref: body.adHref || "",
         adAlt: body.adAlt || "",
-        emailDomains: body.emailDomains || "",
+        emailDomains: kind === "UNIVERSITY" ? body.emailDomains || "" : "",
         enabled: body.enabled ?? true,
+        kind,
         region,
         sortOrder: (maxSort._max.sortOrder || 0) + 10,
         zones: {
-          create: DEFAULT_FORUM_ZONES.map((zone, index) => ({
+          create: defaultZonesForForumKind(kind).map((zone, index) => ({
             key: zone.key,
             name: zone.name,
             sortOrder: index * 10,
@@ -136,6 +144,7 @@ export async function PATCH(req: Request) {
     const body = reorderSchema.parse(await req.json());
     if (body.resetDefault) {
       const rows = await prisma.forumUniversity.findMany({
+        where: { kind: "UNIVERSITY" },
         select: { id: true, name: true, slug: true },
       });
       const planned = applyDefaultForumUniversityOrder(
@@ -171,8 +180,8 @@ export async function PATCH(req: Request) {
         if (seen.has(id)) continue;
         seen.add(id);
         ops.push(
-          prisma.forumUniversity.update({
-            where: { id },
+          prisma.forumUniversity.updateMany({
+            where: { id, kind: "UNIVERSITY" },
             data: { region, sortOrder: index * 10 },
           }),
         );

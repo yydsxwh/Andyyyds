@@ -447,7 +447,7 @@ export const PAGE_SLOT_LABEL: Record<PageSlotId, string> = {
   meetup: "约搭广场",
   shop: "商城占位",
   products: "软件产品列表",
-  forum: "大学论坛内容",
+  forum: "论坛内容",
   games: "游戏中心占位",
   account: "个人中心内容",
 };
@@ -460,7 +460,7 @@ export const PAGE_TEMPLATE_TYPE_LABEL: Record<PageTemplateType, string> = {
   meetup: "约搭",
   shop: "商城",
   products: "软件产品",
-  forum: "大学论坛",
+  forum: "论坛",
   games: "游戏中心",
   account: "个人中心",
   custom: "自定义",

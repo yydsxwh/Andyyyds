@@ -8,7 +8,14 @@ import { ForumNoticeBar } from "@andyyyds/forum/components/forum-notice-bar";
 import { NavPageTemplateShell } from "@/components/nav-page-template-shell";
 import { getSession } from "@andyyyds/shared/auth";
 import { prisma } from "@andyyyds/shared/db";
-import { canPostInUniversity, forumMemberMay, parseForumMedia } from "@andyyyds/forum/lib/forum";
+import { forumMemberMay, parseForumMedia } from "@andyyyds/forum/lib/forum";
+import {
+  canPostInForumSpace,
+  forumSpaceEmptyHint,
+  forumSpaceListPath,
+  isCampusForumSpace,
+  parseForumSpaceKind,
+} from "@andyyyds/forum/lib/forum-space";
 import { forumAudienceVisibleWhere } from "@andyyyds/forum/lib/forum-school";
 import { signForumMedia } from "@andyyyds/forum/lib/forum-media";
 import { getForumSiteConfig, getPublicForumNotice } from "@andyyyds/forum/lib/forum-settings";
@@ -49,30 +56,33 @@ export default async function ForumUniversityPage({
     getPublicForumNotice(),
   ]);
   const allowPost = forumMemberMay(session, flags.allowMemberPost);
+  const spaceKind = parseForumSpaceKind(university.kind);
+  const campusSpace = isCampusForumSpace(spaceKind);
   const isMember = Boolean(
-    session && canPostInUniversity(session, university.id),
+    session && canPostInForumSpace(session, university),
   );
   const isVerified = Boolean(
     session?.forumVerifiedUniversityIds.includes(university.id),
   );
-  const verifySlots = session
-    ? (
-        await prisma.forumSchoolVerification.findMany({
-          where: { userId: session.id },
-          include: { university: { select: { name: true, slug: true } } },
-        })
-      ).map((row) => ({
-        degreeLevel: row.degreeLevel,
-        universityId: row.universityId,
-        universityName: row.university.name,
-        universitySlug: row.university.slug,
-        status: row.status,
-        realName: row.realName,
-        studentId: row.studentId,
-        campusEmail: row.campusEmail,
-        reviewNote: row.reviewNote,
-      }))
-    : [];
+  const verifySlots =
+    session && campusSpace
+      ? (
+          await prisma.forumSchoolVerification.findMany({
+            where: { userId: session.id },
+            include: { university: { select: { name: true, slug: true } } },
+          })
+        ).map((row) => ({
+          degreeLevel: row.degreeLevel,
+          universityId: row.universityId,
+          universityName: row.university.name,
+          universitySlug: row.university.slug,
+          status: row.status,
+          realName: row.realName,
+          studentId: row.studentId,
+          campusEmail: row.campusEmail,
+          reviewNote: row.reviewNote,
+        }))
+      : [];
   const zoneKey = query.zone?.trim() || "";
   const keyword = query.q?.trim().slice(0, 40) || "";
   const activeZone = university.zones.find(
@@ -141,14 +151,23 @@ export default async function ForumUniversityPage({
 
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <Link href="/forum" className="text-sm text-[var(--brand)]">
-              ← 全部高校
+            <Link
+              href={forumSpaceListPath(spaceKind)}
+              className="text-sm text-[var(--brand)]"
+            >
+              ← {campusSpace ? "全部高校" : spaceKind === "CIRCLE" ? "全部圈子" : "全部同城"}
             </Link>
             <h1 className="mt-1 text-2xl font-semibold sm:text-3xl">
               {university.name}
             </h1>
             <p className="mt-1 max-w-xl truncate text-sm text-[var(--muted)]">
-              {university.slogan || university.description || "本校同学的交流专区"}
+              {university.slogan ||
+                university.description ||
+                (campusSpace
+                  ? "本校同学的交流专区"
+                  : spaceKind === "CIRCLE"
+                    ? "兴趣同好的交流圈子"
+                    : "同城邻居的交流专区")}
             </p>
             <div className="mt-2 max-w-xl">
               <ForumAccountBar
@@ -170,6 +189,7 @@ export default async function ForumUniversityPage({
             universityId={university.id}
             universitySlug={university.slug}
             universityName={university.name}
+            spaceKind={spaceKind}
             loggedIn={Boolean(session)}
             isMember={isMember}
             isVerified={isVerified}
@@ -177,7 +197,7 @@ export default async function ForumUniversityPage({
             loginNext={path}
             allowPost={allowPost}
             hideComposeOnMobile
-            slots={verifySlots}
+            slots={campusSpace ? verifySlots : []}
           />
         </div>
 
@@ -190,8 +210,8 @@ export default async function ForumUniversityPage({
             name="q"
             defaultValue={keyword}
             maxLength={40}
-            placeholder="搜索本校帖子"
-            aria-label="搜索本校帖子"
+            placeholder={campusSpace ? "搜索本校帖子" : "搜索帖子"}
+            aria-label={campusSpace ? "搜索本校帖子" : "搜索帖子"}
             className="min-h-11 w-full rounded-full border border-[var(--line)] bg-[var(--line)]/25 py-2 pl-4 pr-14 text-sm"
           />
           <button
@@ -225,7 +245,7 @@ export default async function ForumUniversityPage({
           <p className="rounded-[24px] border border-dashed border-[var(--line)] px-5 py-16 text-center text-sm text-[var(--muted)]">
             {keyword
               ? "没有搜到相关帖子，换个词试试。"
-              : "这一栏还没有内容，认证本校后发第一篇吧。"}
+              : forumSpaceEmptyHint(spaceKind)}
           </p>
         ) : (
           <div className="forum-feed-masonry">

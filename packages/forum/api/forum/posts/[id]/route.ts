@@ -33,6 +33,7 @@ import {
   uniqueForumUniversityIds,
 } from "@andyyyds/forum/lib/forum-broadcast";
 import { getForumSiteConfig } from "@andyyyds/forum/lib/forum-settings";
+import { isCampusForumSpace } from "@andyyyds/forum/lib/forum-space";
 import { canManageForum } from "@andyyyds/shared/roles";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -194,10 +195,20 @@ export async function PATCH(req: Request, ctx: Ctx) {
         );
       }
     }
+    const space = await prisma.forumUniversity.findUnique({
+      where: { id: post.universityId },
+      select: { kind: true },
+    });
     const nextAudience =
       body.audience !== undefined
         ? parseForumAudience(body.audience)
         : parseForumAudience(post.audience);
+    if (nextAudience !== FORUM_AUDIENCE_PUBLIC && !isCampusForumSpace(space?.kind)) {
+      return NextResponse.json(
+        { error: "仅高校分区可设仅本校可见" },
+        { status: 403 },
+      );
+    }
     if (
       nextAudience !== FORUM_AUDIENCE_PUBLIC &&
       !canSetSchoolRestrictedAudience(session, post.universityId)
@@ -208,7 +219,10 @@ export async function PATCH(req: Request, ctx: Ctx) {
       );
     }
     const extraIds =
-      isMod && nextStatus === "PUBLISHED" && post.status === "DRAFT"
+      isMod &&
+      nextStatus === "PUBLISHED" &&
+      post.status === "DRAFT" &&
+      isCampusForumSpace(space?.kind)
         ? uniqueForumUniversityIds(body.syncUniversityIds, post.universityId)
         : [];
     let broadcast: Awaited<ReturnType<typeof resolveForumBroadcastTargets>> = {

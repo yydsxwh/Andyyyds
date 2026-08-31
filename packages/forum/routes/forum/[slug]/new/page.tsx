@@ -7,7 +7,6 @@ import { getSession } from "@andyyyds/shared/auth";
 import { prisma } from "@andyyyds/shared/db";
 import {
   FORUM_CLOSED,
-  canPostInUniversity,
   displayPostTitle,
   formatForumTime,
   forumMemberMay,
@@ -15,6 +14,10 @@ import {
 } from "@andyyyds/forum/lib/forum";
 import { canSetSchoolRestrictedAudience } from "@andyyyds/forum/lib/forum-school";
 import { FORUM_UNIVERSITY_LIST_ORDER_BY } from "@andyyyds/forum/lib/forum-university";
+import {
+  canPostInForumSpace,
+  isCampusForumSpace,
+} from "@andyyyds/forum/lib/forum-space";
 import { forumCampusCityHint } from "@andyyyds/shared/geo-china";
 import { signForumMedia } from "@andyyyds/forum/lib/forum-media";
 import { getForumSiteConfig, getPublicForumNotice } from "@andyyyds/forum/lib/forum-settings";
@@ -41,7 +44,7 @@ export default async function ForumComposePage({
     include: { zones: { orderBy: { sortOrder: "asc" } } },
   });
   if (!university || !university.enabled) notFound();
-  if (!canPostInUniversity(session, university.id)) {
+  if (!canPostInForumSpace(session, university)) {
     redirect(`/forum/${slug}`);
   }
 
@@ -50,13 +53,14 @@ export default async function ForumComposePage({
     getPublicForumNotice(),
   ]);
   const canCompose = forumMemberMay(session, flags.allowMemberPost);
-  const broadcastUniversities = canManageForum(session)
-    ? await prisma.forumUniversity.findMany({
-        where: { enabled: true },
-        select: { id: true, name: true, region: true },
-        orderBy: FORUM_UNIVERSITY_LIST_ORDER_BY,
-      })
-    : [];
+  const broadcastUniversities =
+    canManageForum(session) && isCampusForumSpace(university.kind)
+      ? await prisma.forumUniversity.findMany({
+          where: { enabled: true, kind: "UNIVERSITY" },
+          select: { id: true, name: true, region: true },
+          orderBy: FORUM_UNIVERSITY_LIST_ORDER_BY,
+        })
+      : [];
 
   const drafts = await prisma.forumPost.findMany({
     where: {
@@ -183,10 +187,10 @@ export default async function ForumComposePage({
               zones={university.zones}
               defaultZoneId={defaultZone?.id}
               broadcastUniversities={broadcastUniversities}
-              canSetSchoolOnly={canSetSchoolRestrictedAudience(
-                session,
-                university.id,
-              )}
+              canSetSchoolOnly={
+                isCampusForumSpace(university.kind) &&
+                canSetSchoolRestrictedAudience(session, university.id)
+              }
               initial={
                 editing
                   ? {

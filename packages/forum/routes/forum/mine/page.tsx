@@ -124,7 +124,7 @@ export default async function ForumMinePage({
         {notice ? <ForumNoticeBar notice={notice} /> : null}
         <div>
           <Link href="/forum" className="text-sm text-[var(--brand)]">
-            ← 大学论坛
+            ← 论坛
           </Link>
           <h1 className="mt-2 text-3xl font-semibold">我的论坛</h1>
           <p className="mt-2 text-sm text-[var(--muted)]">

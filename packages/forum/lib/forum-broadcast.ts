@@ -51,6 +51,7 @@ export async function resolveForumBroadcastTargets(args: {
       id: true,
       name: true,
       enabled: true,
+      kind: true,
       zones: {
         where: { enabled: true },
         orderBy: { sortOrder: "asc" },
@@ -64,11 +65,11 @@ export async function resolveForumBroadcastTargets(args: {
 
   for (const id of requested) {
     const uni = byId.get(id);
-    if (!uni || !uni.enabled) {
+    if (!uni || !uni.enabled || uni.kind !== "UNIVERSITY") {
       skipped.push({
         universityId: id,
         name: uni?.name || id,
-        reason: "分区不存在或已关闭",
+        reason: "只能同步到大学论坛分区",
       });
       continue;
     }

@@ -67,12 +67,12 @@ export async function generateMetadata({
   if (!canView) {
     return {
       title: "仅本校认证用户可见",
-      description: `${post.university.name}大学论坛`,
+      description: `${post.university.name}论坛`,
     };
   }
   const title = displayPostTitle(post.title, post.body);
   const description =
-    excerptBody(post.body, 80) || `${post.university.name}大学论坛`;
+    excerptBody(post.body, 80) || `${post.university.name}论坛`;
   const site = await getPublicSiteUrl();
   const url = `${site}/forum/${slug}/p/${postId}`;
   const image = `${site}/brand/icon-192.png`;
@@ -84,7 +84,7 @@ export async function generateMetadata({
       description,
       url,
       type: "article",
-      siteName: `${post.university.name}大学论坛`,
+      siteName: `${post.university.name}论坛`,
       images: [{ url: image, width: 192, height: 192 }],
     },
     twitter: {

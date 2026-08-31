@@ -82,7 +82,7 @@ export const DEFAULT_STUDIO_NAV: StudioNavConfig = {
     { key: "shop", label: "商城商品", href: "/studio/shop" },
     // 约搭活动（Meetup）：全站增删改，与课程/商城并列；创作者侧另有「我的约搭」
     { key: "meetup", label: "约搭管理", href: "/studio/meetup" },
-    { key: "forum", label: "大学论坛", href: "/studio/forum" },
+    { key: "forum", label: "论坛", href: "/studio/forum" },
     // 顶栏只保留「装修」；网站装扮 / 页面模板在 DecorateSubnav 切换
     { key: "decorate", label: "装修", href: "/studio/decorate" },
     { key: "cms", label: "内容管理", href: "/studio/cms" },

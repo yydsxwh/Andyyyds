@@ -88,7 +88,7 @@ export const NAV_PAGE_TEMPLATE_DEFS: NavPageTemplateDef[] = [
   },
   {
     type: "forum",
-    name: "大学论坛默认模板",
+    name: "论坛默认模板",
     path: "/forum",
     slot: "forum",
   },

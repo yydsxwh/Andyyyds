@@ -68,12 +68,13 @@ model User {
   chatMessageReads     ChatMessageRead[]
   /// 学员下载课件的审计记录（防盗链追责）
   lessonResourceDownloads LessonResourceDownload[]
-  /// 大学论坛：加入的高校分区；空表示尚未加入，只能逛不能发帖
+  /// 大学论坛：最近一次认证/进入的高校分区；发帖权限以实名认证记录为准
   forumUniversityId    String?
   forumUniversity      ForumUniversity?   @relation(fields: [forumUniversityId], references: [id], onDelete: SetNull)
   forumPosts           ForumPost[]
   forumComments        ForumComment[]
   forumActions         ForumAction[]
+  forumSchoolVerifications ForumSchoolVerification[]
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
 
@@ -882,7 +883,8 @@ model Order {
   updatedAt       DateTime     @updatedAt
 }
 
-/// 大学论坛高校分区：站长创建，对应学校的学生加入后发帖/笔记
+/// 论坛分区。表名沿用 ForumUniversity，避免改帖子/专区外键。
+/// kind：UNIVERSITY 大学论坛 | CIRCLE 兴趣圈子 | CITY 本地同城。大学只是其中一类。
 model ForumUniversity {
   id          String      @id @default(cuid())
   name        String
@@ -894,20 +896,27 @@ model ForumUniversity {
   adImageUrl  String      @default("")
   adHref      String      @default("")
   adAlt       String      @default("")
-  /// 可选：限制加入的邮箱后缀，逗号分隔如 stu.edu.cn,xxx.edu.cn；空则任意登录用户可加入
+  /// 仅大学分区：限制认证的校园邮箱后缀；圈子/同城忽略
   emailDomains String     @default("")
+  /// 大学/同城：CHINA 国内 | INTERNATIONAL 海外；圈子可空置
+  region      String      @default("CHINA")
+  /// UNIVERSITY | CIRCLE | CITY
+  kind        String      @default("UNIVERSITY")
   enabled     Boolean     @default(true)
   sortOrder   Int         @default(0)
   members     User[]
   zones       ForumZone[]
   posts       ForumPost[]
+  schoolVerifications ForumSchoolVerification[]
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
+  @@index([kind, enabled, sortOrder])
+  @@index([enabled, region, sortOrder])
   @@index([enabled, sortOrder])
 }
 
-/// 高校分区内的专区（日常话题、美食、选课等）；创建高校时写入默认专区
+/// 分区内的专区（日常话题、圈子讨论、同城活动等）；创建分区时写入默认专区
 model ForumZone {
   id           String           @id @default(cuid())
   universityId String
@@ -947,6 +956,8 @@ model ForumPost {
   longitude     Float?
   /// PUBLISHED | HIDDEN | DRAFT（草稿仅作者可见，不算公开发帖）
   status        String           @default("PUBLISHED")
+  /// PUBLIC 所有人可见 | SCHOOL_VERIFIED 仅该校已实名认证用户可见
+  audience      String           @default("PUBLIC")
   likeCount     Int              @default(0)
   favoriteCount Int              @default(0)
   commentCount  Int              @default(0)
@@ -958,9 +969,37 @@ model ForumPost {
   updatedAt     DateTime         @updatedAt
 
   @@index([universityId, status, createdAt])
+  @@index([universityId, status, audience])
   @@index([zoneId, createdAt])
   @@index([authorId, createdAt])
   @@index([authorId, status, updatedAt])
+}
+
+/// 高校实名认证：每人最多一所本科 + 一所研究生；通过后可看「仅本校可见」帖
+model ForumSchoolVerification {
+  id           String          @id @default(cuid())
+  userId       String
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  universityId String
+  university   ForumUniversity @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  /// UNDERGRAD 本科 | GRADUATE 研究生
+  degreeLevel  String
+  realName     String
+  studentId    String          @default("")
+  campusEmail  String          @default("")
+  proofUrl     String          @default("")
+  /// PENDING | VERIFIED | REJECTED
+  status       String          @default("PENDING")
+  reviewNote   String          @default("")
+  reviewedAt   DateTime?
+  reviewedById String?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@unique([userId, degreeLevel])
+  @@index([universityId, status])
+  @@index([status, createdAt])
+  @@index([userId, status])
 }
 
 model ForumComment {

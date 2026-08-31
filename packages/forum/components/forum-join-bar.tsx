@@ -3,11 +3,16 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ForumSchoolVerifyForm, type ForumVerifySlotView } from "@andyyyds/forum/components/forum-school-verify-form";
+import {
+  isCampusForumSpace,
+  type ForumSpaceKind,
+} from "@andyyyds/forum/lib/forum-space";
 
 type Props = {
   universityId: string;
   universitySlug: string;
   universityName: string;
+  spaceKind?: ForumSpaceKind;
   loggedIn: boolean;
   isMember: boolean;
   isVerified: boolean;
@@ -22,6 +27,7 @@ export function ForumJoinBar({
   universityId,
   universitySlug,
   universityName,
+  spaceKind = "UNIVERSITY",
   loggedIn,
   isMember,
   isVerified,
@@ -33,6 +39,7 @@ export function ForumJoinBar({
 }: Props) {
   const router = useRouter();
   const [openVerify, setOpenVerify] = useState(false);
+  const campusSpace = isCampusForumSpace(spaceKind);
   const here = slots.find((slot) => slot.universityId === universityId);
   const defaultDegree =
     here?.degreeLevel === "GRADUATE"
@@ -61,9 +68,9 @@ export function ForumJoinBar({
         >
           发帖
         </a>
-        {isVerified ? (
+        {campusSpace && isVerified ? (
           <p className="text-xs text-[var(--muted)]">已认证本校</p>
-        ) : (
+        ) : campusSpace ? (
           <button
             type="button"
             className="min-h-11 text-left text-sm text-[var(--brand)] sm:text-right"
@@ -71,8 +78,8 @@ export function ForumJoinBar({
           >
             {openVerify ? "收起认证" : "实名认证本校，可发仅本校可见帖"}
           </button>
-        )}
-        {openVerify && loggedIn ? (
+        ) : null}
+        {campusSpace && openVerify && loggedIn ? (
           <div className="w-full rounded-[24px] border border-[var(--line)] p-3 sm:w-80">
             <ForumSchoolVerifyForm
               universities={[
@@ -98,8 +105,28 @@ export function ForumJoinBar({
           router.push(`/login?next=${encodeURIComponent(loginNext)}`)
         }
       >
-        登录后实名认证本校
+        {campusSpace ? "登录后实名认证本校" : "登录后发帖"}
       </button>
+    );
+  }
+
+  if (!campusSpace) {
+    if (!allowPost) {
+      return (
+        <p className="max-w-xs text-sm leading-6 text-[var(--muted)]">
+          站长已关闭普通用户发帖，仅站长可发。
+        </p>
+      );
+    }
+    return (
+      <a
+        href={`/forum/${universitySlug}/new`}
+        className={`btn btn-primary inline-flex min-h-11 items-center justify-center px-5 ${
+          hideComposeOnMobile ? "hidden sm:inline-flex" : ""
+        }`}
+      >
+        发帖
+      </a>
     );
   }
 

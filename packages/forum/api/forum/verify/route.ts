@@ -13,6 +13,7 @@ import {
   FORUM_STUDENT_ID_MAX,
   isOwnedForumMediaUrl,
 } from "@andyyyds/forum/lib/forum";
+import { isCampusForumSpace } from "@andyyyds/forum/lib/forum-space";
 import {
   decideForumVerifyStatus,
   FORUM_DEGREE_LABEL,
@@ -97,7 +98,7 @@ export async function POST(req: Request) {
     const university = await prisma.forumUniversity.findUnique({
       where: { id: body.universityId },
     });
-    if (!university || !university.enabled) {
+    if (!university || !university.enabled || !isCampusForumSpace(university.kind)) {
       return NextResponse.json({ error: "高校分区不存在或已关闭" }, { status: 404 });
     }
 

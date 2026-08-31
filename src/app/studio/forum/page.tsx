@@ -2,7 +2,7 @@
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "大学论坛管理",
+  title: "论坛管理",
 };
 
 export { default } from "@andyyyds/forum/routes/studio/forum/page";

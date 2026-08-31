@@ -132,7 +132,7 @@ export default async function AccountPage() {
         })
       : Promise.resolve([]),
     prisma.forumUniversity.findMany({
-      where: { enabled: true },
+      where: { enabled: true, kind: "UNIVERSITY" },
       select: { id: true, name: true, slug: true, region: true },
       orderBy: FORUM_UNIVERSITY_LIST_ORDER_BY,
     }),
@@ -556,7 +556,7 @@ function RoleQuickLinks({
   const links: { href: string; label: string }[] = [
     { href: "/learn", label: "我的学习" },
     { href: "/courses", label: "课程广场" },
-    { href: "/forum", label: "大学论坛" },
+    { href: "/forum", label: "论坛" },
   ];
   if (canStudio) {
     links.push({ href: studioHref, label: studioLabel });

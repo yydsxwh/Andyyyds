@@ -15,7 +15,6 @@ import {
   FORUM_MEDIA_MAX,
   FORUM_PLACE_MAX,
   FORUM_TITLE_MAX,
-  canPostInUniversity,
   forumMemberMay,
   isOwnedForumMediaUrl,
   parseForumCoords,
@@ -33,6 +32,10 @@ import {
   uniqueForumUniversityIds,
 } from "@andyyyds/forum/lib/forum-broadcast";
 import { getForumSiteConfig } from "@andyyyds/forum/lib/forum-settings";
+import {
+  canPostInForumSpace,
+  isCampusForumSpace,
+} from "@andyyyds/forum/lib/forum-space";
 import { canManageForum } from "@andyyyds/shared/roles";
 
 const mediaSchema = z.object({
@@ -100,9 +103,19 @@ export async function POST(req: Request) {
   }
   try {
     const body = createSchema.parse(await req.json());
-    if (!canPostInUniversity(session, body.universityId)) {
+    const uni = await prisma.forumUniversity.findUnique({
+      where: { id: body.universityId },
+    });
+    if (!uni || !uni.enabled) {
+      return NextResponse.json({ error: "分区已关闭" }, { status: 400 });
+    }
+    if (!canPostInForumSpace(session, uni)) {
       return NextResponse.json(
-        { error: "完成该校实名认证后才能发帖" },
+        {
+          error: isCampusForumSpace(uni.kind)
+            ? "完成该校实名认证后才能发帖"
+            : "请先登录后再发帖",
+        },
         { status: 403 },
       );
     }
@@ -116,12 +129,6 @@ export async function POST(req: Request) {
     if (!zone) {
       return NextResponse.json({ error: "专区不存在或已关闭" }, { status: 400 });
     }
-    const uni = await prisma.forumUniversity.findUnique({
-      where: { id: body.universityId },
-    });
-    if (!uni || !uni.enabled) {
-      return NextResponse.json({ error: "高校分区已关闭" }, { status: 400 });
-    }
     const title = (body.title || "").trim();
     const text = (body.body || "").trim();
     const place = (body.place || "").trim();
@@ -134,6 +141,12 @@ export async function POST(req: Request) {
     );
     const status = body.status === "DRAFT" ? "DRAFT" : "PUBLISHED";
     const audience = parseForumAudience(body.audience);
+    if (audience !== FORUM_AUDIENCE_PUBLIC && !isCampusForumSpace(uni.kind)) {
+      return NextResponse.json(
+        { error: "仅高校分区可设仅本校可见" },
+        { status: 403 },
+      );
+    }
     if (
       audience !== FORUM_AUDIENCE_PUBLIC &&
       !canSetSchoolRestrictedAudience(session, body.universityId)
@@ -157,7 +170,7 @@ export async function POST(req: Request) {
     }
     const isAdminUser = canManageForum(session);
     const extraIds =
-      isAdminUser && status === "PUBLISHED"
+      isAdminUser && status === "PUBLISHED" && isCampusForumSpace(uni.kind)
         ? uniqueForumUniversityIds(body.syncUniversityIds, body.universityId)
         : [];
     const broadcast =
