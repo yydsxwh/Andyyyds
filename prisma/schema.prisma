@@ -68,9 +68,16 @@ model User {
   chatMessageReads     ChatMessageRead[]
   /// 学员下载课件的审计记录（防盗链追责）
   lessonResourceDownloads LessonResourceDownload[]
+  /// 大学论坛：加入的高校分区；空表示尚未加入，只能逛不能发帖
+  forumUniversityId    String?
+  forumUniversity      ForumUniversity?   @relation(fields: [forumUniversityId], references: [id], onDelete: SetNull)
+  forumPosts           ForumPost[]
+  forumComments        ForumComment[]
+  forumActions         ForumAction[]
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
 
+  @@index([forumUniversityId])
   @@index([roleApplicationStatus])
   @@index([phone])
   @@index([wechatOpenId])
@@ -460,6 +467,9 @@ model SiteSettings {
   bgMusicJson String @default("")
   /// Jamendo 免费 API Client ID（站长自助申请）；用于检索可商用免版税曲目
   jamendoClientId String @default("")
+
+  /// 大学论坛全站配置（JSON）：成员发帖/评论/互动/私信开关 + 顶部公告栏
+  forumJson String @default("")
 
   updatedAt DateTime @updatedAt
 }
@@ -867,6 +877,114 @@ model Order {
   commissions     Commission[]
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
+}
+
+/// 大学论坛高校分区：站长创建，对应学校的学生加入后发帖/笔记
+model ForumUniversity {
+  id          String      @id @default(cuid())
+  name        String
+  slug        String      @unique
+  slogan      String      @default("")
+  description String      @default("")
+  logoUrl     String      @default("")
+  /// 分区页最上方广告栏
+  adImageUrl  String      @default("")
+  adHref      String      @default("")
+  adAlt       String      @default("")
+  /// 可选：限制加入的邮箱后缀，逗号分隔如 stu.edu.cn,xxx.edu.cn；空则任意登录用户可加入
+  emailDomains String     @default("")
+  enabled     Boolean     @default(true)
+  sortOrder   Int         @default(0)
+  members     User[]
+  zones       ForumZone[]
+  posts       ForumPost[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([enabled, sortOrder])
+}
+
+/// 高校分区内的专区（日常话题、美食、选课等）；创建高校时写入默认专区
+model ForumZone {
+  id           String           @id @default(cuid())
+  universityId String
+  university   ForumUniversity  @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  key          String
+  name         String
+  sortOrder    Int              @default(0)
+  enabled      Boolean          @default(true)
+  posts        ForumPost[]
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@unique([universityId, key])
+  @@index([universityId, sortOrder])
+}
+
+/// 高校分区里的帖子（图文/视频合一，不再区分笔记）
+model ForumPost {
+  id            String           @id @default(cuid())
+  universityId  String
+  university    ForumUniversity  @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  zoneId        String
+  zone          ForumZone        @relation(fields: [zoneId], references: [id], onDelete: Restrict)
+  authorId      String
+  author        User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  /// 历史字段，新帖一律 POST
+  kind          String           @default("POST")
+  title         String           @default("")
+  body          String
+  /// JSON：[{kind:"image"|"video",url}]，最多 30 条
+  mediaJson     String           @default("[]")
+  /// 地点文案（城市 + 具体地点）；可选，与约搭同一套地图选点
+  place         String           @default("")
+  /// 可选纬度（WGS84）；须与 longitude 成对
+  latitude      Float?
+  /// 可选经度（WGS84）；须与 latitude 成对
+  longitude     Float?
+  /// PUBLISHED | HIDDEN | DRAFT（草稿仅作者可见，不算公开发帖）
+  status        String           @default("PUBLISHED")
+  likeCount     Int              @default(0)
+  favoriteCount Int              @default(0)
+  commentCount  Int              @default(0)
+  watchCount    Int              @default(0)
+  shareCount    Int              @default(0)
+  comments      ForumComment[]
+  actions       ForumAction[]
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([universityId, status, createdAt])
+  @@index([zoneId, createdAt])
+  @@index([authorId, createdAt])
+  @@index([authorId, status, updatedAt])
+}
+
+model ForumComment {
+  id        String    @id @default(cuid())
+  postId    String
+  post      ForumPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  body      String
+  createdAt DateTime  @default(now())
+
+  @@index([postId, createdAt])
+}
+
+/// 点赞 / 收藏 / 蹲蹲后续（关注后续评论）
+model ForumAction {
+  id        String    @id @default(cuid())
+  postId    String
+  post      ForumPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// LIKE | FAVORITE | WATCH
+  type      String
+  createdAt DateTime  @default(now())
+
+  @@unique([postId, userId, type])
+  @@index([userId, type, createdAt])
 }
 
 /// 业务正文多语言缓存（源文为简体中文；一键翻译写入，按 sourceHash 判断是否过期）

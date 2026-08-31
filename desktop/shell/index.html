@@ -47,6 +47,28 @@
             </span>
             约搭
           </button>
+          <button type="button" class="nav-item" data-path="/forum">
+            <span class="nav-ico" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M5 5h14a1.5 1.5 0 0 1 1.5 1.5v8A1.5 1.5 0 0 1 19 16H10l-4 3.5V16H5A1.5 1.5 0 0 1 3.5 14.5v-8A1.5 1.5 0 0 1 5 5Z"/></svg>
+            </span>
+            大学论坛
+          </button>
+        </nav>
+
+        <nav class="nav-block">
+          <p class="nav-label">工具</p>
+          <button type="button" class="nav-item" data-path="/products">
+            <span class="nav-ico" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5h11A2.5 2.5 0 0 1 20 7.5v9A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5v-9Zm3.2 1.2v7.6h2.1V8.7H7.2Zm3.6 2.4v5.2h2.1v-5.2h-2.1Zm3.6-1.6v6.8h2.1V9.5h-2.1Z"/></svg>
+            </span>
+            软件产品
+          </button>
+          <button type="button" class="nav-item" data-path="/products/mathcode">
+            <span class="nav-ico" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Zm2.2 3.2v1.6h4.2V16h1.8V8.8h4.2V7.2H7.2Zm.6 9.2 2.4-2.4-2.4-2.4 1.1-1.1 3.5 3.5-3.5 3.5-1.1-1.1Zm8.4 0-1.1 1.1-3.5-3.5 3.5-3.5 1.1 1.1-2.4 2.4 2.4 2.4Z"/></svg>
+            </span>
+            转 LaTeX
+          </button>
         </nav>
 
         <nav class="nav-block">
@@ -73,7 +95,19 @@
             <span class="nav-ico" aria-hidden="true">
               <svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0 2c-4.2 0-8 2.1-8 5v1h16v-1c0-2.9-3.8-5-8-5Z"/></svg>
             </span>
-            账户
+            个人中心
+          </button>
+          <button type="button" class="nav-item" data-auth="guest" data-path="/login">
+            <span class="nav-ico" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M4 11h7.2l-2.1-2.1 1.4-1.4L16 12l-5.5 5.5-1.4-1.4 2.1-2.1H4V11Zm10-7h4.5A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5H14v-2h4V7h-4V4Z"/></svg>
+            </span>
+            登录
+          </button>
+          <button type="button" class="nav-item" data-auth="guest" data-path="/register">
+            <span class="nav-ico" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm-8 8v-1c0-2.9 3.8-5 8-5 .7 0 1.4.1 2 .2V16h2.5v2.5H19V21h-2.5v2.5H14V21H4v-1Z"/></svg>
+            </span>
+            注册
           </button>
           <button type="button" class="nav-item" data-path="/studio">
             <span class="nav-ico" aria-hidden="true">
@@ -84,7 +118,13 @@
         </nav>
 
         <div class="sidebar-foot">
-          <p>官网同源 · 完整功能</p>
+          <button type="button" class="user-card" id="user-card" title="个人中心 / 登录">
+            <span class="user-card-avatar" id="foot-avatar" aria-hidden="true">登</span>
+            <span class="user-card-meta">
+              <strong id="foot-name">未登录</strong>
+              <span id="foot-hint">点击登录 · 个人中心</span>
+            </span>
+          </button>
         </div>
       </aside>
 
@@ -115,6 +155,22 @@
         </form>
 
         <div class="title-spacer" aria-hidden="true"></div>
+
+        <div class="user-cluster" id="user-cluster">
+          <button type="button" class="auth-btn auth-login" data-auth="guest" data-path="/login">
+            登录
+          </button>
+          <button type="button" class="auth-btn auth-register" data-auth="guest" data-path="/register">
+            注册
+          </button>
+          <button type="button" class="user-chip is-hidden" data-auth="user" data-path="/account" id="user-chip">
+            <span class="user-chip-avatar" id="title-avatar" aria-hidden="true"></span>
+            <span class="user-chip-name" id="title-name">个人中心</span>
+          </button>
+          <button type="button" class="auth-btn auth-logout is-hidden" data-auth="user" id="btn-logout">
+            退出
+          </button>
+        </div>
 
         <div class="win-controls">
           <button type="button" class="win-btn" id="btn-min" title="最小化" aria-label="最小化">

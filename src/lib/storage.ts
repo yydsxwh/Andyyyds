@@ -120,6 +120,11 @@ export function signOssGetUrl(input: {
   objectKey: string;
   creds: OssCreds;
   expiresInSec?: number;
+  /**
+   * 覆盖下载 Host（如传输加速 oss-accelerate）。
+   * 不填则用公网前缀 / Bucket 地域域名。
+   */
+  downloadHost?: string;
 }) {
   const expires =
     Math.floor(Date.now() / 1000) +
@@ -130,9 +135,11 @@ export function signOssGetUrl(input: {
     .createHmac("sha1", input.creds.accessKeySecret)
     .update(stringToSign)
     .digest("base64");
-  const host = ossVirtualHost(input.creds);
+  const host = input.downloadHost || ossVirtualHost(input.creds);
   const base = (
-    input.creds.publicBaseUrl || `https://${host}`
+    input.downloadHost
+      ? `https://${input.downloadHost}`
+      : input.creds.publicBaseUrl || `https://${host}`
   ).replace(/\/$/, "");
   const params = new URLSearchParams({
     OSSAccessKeyId: input.creds.accessKeyId,
@@ -140,6 +147,64 @@ export function signOssGetUrl(input: {
     Signature: signature,
   });
   return `${base}/${input.objectKey}?${params.toString()}`;
+}
+
+const APP_INSTALLER_FILES = new Set([
+  "yyds-windows-setup.exe",
+  "yyds-windows.exe",
+  "yyds-windows.zip",
+  "yyds.apk",
+]);
+
+/** 点击下载后签名链有效 2 小时，够 88MB 在慢网下传完 */
+const APP_INSTALLER_SIGNED_TTL_SEC = 2 * 60 * 60;
+
+export function isAppInstallerFileName(name: string): boolean {
+  return APP_INSTALLER_FILES.has(name);
+}
+
+/**
+ * 客户端安装包下载地址：优先 OSS 传输加速（大陆访问香港 Bucket 走阿里云骨干），
+ * 加速域名未就绪时回落地域域名。仍比 ECS 约 1Mbps 公网口快一个数量级。
+ */
+export async function getAppInstallerDownloadUrl(
+  fileName: string,
+): Promise<string | null> {
+  if (!APP_INSTALLER_FILES.has(fileName)) return null;
+  try {
+    const settings = await getSiteSettings();
+    if (settings.storageProvider !== "ALIYUN_OSS") return null;
+    const creds = getOssCreds(settings);
+    const objectKey = `app/${fileName}`;
+    const ttl = APP_INSTALLER_SIGNED_TTL_SEC;
+    const regionalHost = ossVirtualHost(creds);
+    const accelerateHost = `${creds.bucket}.oss-accelerate.aliyuncs.com`;
+    const accelerateUrl = signOssGetUrl({
+      objectKey,
+      creds,
+      expiresInSec: ttl,
+      downloadHost: accelerateHost,
+    });
+    const regionalUrl = signOssGetUrl({
+      objectKey,
+      creds,
+      expiresInSec: ttl,
+      downloadHost: regionalHost,
+    });
+    try {
+      const probe = await fetch(accelerateUrl, {
+        method: "GET",
+        headers: { Range: "bytes=0-0" },
+        signal: AbortSignal.timeout(2500),
+      });
+      if (probe.ok || probe.status === 206) return accelerateUrl;
+    } catch {
+      // 刚开通加速时域名可能尚未生效
+    }
+    return regionalUrl;
+  } catch {
+    return null;
+  }
 }
 
 /**

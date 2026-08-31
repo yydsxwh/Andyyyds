@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld("yydsShell", {
   navigate: (target) => ipcRenderer.invoke("shell:navigate", target),
   search: (query) => ipcRenderer.invoke("shell:search", query),
   openExternal: (url) => ipcRenderer.invoke("shell:open-external", url),
+  logout: () => ipcRenderer.invoke("shell:logout"),
   onNavState: (cb) => {
     const handler = (_e, data) => cb(data);
     ipcRenderer.on("shell:nav-state", handler);
@@ -22,5 +23,10 @@ contextBridge.exposeInMainWorld("yydsShell", {
     const handler = (_e, data) => cb(data);
     ipcRenderer.on("shell:window-state", handler);
     return () => ipcRenderer.removeListener("shell:window-state", handler);
+  },
+  onSession: (cb) => {
+    const handler = (_e, data) => cb(data);
+    ipcRenderer.on("shell:session", handler);
+    return () => ipcRenderer.removeListener("shell:session", handler);
   },
 });

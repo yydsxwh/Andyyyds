@@ -9,15 +9,17 @@
 import Link from "next/link";
 import { MathcodeTool } from "@/components/mathcode-tool";
 import { NavPageTemplateShell } from "@/components/nav-page-template-shell";
+import { OpenVsCodeButton } from "@/components/open-vscode-button";
 import { getSession } from "@/lib/auth";
+import { MATHCODE_EDITOR_LINKS } from "@/lib/mathcode-open";
 import { isAdmin } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "MathCode · 公式截图 / PDF 转 LaTeX",
+  title: "MathCode · 文档转 LaTeX",
   description:
-    "上传数学、物理、化学公式的截图或 PDF，由 AI 识别为 LaTeX 源码，方便二次排版并生成 PDF。",
+    "上传公式截图、PDF、Word、WPS、PPT、表格或 Markdown，由 AI 转为可编辑的 LaTeX 源码。",
 };
 
 export default async function MathcodePage() {
@@ -32,12 +34,38 @@ export default async function MathcodePage() {
             软件产品 · MathCode
           </p>
           <h1 className="brand-mark mt-2 text-3xl font-semibold sm:text-4xl">
-            公式截图 / PDF 转 LaTeX
+            文档 / 截图转 LaTeX
           </h1>
           <p className="mt-3 text-sm leading-7 text-[var(--muted)] sm:text-base">
-            上传数学、物理、化学公式的截图或整份 PDF，由 AI 识别为可编辑的
-            LaTeX 源码。一键复制、下载完整 .tex 模板，再用 pdflatex / xelatex
-            本地编译成 PDF。
+            支持公式截图、PDF、Word、WPS、PPT、Excel 表格和 Markdown。
+            只复刻原文有的文字、公式和色块，不编点评、不编公众号、不补没拍到的内容。
+            输出完整 XeLaTeX + ctex 源码，可用下方按钮直接送进 Overleaf 或 VS Code。
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <a
+              className="btn btn-primary min-h-11 px-4"
+              href={MATHCODE_EDITOR_LINKS.overleaf}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              打开 Overleaf
+            </a>
+            <OpenVsCodeButton className="btn btn-secondary min-h-11 px-4">
+              打开 VS Code
+            </OpenVsCodeButton>
+          </div>
+          <p className="mt-2 text-xs text-[var(--muted)]">
+            这是编辑器入口。VS Code 会优先打开电脑客户端，没有再打开网页版。
+            识别完成后，结果框里的同名按钮会把<strong>当前生成的 .tex</strong>送进去。
+            Windows 客户端侧栏也有「转 LaTeX」，与本页同一套工具，无需另装独立软件。
+          </p>
+          <p className="mt-2 text-xs">
+            <Link
+              href="/app/windows"
+              className="font-medium text-[var(--brand)] underline-offset-2 hover:underline"
+            >
+              下载网站 Windows 客户端
+            </Link>
           </p>
         </header>
 

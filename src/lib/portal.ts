@@ -145,7 +145,7 @@ export const DEFAULT_PORTAL: PortalConfig = {
     { key: "shop", label: "商城", href: "/shop" },
     // 自研软件产品专栏（颗秒会议、颗秒网盘等）；库里无此项时 mergePortalNav 会补到末尾
     { key: "products", label: "软件产品", href: "/products" },
-    { key: "forum", label: "大学论坛", href: "/forum", comingSoon: true },
+    { key: "forum", label: "大学论坛", href: "/forum", comingSoon: false },
     { key: "games", label: "游戏中心", href: "/games", comingSoon: true },
   ],
   contact: structuredClone(DEFAULT_PORTAL_CONTACT),
@@ -155,7 +155,7 @@ export const DEFAULT_PORTAL: PortalConfig = {
     subtitle: "把内容、服务与数字化能力，做成可持续经营的产品。",
     body: [
       "我们是一家面向学习与成长场景的数字化内容公司，专注把专业经验变成可交付、可运营的产品与服务。",
-      "当前已上线知识付费与商城能力：课程上架、在线学习、商城购物、支付收款与创作者后台。后续将逐步开放大学论坛与游戏中心等模块，形成一体多业态门户。",
+      "当前已上线知识付费、商城与大学论坛：课程上架、在线学习、商城购物、高校分区交流、支付收款与创作者后台。后续将逐步开放游戏中心等模块，形成一体多业态门户。",
       "若你希望合作、采购课程或了解企业服务，欢迎通过站内注册账号后与我们联系。",
     ].join("\n\n"),
     highlights: [
@@ -214,7 +214,7 @@ function normalizeNavItem(
       String(item?.href || fallback.href).trim().slice(0, 300) || fallback.href,
     enabled: item?.enabled !== false,
     // 商城已上线：旧 CMS 若仍标 comingSoon，运行时清掉，避免顶栏仍进占位页
-    comingSoon: key === "shop" ? false : Boolean(item?.comingSoon),
+    comingSoon: key === "shop" || key === "forum" ? false : Boolean(item?.comingSoon),
     openInNewTab: Boolean(item?.openInNewTab),
   };
 }

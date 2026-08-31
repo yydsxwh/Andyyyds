@@ -447,7 +447,7 @@ export const PAGE_SLOT_LABEL: Record<PageSlotId, string> = {
   meetup: "约搭广场",
   shop: "商城占位",
   products: "软件产品列表",
-  forum: "论坛占位",
+  forum: "大学论坛内容",
   games: "游戏中心占位",
   account: "个人中心内容",
 };

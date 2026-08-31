@@ -1,0 +1,153 @@
+"use client";
+
+/**
+ * 论坛发帖地点：复刻约搭的「地点文案 + 地图选点 + 使用当前位置」。
+ * 地点可选；有坐标时与约搭一样成对保存 WGS84。
+ */
+
+import { useState } from "react";
+import { MeetupPlaceMapPicker } from "@/components/meetup-place-map-picker";
+import { FORUM_PLACE_MAX } from "@/lib/forum";
+
+type Props = {
+  place: string;
+  latitude: string;
+  longitude: string;
+  onPlace: (value: string) => void;
+  onLatitude: (value: string) => void;
+  onLongitude: (value: string) => void;
+  onMessage?: (value: string) => void;
+};
+
+export function ForumPlaceField({
+  place,
+  latitude,
+  longitude,
+  onPlace,
+  onLatitude,
+  onLongitude,
+  onMessage,
+}: Props) {
+  const [mapOpen, setMapOpen] = useState(false);
+  const [geoBusy, setGeoBusy] = useState(false);
+
+  function useCurrentLocation() {
+    if (!navigator.geolocation) {
+      onMessage?.("当前环境不支持定位，请改用「地图选点」");
+      return;
+    }
+    setGeoBusy(true);
+    onMessage?.("");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = Number(pos.coords.latitude.toFixed(6));
+        const lng = Number(pos.coords.longitude.toFixed(6));
+        onLatitude(String(lat));
+        onLongitude(String(lng));
+        setGeoBusy(false);
+        void fetch(
+          `/api/geo/reverse?lat=${encodeURIComponent(String(lat))}&lng=${encodeURIComponent(String(lng))}`,
+        )
+          .then(async (res) => {
+            const data = (await res.json()) as { displayName?: string | null };
+            if (res.ok && data.displayName?.trim()) {
+              onPlace(data.displayName.trim());
+            }
+          })
+          .catch(() => {
+            /* 反查失败不阻断，坐标仍可用 */
+          });
+      },
+      () => {
+        onMessage?.("定位失败，请检查授权或改用「地图选点」");
+        setGeoBusy(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 12_000,
+        maximumAge: 30_000,
+      },
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <label className="block text-sm">
+        <span className="text-[var(--muted)]">地点（可选）</span>
+        <input
+          className="mt-1 w-full min-h-11 rounded-2xl border border-[var(--line)] bg-transparent px-3"
+          value={place}
+          onChange={(e) => onPlace(e.target.value)}
+          maxLength={FORUM_PLACE_MAX}
+          placeholder="城市 + 具体地点"
+        />
+      </label>
+      <p className="text-xs leading-relaxed text-[var(--muted)]">
+        地图与搜索供参考，请核对地点文案；精确导航请用高德/腾讯/苹果/Google 地图打开。
+      </p>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <button
+          type="button"
+          className="btn btn-primary min-h-12 flex-1 touch-manipulation"
+          onClick={() => setMapOpen(true)}
+        >
+          地图选点
+        </button>
+        <button
+          type="button"
+          className="btn min-h-12 flex-1 touch-manipulation"
+          disabled={geoBusy}
+          onClick={useCurrentLocation}
+        >
+          {geoBusy ? "定位中…" : "使用当前位置"}
+        </button>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <input
+          className="min-h-11 w-full rounded-2xl border border-[var(--line)] bg-transparent px-3"
+          type="number"
+          step="any"
+          inputMode="decimal"
+          value={latitude}
+          onChange={(e) => onLatitude(e.target.value)}
+          placeholder="纬度 lat"
+          aria-label="纬度"
+        />
+        <input
+          className="min-h-11 w-full rounded-2xl border border-[var(--line)] bg-transparent px-3"
+          type="number"
+          step="any"
+          inputMode="decimal"
+          value={longitude}
+          onChange={(e) => onLongitude(e.target.value)}
+          placeholder="经度 lng"
+          aria-label="经度"
+        />
+      </div>
+      <MeetupPlaceMapPicker
+        open={mapOpen}
+        initialLat={
+          latitude.trim() !== "" && Number.isFinite(Number(latitude))
+            ? Number(latitude)
+            : null
+        }
+        initialLng={
+          longitude.trim() !== "" && Number.isFinite(Number(longitude))
+            ? Number(longitude)
+            : null
+        }
+        title="地图选择地点"
+        subtitle="搜索地点后选点，或点击地图/拖动标记微调。可与约搭一样用手填地点文案。"
+        locateSuccessHint="已定位到当前位置"
+        onClose={() => setMapOpen(false)}
+        onConfirm={(result) => {
+          onLatitude(String(result.latitude));
+          onLongitude(String(result.longitude));
+          if (result.placeLabel) onPlace(result.placeLabel);
+          setMapOpen(false);
+          onMessage?.("");
+        }}
+      />
+    </div>
+  );
+}

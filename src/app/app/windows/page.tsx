@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import path from "node:path";
 
 export const dynamic = "force-dynamic";
@@ -15,8 +15,12 @@ const SETUP_PUBLIC_PATH = "/app/yyds-windows-setup.exe";
 const ZIP_PUBLIC_PATH = "/app/yyds-windows.zip";
 const EXE_PUBLIC_PATH = "/app/yyds-windows.exe";
 
-function assetReady(fileName: string) {
-  return existsSync(path.join(process.cwd(), "public", "app", fileName));
+function assetMeta(fileName: string) {
+  const full = path.join(process.cwd(), "public", "app", fileName);
+  if (!existsSync(full)) return { ready: false as const, sizeLabel: "" };
+  const mb = statSync(full).size / (1024 * 1024);
+  const sizeLabel = mb >= 10 ? `${Math.round(mb)} MB` : `${mb.toFixed(1)} MB`;
+  return { ready: true as const, sizeLabel };
 }
 
 /**
@@ -25,10 +29,10 @@ function assetReady(fileName: string) {
  * 便携 ZIP/EXE 作备选（浏览器拦截更少时可下 ZIP）。
  */
 export default function WindowsAppDownloadPage() {
-  const setupOnDisk = assetReady("yyds-windows-setup.exe");
-  const zipOnDisk = assetReady("yyds-windows.zip");
-  const exeOnDisk = assetReady("yyds-windows.exe");
-  const ready = setupOnDisk || zipOnDisk || exeOnDisk;
+  const setup = assetMeta("yyds-windows-setup.exe");
+  const zip = assetMeta("yyds-windows.zip");
+  const exe = assetMeta("yyds-windows.exe");
+  const ready = setup.ready || zip.ready || exe.ready;
 
   return (
     <div className="container py-10 sm:py-14">
@@ -49,36 +53,36 @@ export default function WindowsAppDownloadPage() {
           </h1>
           <p className="mt-4 text-sm leading-7 text-[var(--muted)]">
             网易云风格桌面客户端。安装时可自选文件夹，并自动创建桌面与开始菜单快捷方式；打开后加载
-            www.yydsxwh.com，课程、支付、上传、聊天与网页版一致。
+            www.yydsxwh.com，课程、支付、上传、聊天、转 LaTeX（MathCode）与网页版一致。
           </p>
 
           {ready ? (
             <div className="mt-8 flex flex-col items-center gap-3">
-              {setupOnDisk ? (
+              {setup.ready ? (
                 <a
                   href={SETUP_PUBLIC_PATH}
                   download="yyds-windows-setup.exe"
                   className="btn btn-primary inline-flex min-h-12 w-full max-w-xs items-center justify-center sm:w-auto sm:px-8"
                 >
-                  下载安装包（推荐）
+                  下载安装包（推荐 · 约 {setup.sizeLabel}）
                 </a>
               ) : null}
-              {zipOnDisk ? (
+              {zip.ready ? (
                 <a
                   href={ZIP_PUBLIC_PATH}
                   download="yyds-windows.zip"
                   className="btn btn-secondary inline-flex min-h-12 w-full max-w-xs items-center justify-center sm:w-auto sm:px-8"
                 >
-                  下载便携压缩包
+                  下载便携压缩包（约 {zip.sizeLabel}）
                 </a>
               ) : null}
-              {exeOnDisk ? (
+              {exe.ready ? (
                 <a
                   href={EXE_PUBLIC_PATH}
                   download="yyds-windows.exe"
                   className="btn btn-secondary inline-flex min-h-12 w-full max-w-xs items-center justify-center text-sm sm:w-auto sm:px-8"
                 >
-                  直接下载便携版 .exe
+                  直接下载便携版 .exe（约 {exe.sizeLabel}）
                 </a>
               ) : null}
             </div>
@@ -89,7 +93,7 @@ export default function WindowsAppDownloadPage() {
           )}
 
           <p className="mt-4 text-xs leading-6 text-[var(--muted)]">
-            支持 Windows 10 / 11（64 位）。推荐「安装包」：安装向导里可选路径，装完桌面会出现「歪歪滴艾斯」图标。
+            支持 Windows 10 / 11（64 位）。安装包内含 Chromium，大约 90MB。推荐「安装包」：安装向导里可选路径，装完桌面会出现「歪歪滴艾斯」图标。
           </p>
 
           <p className="mt-6 text-sm text-[var(--muted)]">
@@ -144,7 +148,7 @@ export default function WindowsAppDownloadPage() {
           <h2 className="text-base font-semibold text-[var(--ink)]">使用说明</h2>
           <ul className="mt-3 list-disc space-y-2 pl-5">
             <li>
-              完整复刻官网：页面、登录态、工作室后台、支付与上传均走同一套线上服务。
+              完整复刻官网：页面、登录态、工作室后台、支付与上传均走同一套线上服务。侧栏「转 LaTeX」打开 MathCode（公式截图 / PDF 转 LaTeX）。
             </li>
             <li>
               微信支付 / 支付宝：会按系统能力唤起本机已安装的支付应用或打开对应页面。

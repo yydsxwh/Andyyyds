@@ -1078,10 +1078,101 @@ html[data-theme-fx="island-breath"]::after {
   }
 }
 
+/* 大学论坛顶部公告：醒目栏体动效；微信内同样可用，不依赖 hover */
+@keyframes forum-notice-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.015);
+  }
+}
+
+@keyframes forum-notice-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes forum-notice-shine {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(220%);
+  }
+}
+
+@keyframes forum-notice-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.forum-notice-pulse {
+  animation: forum-notice-pulse 1.8s ease-in-out infinite;
+}
+
+.forum-notice-float {
+  animation: forum-notice-float 2.4s ease-in-out infinite;
+}
+
+.forum-notice-shine {
+  isolation: isolate;
+}
+
+.forum-notice-shine-glint {
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1;
+  width: 42%;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.35) 50%,
+    transparent 100%
+  );
+  animation: forum-notice-shine 2.8s linear infinite;
+}
+
+.forum-notice-marquee {
+  overflow: hidden;
+}
+
+.forum-notice-marquee-track {
+  display: flex;
+  width: max-content;
+  gap: 3rem;
+  animation: forum-notice-marquee 18s linear infinite;
+}
+
+.forum-notice-marquee-item {
+  flex: none;
+  min-width: min(80vw, 36rem);
+}
+
 @media (prefers-reduced-motion: reduce) {
   html[data-theme-fx^="island-"]::before,
   html[data-theme-fx^="island-"]::after {
     animation: none !important;
     opacity: 0.25;
+  }
+
+  .forum-notice-pulse,
+  .forum-notice-float,
+  .forum-notice-shine-glint,
+  .forum-notice-marquee-track {
+    animation: none !important;
   }
 }

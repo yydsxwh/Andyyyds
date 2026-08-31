@@ -8,9 +8,12 @@ const {
   BrowserView,
   shell,
   Menu,
+  Tray,
   ipcMain,
   session,
+  nativeImage,
 } = require("electron");
+const fs = require("node:fs");
 const path = require("node:path");
 
 const SITE_ORIGIN = "https://www.yydsxwh.com";
@@ -46,6 +49,79 @@ const EXTERNAL_PROTOCOLS = new Set([
 let mainWindow = null;
 /** @type {Electron.BrowserView | null} */
 let contentView = null;
+/** @type {Electron.Tray | null} */
+let tray = null;
+let sessionTimer = null;
+let lastSessionJson = "";
+
+/** 与 electron-builder appId 一致，任务栏才把窗口和快捷方式归到同一图标 */
+const APP_USER_MODEL_ID = "com.yydsxwh.app";
+if (process.platform === "win32") {
+  app.setAppUserModelId(APP_USER_MODEL_ID);
+}
+
+/**
+ * Windows 任务栏/托盘读的是磁盘上的 .ico，asar 里的 PNG 路径经常显示成空白。
+ * 打包后优先用 extraResources 解出来的 icon.ico。
+ */
+function resolveIconFile() {
+  const candidates = [
+    path.join(process.resourcesPath || "", "icon.ico"),
+    path.join(__dirname, "icon.ico"),
+    path.join(__dirname, "icon.png"),
+  ];
+  return candidates.find((file) => file && fs.existsSync(file)) || candidates[1];
+}
+
+function loadAppIcon() {
+  const iconFile = resolveIconFile();
+  try {
+    const image = nativeImage.createFromBuffer(fs.readFileSync(iconFile));
+    if (!image.isEmpty()) return { image, iconFile };
+  } catch (err) {
+    console.error("loadAppIcon buffer failed:", iconFile, err);
+  }
+  const image = nativeImage.createFromPath(iconFile);
+  return { image, iconFile };
+}
+
+function isUnpackedIconPath(iconFile) {
+  return Boolean(
+    iconFile &&
+      fs.existsSync(iconFile) &&
+      !iconFile.includes(`${path.sep}app.asar${path.sep}`) &&
+      !iconFile.endsWith(`${path.sep}app.asar`)
+  );
+}
+
+function showMainWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+function createTray(appIcon) {
+  if (tray && !tray.isDestroyed()) return;
+  // 托盘优先喂真实 ico 路径，Windows 才能按 DPI 选 16/24/32
+  tray = isUnpackedIconPath(appIcon.iconFile)
+    ? new Tray(appIcon.iconFile)
+    : new Tray(appIcon.image);
+  tray.setToolTip("歪歪滴艾斯");
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: "打开主窗口", click: () => showMainWindow() },
+      { type: "separator" },
+      {
+        label: "退出",
+        click: () => {
+          app.quit();
+        },
+      },
+    ])
+  );
+  tray.on("click", () => showMainWindow());
+}
 
 function hostAllowed(hostname) {
   const host = String(hostname || "").toLowerCase();
@@ -89,6 +165,121 @@ function layoutContentView() {
 function notifyShell(channel, payload) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   mainWindow.webContents.send(channel, payload);
+}
+
+const SESSION_POLL_MS = 4000;
+
+function siteSession() {
+  return session.fromPartition(PARTITION);
+}
+
+async function fetchSessionFromApi() {
+  const ses = siteSession();
+  if (typeof ses.fetch !== "function") return null;
+  const res = await ses.fetch(`${SITE_ORIGIN}/api/auth/session`, {
+    cache: "no-store",
+    headers: { Accept: "application/json" },
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  if (!data || typeof data !== "object") return null;
+  return data;
+}
+
+/** 会话接口未上线时，从被隐藏的官网顶栏读登录态 */
+const SCRAPE_SESSION_JS = `(() => {
+  const header = document.querySelector("header.glass-bar");
+  if (!header) return { user: null };
+  const account = header.querySelector('a[href="/account"]');
+  if (!account) return { user: null };
+  const img = account.querySelector("img");
+  const nameEl = account.querySelector("span");
+  const name = ((nameEl && nameEl.textContent) || "").trim();
+  if (!name && !img) return { user: null };
+  return {
+    user: {
+      name: name || "已登录",
+      avatarUrl: img ? img.getAttribute("src") || "" : "",
+    },
+  };
+})()`;
+
+async function scrapeSessionFromPage() {
+  if (!contentView || contentView.webContents.isDestroyed()) {
+    return { user: null };
+  }
+  const url = contentView.webContents.getURL() || "";
+  if (!url.includes("yydsxwh.com")) return { user: null };
+  try {
+    const data = await contentView.webContents.executeJavaScript(
+      SCRAPE_SESSION_JS,
+      true,
+    );
+    if (data && typeof data === "object") return data;
+  } catch {
+    /* 页面未就绪时忽略 */
+  }
+  return { user: null };
+}
+
+async function refreshSession() {
+  let payload = { user: null };
+  try {
+    const fromApi = await fetchSessionFromApi();
+    if (fromApi && fromApi.user) {
+      payload = fromApi;
+    } else {
+      const scraped = await scrapeSessionFromPage();
+      payload =
+        scraped && scraped.user ? scraped : fromApi || scraped || { user: null };
+    }
+  } catch (err) {
+    console.error("refreshSession failed", err);
+    try {
+      payload = await scrapeSessionFromPage();
+    } catch {
+      payload = { user: null };
+    }
+  }
+  const json = JSON.stringify(payload);
+  if (json === lastSessionJson) return;
+  lastSessionJson = json;
+  notifyShell("shell:session", payload);
+}
+
+function startSessionPolling() {
+  if (sessionTimer) clearInterval(sessionTimer);
+  void refreshSession();
+  sessionTimer = setInterval(() => {
+    void refreshSession();
+  }, SESSION_POLL_MS);
+}
+
+function stopSessionPolling() {
+  if (sessionTimer) {
+    clearInterval(sessionTimer);
+    sessionTimer = null;
+  }
+}
+
+async function logoutDesktop() {
+  try {
+    const ses = siteSession();
+    if (typeof ses.fetch === "function") {
+      await ses.fetch(`${SITE_ORIGIN}/api/auth/logout`, {
+        method: "POST",
+        redirect: "manual",
+      });
+    }
+  } catch (err) {
+    console.error("logout failed", err);
+  }
+  lastSessionJson = "";
+  notifyShell("shell:session", { user: null });
+  if (contentView && !contentView.webContents.isDestroyed()) {
+    void contentView.webContents.loadURL(START_URL);
+  }
+  return true;
 }
 
 /** 壳内：隐藏官网顶栏底栏，并把站点品牌色改成网易云红 */
@@ -168,17 +359,25 @@ function attachContentHandlers(view) {
     });
   };
 
-  wc.on("did-navigate", pushNavState);
-  wc.on("did-navigate-in-page", pushNavState);
+  wc.on("did-navigate", () => {
+    pushNavState();
+    void refreshSession();
+  });
+  wc.on("did-navigate-in-page", () => {
+    pushNavState();
+    void refreshSession();
+  });
   wc.on("page-title-updated", pushNavState);
   wc.on("did-finish-load", () => {
     void wc.insertCSS(SHELL_CONTENT_CSS).catch(() => {});
     pushNavState();
+    void refreshSession();
   });
   wc.on("did-start-loading", () => notifyShell("shell:loading", true));
   wc.on("did-stop-loading", () => {
     notifyShell("shell:loading", false);
     pushNavState();
+    void refreshSession();
   });
 }
 
@@ -198,7 +397,7 @@ function createContentView() {
 }
 
 function createWindow() {
-  const iconPath = path.join(__dirname, "icon.png");
+  const appIcon = loadAppIcon();
 
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -210,7 +409,9 @@ function createWindow() {
     frame: false,
     titleBarStyle: "hidden",
     show: false,
-    icon: iconPath,
+    autoHideMenuBar: true,
+    skipTaskbar: false,
+    icon: appIcon.image.isEmpty() ? undefined : appIcon.image,
     webPreferences: {
       preload: path.join(__dirname, "preload-shell.cjs"),
       contextIsolation: true,
@@ -220,6 +421,9 @@ function createWindow() {
   });
 
   Menu.setApplicationMenu(null);
+  if (!appIcon.image.isEmpty()) {
+    mainWindow.setIcon(appIcon.image);
+  }
 
   contentView = createContentView();
   mainWindow.setBrowserView(contentView);
@@ -228,7 +432,12 @@ function createWindow() {
   void mainWindow.loadFile(path.join(__dirname, "shell", "index.html"));
 
   mainWindow.once("ready-to-show", () => {
+    if (mainWindow && !appIcon.image.isEmpty()) {
+      mainWindow.setIcon(appIcon.image);
+    }
     mainWindow?.show();
+    createTray(appIcon);
+    startSessionPolling();
   });
 
   mainWindow.on("resize", layoutContentView);
@@ -242,6 +451,7 @@ function createWindow() {
   });
 
   mainWindow.on("closed", () => {
+    stopSessionPolling();
     contentView = null;
     mainWindow = null;
   });
@@ -309,6 +519,8 @@ function registerIpc() {
     void openExternalSafe(url);
     return true;
   });
+
+  ipcMain.handle("shell:logout", () => logoutDesktop());
 }
 
 const gotLock = app.requestSingleInstanceLock();
@@ -316,13 +528,11 @@ if (!gotLock) {
   app.quit();
 } else {
   app.on("second-instance", () => {
-    if (!mainWindow) return;
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.focus();
+    showMainWindow();
   });
 
   app.whenReady().then(() => {
-    app.setAppUserModelId("com.yydsxwh.app");
+    app.setAppUserModelId(APP_USER_MODEL_ID);
     // will-download 必须在 app ready 之后挂到 session
     session.fromPartition(PARTITION).on("will-download", (_event, item) => {
       item.setSaveDialogOptions({ title: "保存文件" });
@@ -333,6 +543,13 @@ if (!gotLock) {
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();
     });
+  });
+
+  app.on("before-quit", () => {
+    if (tray && !tray.isDestroyed()) {
+      tray.destroy();
+      tray = null;
+    }
   });
 
   app.on("window-all-closed", () => {

@@ -257,7 +257,7 @@ function PortalEntranceSection({ modules }: { modules: PortalNavLink[] }) {
             className={`mt-2 text-[var(--muted)] ${typoRoleClass("sectionDesc")}`}
             style={typoRoleStyle("sectionDesc")}
           >
-            多功能站点正在扩展：介绍、知识付费、约搭已可用，商城 / 论坛 / 游戏陆续开放
+            多功能站点正在扩展：介绍、知识付费、约搭、商城与大学论坛已可用，游戏中心陆续开放
           </p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">

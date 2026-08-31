@@ -37,6 +37,8 @@ export type SessionUser = {
   roleApplicationStatus: string;
   /** 是否有待站长审核的角色申请 */
   rolePending: boolean;
+  /** 大学论坛已加入的高校分区；空表示尚未加入 */
+  forumUniversityId: string;
 };
 
 function getSecret() {
@@ -94,6 +96,7 @@ export async function getSession(): Promise<SessionUser | null> {
         avatarUrl: true,
         requestedRole: true,
         roleApplicationStatus: true,
+        forumUniversityId: true,
       },
     });
     if (!user) return null;
@@ -111,6 +114,7 @@ export async function getSession(): Promise<SessionUser | null> {
       requestedRole: user.requestedRole || "",
       roleApplicationStatus: user.roleApplicationStatus || "NONE",
       rolePending: isRoleApplicationPending(user.roleApplicationStatus || ""),
+      forumUniversityId: user.forumUniversityId || "",
     };
   } catch {
     return null;

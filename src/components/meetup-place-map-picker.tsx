@@ -32,6 +32,9 @@ type Props = {
   initialLng?: number | null;
   onClose: () => void;
   onConfirm: (result: MeetupMapPickResult) => void;
+  title?: string;
+  subtitle?: string;
+  locateSuccessHint?: string;
 };
 
 /** 无已有坐标时的默认视野（大致中国中部），避免空白海图 */
@@ -77,6 +80,9 @@ export function MeetupPlaceMapPicker({
   initialLng,
   onClose,
   onConfirm,
+  title = "地图选择活动地点",
+  subtitle = "搜索地点后选点，或点击地图/拖动标记微调；坐标用于广场「距离最近」",
+  locateSuccessHint = "已定位到当前位置（将作为活动举办地坐标）",
 }: Props) {
   const mapHostRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<LeafletMap | null>(null);
@@ -333,7 +339,7 @@ export function MeetupPlaceMapPicker({
             map.invalidateSize();
           }
           setGeoBusy(false);
-          setHint("已定位到当前位置（将作为活动举办地坐标）");
+          setHint(locateSuccessHint);
         })();
       },
       () => {
@@ -382,10 +388,10 @@ export function MeetupPlaceMapPicker({
               id="meetup-map-picker-title"
               className="text-lg font-semibold"
             >
-              地图选择活动地点
+              {title}
             </h2>
             <p className="mt-1 text-xs text-[var(--muted)]">
-              搜索地点后选点，或点击地图/拖动标记微调；坐标用于广场「距离最近」
+              {subtitle}
             </p>
           </div>
           <button

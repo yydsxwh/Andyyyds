@@ -10,6 +10,7 @@
  */
 
 import { getSiteSettings } from "@/lib/site-settings";
+import { sanitizeLatexBody } from "@/lib/mathcode-doc";
 
 export type MathcodeProvider = {
   apiKey: string;
@@ -36,29 +37,44 @@ export async function resolveMathcodeProvider(): Promise<MathcodeProvider> {
   const settingsBase = String(
     (settings as { translateApiBaseUrl?: string }).translateApiBaseUrl || "",
   ).trim();
+  const settingsModel = String(
+    (settings as { translateApiModel?: string }).translateApiModel || "",
+  ).trim();
 
   const apiKey = envKey || settingsKey;
   const baseUrl = trimBase(envBase || settingsBase || DEFAULT_BASE);
-  const model = envModel || DEFAULT_MODEL;
+  // 复用系统设置里选好的模型（比如站长把「翻译」选成了 qwen-vl-plus，
+  // MathCode 就该用 qwen-vl-plus 而不是硬套 gpt-4o-mini 去请求错的服务商）；
+  // 只有站长没选任何模型时才回落到 OpenAI 默认，避免面板留空导致崩。
+  const model = envModel || settingsModel || DEFAULT_MODEL;
 
   return { apiKey, baseUrl, model };
 }
 
+// 只转写画面上有的字。之前把「点评/公众号」写进提示词，模型会在原图没有时也编两框。
 const SYSTEM_PROMPT = [
-  "You are a math / physics / chemistry formula OCR expert.",
-  "Task: transcribe every formula, equation, chemical formula or reaction in the user's image into clean LaTeX source that can be pasted straight into a .tex document.",
-  "Rules:",
-  "- Return LaTeX source ONLY. No prose, no greetings, no markdown code fences.",
-  "- Use $...$ for inline expressions and $$...$$ on their own lines for display equations.",
-  "- Preserve equation numbering and labels when visible (e.g. \\tag{1.2}).",
-  "- Wrap surrounding Chinese/English words with \\text{...} so they render inside math mode.",
-  "- For chemistry, use \\ce{...} (mhchem package) for reactions and formulae, and \\pu{...} for physical units.",
-  "- Long or multi-page content: keep the original reading order, separate blocks with a blank line.",
-  "- If the image contains no formula, return an empty string.",
+  "You are a literal transcriber of one scanned page. Not an author. Not a typesetter who 'improves' the page.",
+  "Return BODY only (no documentclass, usepackage, begin{document}, CJK, markdown fences).",
+  "FIDELITY: copy every visible character in the original language. Do not translate. Do not omit. Do not add sentences, titles, comments, examples, headers, footers, watermarks, WeChat account names, or callout boxes that are not printed on this image.",
+  "If the photo is cropped, transcribe only the visible fragment. Do not complete equations from memory.",
+  "Blank parentheses stay as ( ) or （）. Do not fill answers.",
+  "Ignore computer/OS overlays (latency, packet loss, clocks, mouse, status bars).",
+  "Do NOT emit watermarks; the website injects them.",
+  "FORBIDDEN layout (causes overlap): wrapfigure, wraptable, textpos, textblock, overlay, remember picture, AddToShipoutPicture, raisebox with negative height, \\vspace{-...}, absolute positioning.",
+  "LAYOUT: one downward flow. Paragraph, then display math, then next paragraph. Never two blocks at the same vertical position.",
+  "ONLY IF a colored 点评/注意/旁注/公众号 box is actually visible: reproduce that same wording as a full-width tcolorbox AFTER the related text, matching colback/colframe from the scan. If it is not visible, output none.",
+  "MATH: inline $...$; display \\[...\\] (never $$). \\mathrm{d}x. Chemistry \\ce. Unreadable glyph: [?].",
+  "STYLE: \\textbf \\textit \\uline \\heiti \\kaishu. Color via \\textcolor[RGB]{r,g,b}. Visible titles: {\\noindent\\heiti\\zihao{-3} ...\\par} — never \\section.",
+  "Do not split a Chinese word across lines (keep 满足 together).",
 ].join("\n");
 
-const USER_PROMPT =
-  "Please transcribe every formula in this image into LaTeX following the rules above.";
+const USER_PROMPT = [
+  "请把本页转成 LaTeX 正文：画面上有什么就写什么，不重不漏。",
+  "禁止编造点评、公众号、页眉页脚、水印、例题旁注或任何原图没有的句子。原图没有色块框就不要输出 tcolorbox。",
+  "原图若被裁切，只写看得见的部分，不要凭知识补全。括号空位保持（）。",
+  "忽略屏幕角落的延迟/丢包/时钟等软件浮层。",
+  "禁止 wrapfigure、textpos、叠字。只返回正文。",
+].join("\n");
 
 export async function callMathcodeOcr(input: {
   provider: MathcodeProvider;
@@ -75,7 +91,8 @@ export async function callMathcodeOcr(input: {
     body: JSON.stringify({
       model: provider.model,
       temperature: 0,
-      max_tokens: 4000,
+      // 整页含中文叙述时输出更长，给足额度避免截断正文
+      max_tokens: 8192,
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         {
@@ -101,7 +118,66 @@ export async function callMathcodeOcr(input: {
     choices?: { message?: { content?: string } }[];
   };
   const raw = (data.choices?.[0]?.message?.content || "").trim();
-  return stripCodeFences(raw);
+  return sanitizeLatexBody(stripCodeFences(raw));
+}
+
+const TEXT_SYSTEM_PROMPT = [
+  "You convert an existing digital document into LaTeX BODY. Not an author.",
+  "Return BODY only (no documentclass, usepackage, begin{document}, CJK, markdown fences).",
+  "FIDELITY: keep the source language. Do not translate. Do not omit. Do not add titles, comments, watermarks, WeChat accounts, or callout boxes that are not in the source.",
+  "Source may be Markdown, HTML, CSV/TSV, Word/PPT extracted text, or a spreadsheet dump.",
+  "MATH: inline $...$; display \\[...\\] (never $$). \\mathrm{d}x. Chemistry \\ce.",
+  "TABLES: booktabs tabular or longtable. Preserve every cell. Wide sheets may use \\small or resizebox.",
+  "Headings: {\\noindent\\heiti\\zihao{-3} ...\\par} for top titles; {\\noindent\\heiti\\zihao{-4} ...\\par} for subtitles. You may use \\section* / \\subsection* when the source clearly has heading levels.",
+  "FORBIDDEN: wrapfigure, wraptable, textpos, textblock, overlay, AddToShipoutPicture, negative vspace.",
+  "If the source already contains LaTeX math, keep it. Do not invent problems or answers.",
+].join("\n");
+
+/** 把 Markdown / 表格 / 从办公文档抽出的纯文本转成 LaTeX 正文（不走视觉） */
+export async function callMathcodeTextConvert(input: {
+  provider: MathcodeProvider;
+  text: string;
+  sourceLabel: string;
+}): Promise<string> {
+  const { provider } = input;
+  const source = input.text.trim();
+  if (!source) return "";
+  const url = `${provider.baseUrl}/chat/completions`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${provider.apiKey}`,
+    },
+    body: JSON.stringify({
+      model: provider.model,
+      temperature: 0,
+      max_tokens: 8192,
+      messages: [
+        { role: "system", content: TEXT_SYSTEM_PROMPT },
+        {
+          role: "user",
+          content: [
+            `请把下面这份文档转成 LaTeX 正文。来源：${input.sourceLabel}`,
+            "只写原文有的内容，禁止编造。禁止 wrapfigure / textpos。只返回正文。",
+            "",
+            source.slice(0, 80_000),
+          ].join("\n"),
+        },
+      ],
+    }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(
+      `MathCode 转换失败 ${res.status}: ${body.slice(0, 400) || res.statusText}`,
+    );
+  }
+  const data = (await res.json()) as {
+    choices?: { message?: { content?: string } }[];
+  };
+  const raw = (data.choices?.[0]?.message?.content || "").trim();
+  return sanitizeLatexBody(stripCodeFences(raw));
 }
 
 /** 兼容部分模型仍会包 ```latex ... ``` 的情况，剥去外壳后仍是纯 LaTeX */
@@ -111,29 +187,4 @@ function stripCodeFences(text: string): string {
   return m ? m[1].trim() : text;
 }
 
-/**
- * 把识别到的 LaTeX 片段拼成可直接编译的 .tex 模板，供站长下载。
- * 默认走 pdflatex + inputenc；若原文有中文，站长可自行改成 xelatex + ctexart。
- */
-export function wrapAsLatexDocument(body: string): string {
-  const today = new Date().toISOString().slice(0, 10);
-  return [
-    "% MathCode 生成的可编译模板。",
-    "% - 纯英文/公式：pdflatex 或 xelatex 均可",
-    "% - 含中文：改用 xelatex，并把 documentclass 换成 ctexart",
-    "\\documentclass[12pt]{article}",
-    "\\usepackage[utf8]{inputenc}",
-    "\\usepackage{amsmath, amssymb, amsfonts}",
-    "\\usepackage[version=4]{mhchem}",
-    "\\usepackage{geometry}",
-    "\\geometry{a4paper, margin=2.5cm}",
-    "",
-    `% 生成时间：${today}`,
-    "\\begin{document}",
-    "",
-    body.trim() || "% 识别结果为空",
-    "",
-    "\\end{document}",
-    "",
-  ].join("\n");
-}
+export { wrapAsLatexDocument } from "@/lib/mathcode-doc";
