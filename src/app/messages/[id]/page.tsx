@@ -1,11 +1,11 @@
 import { redirect, notFound } from "next/navigation";
 import { ChatThreadClient } from "@/components/chat/chat-thread-client";
-import { getSession } from "@/lib/auth";
+import { getSession } from "@andyyyds/shared/auth";
 import {
   getConversationForUser,
   listMessages,
-} from "@/lib/chat/service";
-import { resolveStoredAccessUrl } from "@/lib/storage";
+} from "@andyyyds/shared/chat/service";
+import { resolveStoredAccessUrl } from "@andyyyds/shared/storage";
 
 export const dynamic = "force-dynamic";
 

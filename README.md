@@ -1,6 +1,6 @@
-# YYDS 课程平台
+# Andyyyds
 
-知识付费卖课网站（同类型能力，非荔枝微课复制品）。
+多产品工作区：站点壳、公共包、以及按产品拆分的源码包。当前仍由同一个 Next.js 应用组装上线。
 
 ## 功能
 
@@ -42,7 +42,13 @@ npm run dev
 
 ## 目录
 
-- `src/app` 页面与 API
-- `src/components` UI 组件
-- `src/lib` 鉴权 / 数据库 / 工具
+- `packages/shared`（`@andyyyds/shared`）登录、支付、权限、国际化等公共能力
+- `packages/company`（`@andyyyds/company`）公司介绍
+- `packages/person`（`@andyyyds/person`）个人IP
+- `packages/forum`（`@andyyyds/forum`）论坛
+- `packages/meetup`（`@andyyyds/meetup`）约搭
+- `packages/courses`（`@andyyyds/courses`）网课资料
+- `packages/mathcode`（`@andyyyds/mathcode`）识图转LaTeX
+- `src/app` 站点路由与 API 薄封装（URL 不变）
+- `src/components` 站点壳 UI（导航、装修、支付页等）
 - `prisma` 数据模型与种子数据

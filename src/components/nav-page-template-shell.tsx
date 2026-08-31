@@ -12,8 +12,8 @@ import {
   getDefaultTemplate,
   type PageSlotId,
   type PageTemplateType,
-} from "@/lib/page-templates";
-import { getPageTemplatesConfig } from "@/lib/site-settings";
+} from "@andyyyds/shared/page-templates";
+import { getPageTemplatesConfig } from "@andyyyds/shared/site-settings";
 
 const SLOT_TYPES = new Set<string>([
   "company",

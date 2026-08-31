@@ -10,24 +10,24 @@
  */
 
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
+import { getSession } from "@andyyyds/shared/auth";
 import {
   bindWechatToUser,
   findOrCreateUserByWechat,
   findUserByWechatIdentity,
-} from "@/lib/auth-providers";
-import { getPublicSiteUrl } from "@/lib/payments";
+} from "@andyyyds/shared/auth-providers";
+import { getPublicSiteUrl } from "@andyyyds/shared/payments";
 import {
   exchangeWechatOAuthCode,
   fetchWechatUserInfo,
   getWechatOAuthConfig,
-} from "@/lib/wechat-pay";
+} from "@andyyyds/shared/wechat-pay";
 import {
   safeReturnUrl,
   signWechatOAuthState,
   verifyWechatOAuthState,
   type WechatOAuthChannel,
-} from "@/lib/wechat-oauth-state";
+} from "@andyyyds/shared/wechat-oauth-state";
 
 function withQuery(path: string, params: Record<string, string>) {
   const u = new URL(path, "https://placeholder.local");

@@ -14,13 +14,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import QRCode from "qrcode";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice } from "@andyyyds/shared/utils";
 import {
   isMobileBrowser,
   isWeChatBrowser,
   preferWechatTradeType,
   type WechatPayTradeType,
-} from "@/lib/wechat-env";
+} from "@andyyyds/shared/wechat-env";
 
 type JsapiPayParams = {
   appId: string;

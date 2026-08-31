@@ -5,10 +5,10 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSession } from "@/lib/auth";
-import { bindPhoneToUser } from "@/lib/auth-providers";
-import { isValidCnMobile, normalizePhone } from "@/lib/phone";
-import { verifySmsCode } from "@/lib/sms";
+import { getSession } from "@andyyyds/shared/auth";
+import { bindPhoneToUser } from "@andyyyds/shared/auth-providers";
+import { isValidCnMobile, normalizePhone } from "@andyyyds/shared/phone";
+import { verifySmsCode } from "@andyyyds/shared/sms";
 
 const schema = z.object({
   phone: z.string().min(6).max(20),

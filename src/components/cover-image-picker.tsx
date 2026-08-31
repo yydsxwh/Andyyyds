@@ -5,7 +5,7 @@
  * 触控友好，手机微信内同样可用。
  */
 
-import { COVER_IMAGES } from "@/lib/cover-images";
+import { COVER_IMAGES } from "@andyyyds/shared/cover-images";
 
 type Props = {
   value: string;

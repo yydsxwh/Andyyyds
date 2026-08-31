@@ -5,8 +5,8 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { resolveQishuiShare } from "@/lib/bg-music-qishui";
-import { requireAdmin, studioErrorResponse } from "@/lib/studio";
+import { resolveQishuiShare } from "@andyyyds/shared/bg-music-qishui";
+import { requireAdmin, studioErrorResponse } from "@andyyyds/shared/studio";
 
 export const runtime = "nodejs";
 

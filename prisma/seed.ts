@@ -1,4 +1,4 @@
-import { hashPassword, makeReferralCode } from "../src/lib/password";
+import { hashPassword, makeReferralCode } from "../packages/shared/src/password";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();

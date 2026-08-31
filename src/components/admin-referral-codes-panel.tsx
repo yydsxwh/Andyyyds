@@ -11,7 +11,7 @@ import {
   SaveFeedback,
   type SaveStatus,
 } from "@/components/save-feedback";
-import { ROLE_LABEL, type Role } from "@/lib/roles";
+import { ROLE_LABEL, type Role } from "@andyyyds/shared/roles";
 
 export type ReferralAdminRow = {
   id: string;

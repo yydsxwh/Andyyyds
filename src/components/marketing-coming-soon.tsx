@@ -4,8 +4,8 @@ import {
   type MarketingNavKey,
 } from "@/components/marketing-subnav";
 import { StudioNav } from "@/components/studio-nav";
-import { getSession } from "@/lib/auth";
-import { canManageMarketing } from "@/lib/roles";
+import { getSession } from "@andyyyds/shared/auth";
+import { canManageMarketing } from "@andyyyds/shared/roles";
 
 /** 营销占位页（拼团 / VIP / 短链） */
 export async function MarketingComingSoonView({

@@ -4,8 +4,8 @@
  */
 
 import { NextResponse } from "next/server";
-import { getSiteSettings } from "@/lib/site-settings";
-import { requireAdmin, studioErrorResponse } from "@/lib/studio";
+import { getSiteSettings } from "@andyyyds/shared/site-settings";
+import { requireAdmin, studioErrorResponse } from "@andyyyds/shared/studio";
 
 export const runtime = "nodejs";
 

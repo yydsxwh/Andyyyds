@@ -1,6 +1,16 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // webpack 生产构建不会自动编译工作区源码包，需显式转译。
+  transpilePackages: [
+    "@andyyyds/shared",
+    "@andyyyds/company",
+    "@andyyyds/person",
+    "@andyyyds/forum",
+    "@andyyyds/meetup",
+    "@andyyyds/courses",
+    "@andyyyds/mathcode",
+  ],
   experimental: {
     serverActions: {
       bodySizeLimit: "2048mb",

@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ContactUsPanel } from "@/components/contact-us-panel";
-import { DEFAULT_PORTAL_CONTACT } from "@/lib/portal";
-import { getPortalConfig } from "@/lib/site-settings";
+import { DEFAULT_PORTAL_CONTACT } from "@andyyyds/shared/portal";
+import { getPortalConfig } from "@andyyyds/shared/site-settings";
 
 export const dynamic = "force-dynamic";
 

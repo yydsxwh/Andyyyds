@@ -6,8 +6,8 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSession } from "@/lib/auth";
-import { sendSmsCode } from "@/lib/sms";
+import { getSession } from "@andyyyds/shared/auth";
+import { sendSmsCode } from "@andyyyds/shared/sms";
 
 const schema = z.object({
   phone: z.string().min(6).max(20),

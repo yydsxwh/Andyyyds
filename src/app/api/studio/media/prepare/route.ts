@@ -4,7 +4,7 @@ import {
   formatVodError,
   createVodBrowserMultipart,
   vodConfigured,
-} from "@/lib/aliyun-vod";
+} from "@andyyyds/shared/aliyun-vod";
 import {
   ASSET_DESC_MAX,
   ASSET_NAME_MAX,
@@ -14,15 +14,15 @@ import {
   classifyMediaKind,
   inferMimeType,
   isAllowedUpload,
-} from "@/lib/media";
-import { getSiteSettings } from "@/lib/site-settings";
+} from "@andyyyds/shared/media";
+import { getSiteSettings } from "@andyyyds/shared/site-settings";
 import {
   createOssBrowserMultipart,
   ensureOssBrowserUploadCors,
   ossStorageConfigured,
-} from "@/lib/storage";
-import { prisma } from "@/lib/db";
-import { requireCourseStudioUser, studioErrorResponse } from "@/lib/studio";
+} from "@andyyyds/shared/storage";
+import { prisma } from "@andyyyds/shared/db";
+import { requireCourseStudioUser, studioErrorResponse } from "@andyyyds/shared/studio";
 
 export const runtime = "nodejs";
 

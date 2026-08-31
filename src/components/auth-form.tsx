@@ -22,16 +22,16 @@ import {
   ROLE_HINT,
   ROLE_LABEL,
   type ApplyableRole,
-} from "@/lib/roles";
-import { REFERRAL_STORAGE_KEY } from "@/lib/invite";
-import { PENDING_REVIEW_MESSAGE } from "@/lib/role-applications";
-import { normalizeReferralCode } from "@/lib/referral-code";
-import { preferWechatFromClient } from "@/lib/auth-channel-preference";
+} from "@andyyyds/shared/roles";
+import { REFERRAL_STORAGE_KEY } from "@andyyyds/shared/invite";
+import { PENDING_REVIEW_MESSAGE } from "@andyyyds/shared/role-applications";
+import { normalizeReferralCode } from "@andyyyds/shared/referral-code";
+import { preferWechatFromClient } from "@andyyyds/shared/auth-channel-preference";
 import {
   isCapacitorAndroid,
   isWeChatBrowser,
-} from "@/lib/wechat-env";
-import { WechatLogin } from "@/lib/wechat-login-plugin";
+} from "@andyyyds/shared/wechat-env";
+import { WechatLogin } from "@andyyyds/shared/wechat-login-plugin";
 
 type AuthChannel = "email" | "account" | "phone" | "wechat";
 

@@ -1,0 +1,9 @@
+{
+  "name": "@andyyyds/shared",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Andyyyds 公共代码：登录、支付、权限、国际化、存储等各产品共用能力",
+  "exports": {
+    "./*": "./src/*"
+  }
+}

@@ -6,10 +6,10 @@ import {
 } from "@/components/coupon-admin-panel";
 import { MarketingSubnav } from "@/components/marketing-subnav";
 import { StudioNav } from "@/components/studio-nav";
-import { getSession } from "@/lib/auth";
-import { prisma } from "@/lib/db";
-import { ensureMeetupProductCourse } from "@/lib/meetup-product";
-import { canManageCoupons, canViewAllStudioData } from "@/lib/roles";
+import { getSession } from "@andyyyds/shared/auth";
+import { prisma } from "@andyyyds/shared/db";
+import { ensureMeetupProductCourse } from "@andyyyds/meetup/lib/meetup-product";
+import { canManageCoupons, canViewAllStudioData } from "@andyyyds/shared/roles";
 
 export const dynamic = "force-dynamic";
 

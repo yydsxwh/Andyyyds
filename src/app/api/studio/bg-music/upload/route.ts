@@ -3,9 +3,9 @@
  */
 
 import { NextResponse } from "next/server";
-import { ALLOWED_AUDIO_MIME } from "@/lib/media";
-import { resolveStoredAccessUrl, storeUpload } from "@/lib/storage";
-import { requireAdmin, studioErrorResponse } from "@/lib/studio";
+import { ALLOWED_AUDIO_MIME } from "@andyyyds/shared/media";
+import { resolveStoredAccessUrl, storeUpload } from "@andyyyds/shared/storage";
+import { requireAdmin, studioErrorResponse } from "@andyyyds/shared/studio";
 
 export const runtime = "nodejs";
 

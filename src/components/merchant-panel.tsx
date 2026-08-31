@@ -10,9 +10,9 @@ import {
 import {
   MERCHANT_JOIN_LABEL,
   MERCHANT_STATUS_LABEL,
-} from "@/lib/merchants";
-import { formatPrice } from "@/lib/utils";
-import type { MerchantJoinType, MerchantStatus } from "@/lib/types";
+} from "@andyyyds/shared/merchants";
+import { formatPrice } from "@andyyyds/shared/utils";
+import type { MerchantJoinType, MerchantStatus } from "@andyyyds/shared/types";
 
 export type AgentOption = {
   id: string;

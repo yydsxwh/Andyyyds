@@ -6,13 +6,13 @@ import {
   stringifyBgMusic,
   type BgMusicConfig,
   type BgMusicTrack,
-} from "@/lib/bg-music";
-import { prisma } from "@/lib/db";
+} from "@andyyyds/shared/bg-music";
+import { prisma } from "@andyyyds/shared/db";
 import {
   getSiteSettings,
   invalidateSiteSettingsCache,
-} from "@/lib/site-settings";
-import { requireAdmin, studioErrorResponse } from "@/lib/studio";
+} from "@andyyyds/shared/site-settings";
+import { requireAdmin, studioErrorResponse } from "@andyyyds/shared/studio";
 
 export const runtime = "nodejs";
 
@@ -50,7 +50,7 @@ export async function GET() {
       config,
       jamendoClientId: row.jamendoClientId || "",
       jamendoConfigured: Boolean(row.jamendoClientId?.trim()),
-      guides: (await import("@/lib/bg-music")).FREE_STOCK_GUIDES,
+      guides: (await import("@andyyyds/shared/bg-music")).FREE_STOCK_GUIDES,
     });
   } catch (error) {
     const mapped = studioErrorResponse(error);

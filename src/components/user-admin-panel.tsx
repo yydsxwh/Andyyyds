@@ -22,7 +22,7 @@ import {
   roleLabels,
   type Role,
   type RoleApplicationStatus,
-} from "@/lib/roles";
+} from "@andyyyds/shared/roles";
 
 export type AdminInvitee = {
   id: string;

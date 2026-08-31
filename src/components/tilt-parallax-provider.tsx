@@ -17,7 +17,7 @@ import {
   readTiltPrompted,
   writeTiltEnabled,
   writeTiltPrompted,
-} from "@/lib/tilt-parallax";
+} from "@andyyyds/shared/tilt-parallax";
 
 type TiltContextValue = {
   enabled: boolean;

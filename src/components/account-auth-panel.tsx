@@ -6,13 +6,13 @@
  */
 
 import { useEffect, useState } from "react";
-import { isPlaceholderEmail } from "@/lib/auth-email";
-import { maskPhone, normalizePhone } from "@/lib/phone";
+import { isPlaceholderEmail } from "@andyyyds/shared/auth-email";
+import { maskPhone, normalizePhone } from "@andyyyds/shared/phone";
 import {
   isCapacitorAndroid,
   isWeChatBrowser,
-} from "@/lib/wechat-env";
-import { WechatLogin } from "@/lib/wechat-login-plugin";
+} from "@andyyyds/shared/wechat-env";
+import { WechatLogin } from "@andyyyds/shared/wechat-login-plugin";
 
 type Props = {
   username?: string | null;

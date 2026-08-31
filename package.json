@@ -1,7 +1,11 @@
 {
-  "name": "yyds-course-platform",
+  "name": "andyyyds",
   "version": "0.1.0",
   "private": true,
+  "description": "Andyyyds 产品工作区：站点壳 + 公共包 + 按产品拆分的源码包",
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "dev": "next dev",
     "dev:server": "node server/prod.mjs",
@@ -22,6 +26,13 @@
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@andyyyds/company": "*",
+    "@andyyyds/courses": "*",
+    "@andyyyds/forum": "*",
+    "@andyyyds/mathcode": "*",
+    "@andyyyds/meetup": "*",
+    "@andyyyds/person": "*",
+    "@andyyyds/shared": "*",
     "@alicloud/pop-core": "^1.8.0",
     "@capacitor/android": "^8.5.0",
     "@capacitor/cli": "^8.5.0",

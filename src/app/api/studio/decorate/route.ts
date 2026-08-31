@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/db";
+import { prisma } from "@andyyyds/shared/db";
 import {
   DEFAULT_DECORATE,
   parseDecorate,
   stringifyDecorate,
-} from "@/lib/decorate";
+} from "@andyyyds/shared/decorate";
 import {
   DEFAULT_BACKGROUND_ID,
   DEFAULT_LAYOUT_DENSITY,
@@ -15,13 +15,13 @@ import {
   normalizeLayoutDensity,
   paletteById,
   themePackById,
-} from "@/lib/site-theme";
-import { normalizeTypography } from "@/lib/site-typography";
-import { requireAdmin, studioErrorResponse } from "@/lib/studio";
+} from "@andyyyds/shared/site-theme";
+import { normalizeTypography } from "@andyyyds/shared/site-typography";
+import { requireAdmin, studioErrorResponse } from "@andyyyds/shared/studio";
 import {
   getSiteSettings,
   invalidateSiteSettingsCache,
-} from "@/lib/site-settings";
+} from "@andyyyds/shared/site-settings";
 
 const bannerSchema = z.object({
   id: z.string().min(1).max(64),

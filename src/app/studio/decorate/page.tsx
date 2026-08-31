@@ -5,9 +5,9 @@ import { DecorateSubnav } from "@/components/decorate-subnav";
 import { SiteThemePanel } from "@/components/site-theme-panel";
 import { StudioNav } from "@/components/studio-nav";
 import { TiltParallaxToggle } from "@/components/tilt-parallax-provider";
-import { getSession } from "@/lib/auth";
-import { isAdmin } from "@/lib/roles";
-import { getDecorateConfig } from "@/lib/site-settings";
+import { getSession } from "@andyyyds/shared/auth";
+import { isAdmin } from "@andyyyds/shared/roles";
+import { getDecorateConfig } from "@andyyyds/shared/site-settings";
 
 export const dynamic = "force-dynamic";
 

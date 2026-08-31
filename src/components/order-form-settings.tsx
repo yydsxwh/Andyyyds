@@ -7,7 +7,7 @@ import {
   type OrderFormConfig,
   type OrderFormField,
   type OrderFormFieldType,
-} from "@/lib/order-form";
+} from "@andyyyds/shared/order-form";
 
 type Props = {
   value: OrderFormConfig;

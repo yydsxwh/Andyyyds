@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * 首页右上角：动态时钟 + 可选时区 + 惜时警示语。
- * 仅在首页展示，避免占满其它页顶栏；时区偏好存 localStorage。
+ * 首页右上角时钟：挂在顶栏头像下方，不与菜单同一行，避免把导航挤残。
+ * 仅在首页展示；时区偏好存 localStorage。
  */
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
@@ -14,7 +14,7 @@ import {
   meetupTimeZoneLabel,
   normalizeMeetupTimeZone,
   searchMeetupTzCities,
-} from "@/lib/meetup-timezone";
+} from "@andyyyds/meetup/lib/meetup-timezone";
 
 const TZ_STORAGE_KEY = "yyds.homeClock.timeZone";
 const PROVERB = "一寸光阴一寸金，寸金难买寸光阴。";
@@ -206,7 +206,7 @@ function AnalogClockFace({
   );
 }
 
-export function SiteHomeClock() {
+export function SiteHomeClock({ className = "" }: { className?: string }) {
   const pathname = usePathname();
   const isHome = pathname === "/";
   const [timeZone, setTimeZone] = useState(DEFAULT_MEETUP_TIMEZONE);
@@ -263,7 +263,7 @@ export function SiteHomeClock() {
   return (
     <div
       ref={rootRef}
-      className="relative flex max-w-[min(100%,20rem)] flex-col items-end gap-0.5 sm:max-w-none"
+      className={`relative flex max-w-[min(100%,20rem)] flex-col items-end gap-0.5 sm:max-w-none ${className}`}
     >
       <button
         type="button"

@@ -1,16 +1,16 @@
 import Link from "next/link";
-import { getSession } from "@/lib/auth";
-import { getStudioNavConfig } from "@/lib/site-settings";
+import { getSession } from "@andyyyds/shared/auth";
+import { getStudioNavConfig } from "@andyyyds/shared/site-settings";
 import {
   STUDIO_CREATOR_ADMIN_ONLY_KEYS,
-} from "@/lib/studio-nav-config";
+} from "@andyyyds/shared/studio-nav-config";
 import {
   AGENT_STUDIO_NAV_KEYS,
   canAccessStudio,
   canManageMarketing,
   hasRole,
   isAdmin,
-} from "@/lib/roles";
+} from "@andyyyds/shared/roles";
 
 const CREATOR_ADMIN_ONLY = new Set<string>(STUDIO_CREATOR_ADMIN_ONLY_KEYS);
 

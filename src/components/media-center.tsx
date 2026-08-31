@@ -14,11 +14,11 @@ import {
   type MediaKind,
   formatBytes,
   isMediaKind,
-} from "@/lib/media";
+} from "@andyyyds/shared/media";
 import {
   uploadFileToOssDirect,
   uploadFileWithSignedParts,
-} from "@/lib/browser-oss-multipart";
+} from "@andyyyds/shared/browser-oss-multipart";
 
 type Category = {
   id: string;

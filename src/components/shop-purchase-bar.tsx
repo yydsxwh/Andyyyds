@@ -8,9 +8,9 @@ import {
   validateOrderFormAnswers,
   type OrderFormAnswers,
   type OrderFormConfig,
-} from "@/lib/order-form";
-import type { ShopSpecsConfig } from "@/lib/shop";
-import { formatPrice } from "@/lib/utils";
+} from "@andyyyds/shared/order-form";
+import type { ShopSpecsConfig } from "@andyyyds/shared/shop";
+import { formatPrice } from "@andyyyds/shared/utils";
 import { OrderFormFields } from "@/components/order-form-fields";
 
 type Props = {

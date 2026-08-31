@@ -1,9 +1,9 @@
 import { notFound, redirect } from "next/navigation";
 import { InviteesAdminPanel } from "@/components/invitees-admin-panel";
 import { StudioNav } from "@/components/studio-nav";
-import { getSession } from "@/lib/auth";
-import { prisma } from "@/lib/db";
-import { isAdmin } from "@/lib/roles";
+import { getSession } from "@andyyyds/shared/auth";
+import { prisma } from "@andyyyds/shared/db";
+import { isAdmin } from "@andyyyds/shared/roles";
 
 export const dynamic = "force-dynamic";
 

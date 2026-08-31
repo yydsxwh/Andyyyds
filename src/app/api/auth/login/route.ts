@@ -5,11 +5,11 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createSession, verifyPassword } from "@/lib/auth";
-import { isPlaceholderEmail } from "@/lib/auth-email";
-import { prisma } from "@/lib/db";
-import { PENDING_REVIEW_MESSAGE } from "@/lib/role-applications";
-import { isRoleApplicationPending, type Role } from "@/lib/roles";
+import { createSession, verifyPassword } from "@andyyyds/shared/auth";
+import { isPlaceholderEmail } from "@andyyyds/shared/auth-email";
+import { prisma } from "@andyyyds/shared/db";
+import { PENDING_REVIEW_MESSAGE } from "@andyyyds/shared/role-applications";
+import { isRoleApplicationPending, type Role } from "@andyyyds/shared/roles";
 
 const schema = z.object({
   email: z.string().email(),

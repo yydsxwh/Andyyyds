@@ -1,0 +1,13 @@
+{
+  "name": "@andyyyds/forum",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Andyyyds 论坛",
+  "exports": {
+    "./*": "./*"
+  },
+  "dependencies": {
+    "@andyyyds/meetup": "*",
+    "@andyyyds/shared": "*"
+  }
+}

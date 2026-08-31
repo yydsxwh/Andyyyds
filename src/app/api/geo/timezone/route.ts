@@ -10,7 +10,7 @@ import {
   DEFAULT_MEETUP_TIMEZONE,
   meetupTimeZoneLabel,
   normalizeMeetupTimeZone,
-} from "@/lib/meetup-timezone";
+} from "@andyyyds/meetup/lib/meetup-timezone";
 
 export const dynamic = "force-dynamic";
 

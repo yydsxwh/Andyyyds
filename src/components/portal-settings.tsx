@@ -6,14 +6,14 @@ import type {
   PortalConfig,
   PortalContact,
   PortalNavLink,
-} from "@/lib/portal";
+} from "@andyyyds/shared/portal";
 import {
   DEFAULT_HOME_SECTION_ORDER,
   DEFAULT_PORTAL,
   DEFAULT_PORTAL_CONTACT,
   HOME_SECTION_LABELS,
   normalizeHomeSectionOrder,
-} from "@/lib/portal";
+} from "@andyyyds/shared/portal";
 
 type Props = {
   value: PortalConfig;
@@ -157,7 +157,7 @@ export function PortalNavSettings({ value, onChange }: Props) {
       <p className="text-xs text-[var(--muted)]">
         可自行添加导航项（最多 {PORTAL_NAV_MAX} 个）。拖拽左侧手柄调顺序；勾选「显示」控制是否出现在顶栏。链接请填站内路径（如{" "}
         <code className="rounded bg-black/5 px-1">/courses</code>
-        ）或完整网址。
+        ）或完整网址。点本分区「保存门户导航」后，全站顶栏会按这里的显示名称出现。
       </p>
       {nav.map((item, index) => (
         <div

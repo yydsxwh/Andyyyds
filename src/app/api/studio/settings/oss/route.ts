@@ -1,17 +1,17 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/db";
+import { prisma } from "@andyyyds/shared/db";
 import {
   ensureOssBucket,
   testOssConnection,
   testOssUpload,
-} from "@/lib/storage";
-import { requireAdmin, studioErrorResponse } from "@/lib/studio";
+} from "@andyyyds/shared/storage";
+import { requireAdmin, studioErrorResponse } from "@andyyyds/shared/studio";
 import {
   getSiteSettings,
   invalidateSiteSettingsCache,
   publicSiteSettings,
-} from "@/lib/site-settings";
+} from "@andyyyds/shared/site-settings";
 
 const bodySchema = z.object({
   action: z.enum(["test", "upload-test", "create"]),

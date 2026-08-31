@@ -10,7 +10,7 @@ import {
   normalizeMeetupTimeZone,
   searchMeetupTzCities,
   type MeetupTzCity,
-} from "@/lib/meetup-timezone";
+} from "@andyyyds/meetup/lib/meetup-timezone";
 
 export const dynamic = "force-dynamic";
 

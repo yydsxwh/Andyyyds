@@ -6,12 +6,12 @@
  */
 
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
-import { fulfillPaidOrder } from "@/lib/orders";
+import { prisma } from "@andyyyds/shared/db";
+import { fulfillPaidOrder } from "@andyyyds/shared/orders";
 import {
   decryptWechatResource,
   type WechatNotifyBody,
-} from "@/lib/wechat-pay";
+} from "@andyyyds/shared/wechat-pay";
 
 export const runtime = "nodejs";
 

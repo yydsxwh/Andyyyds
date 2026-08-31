@@ -4,21 +4,21 @@ import { StartConsultChatButton } from "@/components/chat/start-consult-chat-but
 import { ShopBottomNav } from "@/components/shop-bottom-nav";
 import { ShopGallery } from "@/components/shop-gallery";
 import { ShopPurchaseBar } from "@/components/shop-purchase-bar";
-import { getSession } from "@/lib/auth";
-import { CHAT_SOURCE } from "@/lib/chat/constants";
-import { prisma } from "@/lib/db";
+import { getSession } from "@andyyyds/shared/auth";
+import { CHAT_SOURCE } from "@andyyyds/shared/chat/constants";
+import { prisma } from "@andyyyds/shared/db";
 import {
   parseSpecs,
   resolveShopImages,
   SHOP_PRODUCT_TYPE,
-} from "@/lib/shop";
-import { shouldHideProductPrice } from "@/lib/product-price-display";
+} from "@andyyyds/shared/shop";
+import { shouldHideProductPrice } from "@andyyyds/shared/product-price-display";
 import {
   getHideAllPricesFlag,
   getOrderFormConfig,
-} from "@/lib/site-settings";
-import { resolveStoredAccessUrl } from "@/lib/storage";
-import { decodeRouteSlug, formatPrice } from "@/lib/utils";
+} from "@andyyyds/shared/site-settings";
+import { resolveStoredAccessUrl } from "@andyyyds/shared/storage";
+import { decodeRouteSlug, formatPrice } from "@andyyyds/shared/utils";
 
 export const dynamic = "force-dynamic";
 

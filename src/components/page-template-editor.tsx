@@ -64,7 +64,7 @@ import {
   type TeachersModuleProps,
   type TestimonialModuleProps,
   type VideoModuleProps,
-} from "@/lib/page-templates";
+} from "@andyyyds/shared/page-templates";
 
 type Props = {
   initial: PageTemplate;

@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation";
 import { MediaCenter } from "@/components/media-center";
 import { StudioNav } from "@/components/studio-nav";
-import { getSession } from "@/lib/auth";
-import { prisma } from "@/lib/db";
-import { classifyMediaKind } from "@/lib/media";
-import { canCreateSellableProducts, canDeleteMedia, canManageMedia } from "@/lib/roles";
+import { getSession } from "@andyyyds/shared/auth";
+import { prisma } from "@andyyyds/shared/db";
+import { classifyMediaKind } from "@andyyyds/shared/media";
+import { canCreateSellableProducts, canDeleteMedia, canManageMedia } from "@andyyyds/shared/roles";
 
 export const dynamic = "force-dynamic";
 

@@ -1,0 +1,13 @@
+{
+  "name": "@andyyyds/courses",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Andyyyds 网课资料",
+  "exports": {
+    "./*": "./*"
+  },
+  "dependencies": {
+    "@andyyyds/meetup": "*",
+    "@andyyyds/shared": "*"
+  }
+}

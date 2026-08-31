@@ -6,13 +6,13 @@
  */
 
 import { NextResponse } from "next/server";
-import { getSiteSettings, publicSiteSettings } from "@/lib/site-settings";
+import { getSiteSettings, publicSiteSettings } from "@andyyyds/shared/site-settings";
 import {
   getWechatMobileOAuthConfig,
   isWechatMobileOAuthConfigured,
   isWechatOAuthConfigured,
   isWechatWebOAuthConfigured,
-} from "@/lib/wechat-pay";
+} from "@andyyyds/shared/wechat-pay";
 
 export async function GET() {
   const row = await getSiteSettings();

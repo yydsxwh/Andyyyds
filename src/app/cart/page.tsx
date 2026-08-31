@@ -1,7 +1,7 @@
 import { ShopBottomNav } from "@/components/shop-bottom-nav";
 import { ShopCartClient } from "@/components/shop-cart-client";
-import { getSession } from "@/lib/auth";
-import { getOrderFormConfig } from "@/lib/site-settings";
+import { getSession } from "@andyyyds/shared/auth";
+import { getOrderFormConfig } from "@andyyyds/shared/site-settings";
 
 export const dynamic = "force-dynamic";
 

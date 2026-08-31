@@ -1,0 +1,12 @@
+{
+  "name": "@andyyyds/person",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Andyyyds 个人IP",
+  "exports": {
+    "./*": "./*"
+  },
+  "dependencies": {
+    "@andyyyds/shared": "*"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "name": "@andyyyds/meetup",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Andyyyds 约搭",
+  "exports": {
+    "./*": "./*"
+  },
+  "dependencies": {
+    "@andyyyds/shared": "*"
+  }
+}

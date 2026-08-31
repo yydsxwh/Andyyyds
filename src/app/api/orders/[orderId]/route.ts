@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSession } from "@/lib/auth";
-import { prisma } from "@/lib/db";
+import { getSession } from "@andyyyds/shared/auth";
+import { prisma } from "@andyyyds/shared/db";
 import {
   stringifyStoredAnswers,
   validateOrderFormAnswers,
-} from "@/lib/order-form";
-import { fulfillPaidOrder } from "@/lib/orders";
-import { getPaymentChannels } from "@/lib/payments";
-import { getOrderFormConfig } from "@/lib/site-settings";
-import { queryNativePaymentByOrderNo } from "@/lib/wechat-pay";
+} from "@andyyyds/shared/order-form";
+import { fulfillPaidOrder } from "@andyyyds/shared/orders";
+import { getPaymentChannels } from "@andyyyds/shared/payments";
+import { getOrderFormConfig } from "@andyyyds/shared/site-settings";
+import { queryNativePaymentByOrderNo } from "@andyyyds/shared/wechat-pay";
 
 const patchSchema = z.object({
   formAnswers: z.record(z.string(), z.string()),

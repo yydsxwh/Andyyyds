@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ChatInboxClient } from "@/components/chat/chat-inbox-client";
-import { getSession } from "@/lib/auth";
-import { getHideSocialChatFlag } from "@/lib/site-settings";
-import { listConversationsForUser } from "@/lib/chat/service";
-import { resolveStoredAccessUrl } from "@/lib/storage";
+import { getSession } from "@andyyyds/shared/auth";
+import { getHideSocialChatFlag } from "@andyyyds/shared/site-settings";
+import { listConversationsForUser } from "@andyyyds/shared/chat/service";
+import { resolveStoredAccessUrl } from "@andyyyds/shared/storage";
 
 export const dynamic = "force-dynamic";
 

@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSession } from "@/lib/auth";
-import { CHAT_SOURCE, isChatSource } from "@/lib/chat/constants";
+import { getSession } from "@andyyyds/shared/auth";
+import { CHAT_SOURCE, isChatSource } from "@andyyyds/shared/chat/constants";
 import {
   listConversationsForUser,
   requestDirectChat,
-} from "@/lib/chat/service";
+} from "@andyyyds/shared/chat/service";
 
 export const dynamic = "force-dynamic";
 

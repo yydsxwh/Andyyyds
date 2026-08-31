@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
-import { assertSocialChatEnabled } from "@/lib/chat/policy";
-import { searchUsersForChat } from "@/lib/chat/service";
+import { getSession } from "@andyyyds/shared/auth";
+import { assertSocialChatEnabled } from "@andyyyds/shared/chat/policy";
+import { searchUsersForChat } from "@andyyyds/shared/chat/service";
 
 export const dynamic = "force-dynamic";
 

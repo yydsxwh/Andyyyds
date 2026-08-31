@@ -13,15 +13,15 @@
  */
 
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
-import { getPublicSiteUrl } from "@/lib/payments";
-import { APPLYABLE_ROLES } from "@/lib/roles";
-import { getWechatWebOAuthConfig } from "@/lib/wechat-pay";
+import { getSession } from "@andyyyds/shared/auth";
+import { getPublicSiteUrl } from "@andyyyds/shared/payments";
+import { APPLYABLE_ROLES } from "@andyyyds/shared/roles";
+import { getWechatWebOAuthConfig } from "@andyyyds/shared/wechat-pay";
 import {
   safeReturnUrl,
   signWechatOAuthState,
   type WechatOAuthPurpose,
-} from "@/lib/wechat-oauth-state";
+} from "@andyyyds/shared/wechat-oauth-state";
 
 export async function GET(req: Request) {
   const oauth = await getWechatWebOAuthConfig();

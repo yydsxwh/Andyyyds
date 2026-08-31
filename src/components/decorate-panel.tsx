@@ -8,14 +8,14 @@ import {
   SaveFeedback,
   type SaveStatus,
 } from "@/components/save-feedback";
-import { COVER_IMAGES } from "@/lib/cover-images";
+import { COVER_IMAGES } from "@andyyyds/shared/cover-images";
 import {
   DEFAULT_DECORATE,
   DEFAULT_LOGO_URL,
   newBanner,
   type DecorateBanner,
   type DecorateConfig,
-} from "@/lib/decorate";
+} from "@andyyyds/shared/decorate";
 
 type Props = { initial: DecorateConfig };
 

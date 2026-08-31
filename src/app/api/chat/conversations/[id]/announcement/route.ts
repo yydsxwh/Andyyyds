@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSession } from "@/lib/auth";
-import { setGroupAnnouncement } from "@/lib/chat/group-service";
+import { getSession } from "@andyyyds/shared/auth";
+import { setGroupAnnouncement } from "@andyyyds/shared/chat/group-service";
 
 export const dynamic = "force-dynamic";
 

@@ -6,7 +6,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ROLE_LABEL, type Role } from "@/lib/roles";
+import { ROLE_LABEL, type Role } from "@andyyyds/shared/roles";
 
 export type InviteeRow = {
   id: string;

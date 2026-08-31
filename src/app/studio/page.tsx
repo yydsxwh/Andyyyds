@@ -1,15 +1,15 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { CreateCourseForm } from "@/components/create-course-form";
+import { CreateCourseForm } from "@andyyyds/courses/components/create-course-form";
 import { StudioNav } from "@/components/studio-nav";
-import { StudioProductDeleteButton } from "@/components/studio-product-delete-button";
-import { getSession } from "@/lib/auth";
-import { prisma } from "@/lib/db";
+import { StudioProductDeleteButton } from "@andyyyds/courses/components/studio-product-delete-button";
+import { getSession } from "@andyyyds/shared/auth";
+import { prisma } from "@andyyyds/shared/db";
 import {
   courseStudioProductTypeWhere,
   productDetailPath,
   productTypeLabel,
-} from "@/lib/product-types";
+} from "@andyyyds/shared/product-types";
 import {
   canAccessStudio,
   canCreateSellableProducts,
@@ -20,8 +20,8 @@ import {
   isAdmin,
   roleLabel,
   roleLabels,
-} from "@/lib/roles";
-import { formatPrice } from "@/lib/utils";
+} from "@andyyyds/shared/roles";
+import { formatPrice } from "@andyyyds/shared/utils";
 
 export const dynamic = "force-dynamic";
 

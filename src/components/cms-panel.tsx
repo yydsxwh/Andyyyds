@@ -15,7 +15,7 @@ import {
   type SaveStatus,
 } from "@/components/save-feedback";
 import { StudioNavSettings } from "@/components/studio-nav-settings";
-import { DEFAULT_ORDER_FORM, type OrderFormConfig } from "@/lib/order-form";
+import { DEFAULT_ORDER_FORM, type OrderFormConfig } from "@andyyyds/shared/order-form";
 import {
   DEFAULT_HOME_SECTION_ORDER,
   DEFAULT_PORTAL,
@@ -23,12 +23,12 @@ import {
   HOME_SECTION_LABELS,
   normalizeHomeSectionOrder,
   type PortalConfig,
-} from "@/lib/portal";
+} from "@andyyyds/shared/portal";
 import {
   DEFAULT_STUDIO_NAV,
   type StudioNavConfig,
-} from "@/lib/studio-nav-config";
-import { DEFAULT_UI_COPY, type ComposeUiCopy } from "@/lib/ui-copy";
+} from "@andyyyds/shared/studio-nav-config";
+import { DEFAULT_UI_COPY, type ComposeUiCopy } from "@andyyyds/shared/ui-copy";
 
 type Props = {
   initial: {

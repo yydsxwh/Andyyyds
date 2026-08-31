@@ -7,8 +7,8 @@ import {
   ImageGalleryField,
   ImageUrlField,
 } from "@/components/image-url-field";
-import type { ShopSpecsConfig } from "@/lib/shop";
-import { formatPrice } from "@/lib/utils";
+import type { ShopSpecsConfig } from "@andyyyds/shared/shop";
+import { formatPrice } from "@andyyyds/shared/utils";
 
 export type StudioShopProduct = {
   id: string;

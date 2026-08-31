@@ -5,8 +5,8 @@
  */
 
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
-import { resolveStoredAccessUrl, storeUpload } from "@/lib/storage";
+import { getSession } from "@andyyyds/shared/auth";
+import { resolveStoredAccessUrl, storeUpload } from "@andyyyds/shared/storage";
 
 export const runtime = "nodejs";
 

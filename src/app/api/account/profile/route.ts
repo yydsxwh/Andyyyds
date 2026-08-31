@@ -6,8 +6,8 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createSession, getSession } from "@/lib/auth";
-import { prisma } from "@/lib/db";
+import { createSession, getSession } from "@andyyyds/shared/auth";
+import { prisma } from "@andyyyds/shared/db";
 
 const schema = z.object({
   name: z

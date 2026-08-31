@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
-import { recallMessage } from "@/lib/chat/service";
+import { getSession } from "@andyyyds/shared/auth";
+import { recallMessage } from "@andyyyds/shared/chat/service";
 
 export const dynamic = "force-dynamic";
 

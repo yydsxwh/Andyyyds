@@ -1,11 +1,11 @@
 import { redirect } from "next/navigation";
 import { StudioNav } from "@/components/studio-nav";
 import { StudioShopPanel } from "@/components/studio-shop-panel";
-import { getSession } from "@/lib/auth";
-import { prisma } from "@/lib/db";
-import { canCreateSellableProducts, isAdmin } from "@/lib/roles";
-import { parseGallery, parseSpecs, SHOP_PRODUCT_TYPE } from "@/lib/shop";
-import { resolveStoredAccessUrl } from "@/lib/storage";
+import { getSession } from "@andyyyds/shared/auth";
+import { prisma } from "@andyyyds/shared/db";
+import { canCreateSellableProducts, isAdmin } from "@andyyyds/shared/roles";
+import { parseGallery, parseSpecs, SHOP_PRODUCT_TYPE } from "@andyyyds/shared/shop";
+import { resolveStoredAccessUrl } from "@andyyyds/shared/storage";
 
 export const dynamic = "force-dynamic";
 

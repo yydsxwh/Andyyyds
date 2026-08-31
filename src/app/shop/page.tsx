@@ -2,17 +2,17 @@ import Link from "next/link";
 import { NavPageTemplateShell } from "@/components/nav-page-template-shell";
 import { ShopBottomNav } from "@/components/shop-bottom-nav";
 import { ShopProductCard } from "@/components/shop-product-card";
-import { prisma } from "@/lib/db";
+import { prisma } from "@andyyyds/shared/db";
 import {
   isShopSort,
   shopListOrderBy,
   SHOP_PRODUCT_TYPE,
   SHOP_SORT_LABEL,
   type ShopSort,
-} from "@/lib/shop";
-import { getHideAllPricesFlag } from "@/lib/site-settings";
-import { typoRoleClass, typoRoleStyle } from "@/lib/site-typography";
-import { withSignedCoverUrls } from "@/lib/storage";
+} from "@andyyyds/shared/shop";
+import { getHideAllPricesFlag } from "@andyyyds/shared/site-settings";
+import { typoRoleClass, typoRoleStyle } from "@andyyyds/shared/site-typography";
+import { withSignedCoverUrls } from "@andyyyds/shared/storage";
 
 export const dynamic = "force-dynamic";
 

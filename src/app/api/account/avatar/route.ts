@@ -5,9 +5,9 @@
  */
 
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
-import { prisma } from "@/lib/db";
-import { resolveStoredAccessUrl, storeUpload } from "@/lib/storage";
+import { getSession } from "@andyyyds/shared/auth";
+import { prisma } from "@andyyyds/shared/db";
+import { resolveStoredAccessUrl, storeUpload } from "@andyyyds/shared/storage";
 
 export const runtime = "nodejs";
 

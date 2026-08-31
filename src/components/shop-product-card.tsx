@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { shouldHideProductPrice } from "@/lib/product-price-display";
-import { formatPrice } from "@/lib/utils";
+import { shouldHideProductPrice } from "@andyyyds/shared/product-price-display";
+import { formatPrice } from "@andyyyds/shared/utils";
 
 type Props = {
   product: {

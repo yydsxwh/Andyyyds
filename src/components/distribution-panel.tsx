@@ -7,7 +7,7 @@ import {
   SaveFeedback,
   type SaveStatus,
 } from "@/components/save-feedback";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice } from "@andyyyds/shared/utils";
 
 type Settings = {
   enabled: boolean;

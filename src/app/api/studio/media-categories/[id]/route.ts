@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/db";
-import { MEDIA_CATEGORY_NAME_MAX } from "@/lib/media";
-import { canDeleteMedia } from "@/lib/roles";
-import { requireCourseStudioUser, studioErrorResponse } from "@/lib/studio";
+import { prisma } from "@andyyyds/shared/db";
+import { MEDIA_CATEGORY_NAME_MAX } from "@andyyyds/shared/media";
+import { canDeleteMedia } from "@andyyyds/shared/roles";
+import { requireCourseStudioUser, studioErrorResponse } from "@andyyyds/shared/studio";
 
 const patchSchema = z.object({
   name: z.string().trim().min(1).max(MEDIA_CATEGORY_NAME_MAX),

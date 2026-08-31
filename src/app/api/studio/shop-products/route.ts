@@ -5,10 +5,10 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { DEFAULT_COURSE_COVER_URL } from "@/lib/cover-images";
-import { prisma } from "@/lib/db";
-import { PRODUCT_TITLE_MAX } from "@/lib/media";
-import { yuanToCents } from "@/lib/money";
+import { DEFAULT_COURSE_COVER_URL } from "@andyyyds/shared/cover-images";
+import { prisma } from "@andyyyds/shared/db";
+import { PRODUCT_TITLE_MAX } from "@andyyyds/shared/media";
+import { yuanToCents } from "@andyyyds/shared/money";
 import {
   parseGallery,
   parseSpecs,
@@ -16,10 +16,10 @@ import {
   stringifyGallery,
   stringifySpecs,
   type ShopSpecsConfig,
-} from "@/lib/shop";
-import { requireCreateSellableUser, studioErrorResponse } from "@/lib/studio";
-import { canViewAllStudioData } from "@/lib/roles";
-import { slugify } from "@/lib/utils";
+} from "@andyyyds/shared/shop";
+import { requireCreateSellableUser, studioErrorResponse } from "@andyyyds/shared/studio";
+import { canViewAllStudioData } from "@andyyyds/shared/roles";
+import { slugify } from "@andyyyds/shared/utils";
 
 export const runtime = "nodejs";
 

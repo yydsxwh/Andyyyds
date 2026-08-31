@@ -9,17 +9,17 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSession } from "@/lib/auth";
+import { getSession } from "@andyyyds/shared/auth";
 import {
   bindWechatToUser,
   findOrCreateUserByWechat,
-} from "@/lib/auth-providers";
-import { APPLYABLE_ROLES } from "@/lib/roles";
+} from "@andyyyds/shared/auth-providers";
+import { APPLYABLE_ROLES } from "@andyyyds/shared/roles";
 import {
   exchangeWechatOAuthCode,
   fetchWechatUserInfo,
-} from "@/lib/wechat-pay";
-import { safeReturnUrl } from "@/lib/wechat-oauth-state";
+} from "@andyyyds/shared/wechat-pay";
+import { safeReturnUrl } from "@andyyyds/shared/wechat-oauth-state";
 
 const schema = z.object({
   code: z.string().min(1).max(256),

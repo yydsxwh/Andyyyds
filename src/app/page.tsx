@@ -3,12 +3,12 @@ import { HomeUserChatSearch } from "@/components/chat/home-user-chat-search";
 import { ConfigurableLink } from "@/components/configurable-link";
 import { ContactUsPanel } from "@/components/contact-us-panel";
 import { HomeContactAndDownloads } from "@/components/client-downloads-panel";
-import { CourseCard } from "@/components/course-card";
-import { getSession } from "@/lib/auth";
+import { CourseCard } from "@andyyyds/courses/components/course-card";
+import { getSession } from "@andyyyds/shared/auth";
 import {
   MeetupCard,
   type MeetupCardData,
-} from "@/components/meetup-card";
+} from "@andyyyds/meetup/components/meetup-card";
 import {
   PageModulesView,
   shouldUseDiyLayout,
@@ -19,13 +19,13 @@ import {
   DEFAULT_LOGO_URL,
   resolveBannerOpenInNewTab,
   resolveHeroImage,
-} from "@/lib/decorate";
-import { prisma } from "@/lib/db";
+} from "@andyyyds/shared/decorate";
+import { prisma } from "@andyyyds/shared/db";
 import {
   buildMeetupPlazaWhere,
   fromMeetupPeopleDb,
   sortMeetupPlazaRows,
-} from "@/lib/meetup";
+} from "@andyyyds/meetup/lib/meetup";
 import {
   DEFAULT_HOME_SECTION_ORDER,
   DEFAULT_PORTAL_CONTACT,
@@ -37,26 +37,26 @@ import {
   type HomeSectionId,
   type PortalContact,
   type PortalNavLink,
-} from "@/lib/portal";
-import { getDefaultTemplate } from "@/lib/page-templates";
-import { PRODUCT_PLAZA_ORDER_BY } from "@/lib/product-display-order";
-import { resolveContentText } from "@/lib/i18n/content-resolve";
-import { getRequestLocaleContext } from "@/lib/i18n/get-request-locale";
+} from "@andyyyds/shared/portal";
+import { getDefaultTemplate } from "@andyyyds/shared/page-templates";
+import { PRODUCT_PLAZA_ORDER_BY } from "@andyyyds/shared/product-display-order";
+import { resolveContentText } from "@andyyyds/shared/i18n/content-resolve";
+import { getRequestLocaleContext } from "@andyyyds/shared/i18n/get-request-locale";
 import {
   localizeCourseCardFields,
   localizeMeetupCardFields,
-} from "@/lib/i18n/localize-entities";
-import { translateMessage } from "@/lib/i18n/messages";
+} from "@andyyyds/shared/i18n/localize-entities";
+import { translateMessage } from "@andyyyds/shared/i18n/messages";
 import {
   getDecorateConfig,
   getHideAllPricesFlag,
   getHideSocialChatFlag,
   getPageTemplatesConfig,
   getPortalConfig,
-} from "@/lib/site-settings";
-import { withSignedCoverUrls } from "@/lib/storage";
-import { typoRoleClass, typoRoleStyle } from "@/lib/site-typography";
-import type { DecorateConfig } from "@/lib/decorate";
+} from "@andyyyds/shared/site-settings";
+import { withSignedCoverUrls } from "@andyyyds/shared/storage";
+import { typoRoleClass, typoRoleStyle } from "@andyyyds/shared/site-typography";
+import type { DecorateConfig } from "@andyyyds/shared/decorate";
 import type { Category, Course, User } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -710,7 +710,11 @@ export default async function HomePage() {
   }
 
   const modules = portal.nav.filter(
-    (item) => item.enabled !== false && item.key !== "home",
+    // 游戏中心并进软件产品顶栏分区，首页入口卡片不再单独占一格
+    (item) =>
+      item.enabled !== false &&
+      item.key !== "home" &&
+      item.key !== "games",
   );
 
   return (

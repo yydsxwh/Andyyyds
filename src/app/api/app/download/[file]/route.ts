@@ -7,7 +7,7 @@ import { NextResponse } from "next/server";
 import {
   getAppInstallerDownloadUrl,
   isAppInstallerFileName,
-} from "@/lib/storage";
+} from "@andyyyds/shared/storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

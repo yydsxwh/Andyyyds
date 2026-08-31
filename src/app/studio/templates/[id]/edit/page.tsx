@@ -2,13 +2,13 @@ import { notFound, redirect } from "next/navigation";
 import { DecorateSubnav } from "@/components/decorate-subnav";
 import { PageTemplateEditor } from "@/components/page-template-editor";
 import { StudioNav } from "@/components/studio-nav";
-import { getSession } from "@/lib/auth";
+import { getSession } from "@andyyyds/shared/auth";
 import {
   getTemplateById,
   isSystemDefaultTemplateId,
-} from "@/lib/page-templates";
-import { isAdmin } from "@/lib/roles";
-import { getPageTemplatesConfig } from "@/lib/site-settings";
+} from "@andyyyds/shared/page-templates";
+import { isAdmin } from "@andyyyds/shared/roles";
+import { getPageTemplatesConfig } from "@andyyyds/shared/site-settings";
 
 export const dynamic = "force-dynamic";
 

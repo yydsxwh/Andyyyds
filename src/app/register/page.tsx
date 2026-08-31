@@ -1,5 +1,5 @@
 import { AuthForm } from "@/components/auth-form";
-import { preferWechatFromAcceptLanguage } from "@/lib/auth-channel-preference";
+import { preferWechatFromAcceptLanguage } from "@andyyyds/shared/auth-channel-preference";
 import { headers } from "next/headers";
 import Link from "next/link";
 

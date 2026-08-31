@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getPublicBgMusicPayload } from "@/lib/site-settings";
+import { getPublicBgMusicPayload } from "@andyyyds/shared/site-settings";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

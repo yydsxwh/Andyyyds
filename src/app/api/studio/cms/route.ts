@@ -1,17 +1,17 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/db";
-import { requireAdmin, studioErrorResponse } from "@/lib/studio";
+import { prisma } from "@andyyyds/shared/db";
+import { requireAdmin, studioErrorResponse } from "@andyyyds/shared/studio";
 import {
   getSiteSettings,
   invalidateSiteSettingsCache,
   publicSiteSettings,
-} from "@/lib/site-settings";
+} from "@andyyyds/shared/site-settings";
 import {
   DEFAULT_ORDER_FORM,
   stringifyOrderForm,
   type OrderFormFieldType,
-} from "@/lib/order-form";
+} from "@andyyyds/shared/order-form";
 import {
   DEFAULT_HOME_SECTION_ORDER,
   DEFAULT_PORTAL,
@@ -20,12 +20,12 @@ import {
   normalizeHomeSectionOrder,
   parsePortal,
   stringifyPortal,
-} from "@/lib/portal";
+} from "@andyyyds/shared/portal";
 import {
   DEFAULT_STUDIO_NAV,
   stringifyStudioNav,
-} from "@/lib/studio-nav-config";
-import { DEFAULT_UI_COPY, stringifyUiCopy } from "@/lib/ui-copy";
+} from "@andyyyds/shared/studio-nav-config";
+import { DEFAULT_UI_COPY, stringifyUiCopy } from "@andyyyds/shared/ui-copy";
 
 const composeCopySchema = z.object({
   step2Title: z.string().max(80).optional(),
@@ -152,13 +152,13 @@ const patchSchema = z.object({
           note: z.string().max(2000).optional(),
         })
         .optional(),
-      // 首页区块顺序 + 显隐；兼容旧客户端只传 id 字符串数组
+      // 首页区块顺序 + 显隐；id 与 HOME_SECTION_IDS 同步，漏项会导致保存「参数无效」
       homeSectionOrder: z
         .array(
           z.union([
-            z.enum(["contact", "hero", "banners", "portal", "courses"]),
+            z.enum(HOME_SECTION_IDS),
             z.object({
-              id: z.enum(["contact", "hero", "banners", "portal", "courses"]),
+              id: z.enum(HOME_SECTION_IDS),
               // 缺省视为显示，与 normalizeHomeSectionOrder 旧配置兼容策略一致
               visible: z.boolean().optional(),
             }),
@@ -294,9 +294,6 @@ export async function PATCH(req: Request) {
       updatedAt: pub.updatedAt,
     });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: "参数无效" }, { status: 400 });
-    }
     const mapped = studioErrorResponse(error);
     return NextResponse.json({ error: mapped.error }, { status: mapped.status });
   }

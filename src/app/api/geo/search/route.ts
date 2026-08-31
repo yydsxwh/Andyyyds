@@ -5,7 +5,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { searchAmapPlaces } from "@/lib/amap-place";
+import { searchAmapPlaces } from "@andyyyds/shared/amap-place";
 
 export const dynamic = "force-dynamic";
 

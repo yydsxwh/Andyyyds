@@ -1,5 +1,5 @@
 import { BilingualHover } from "@/components/i18n/bilingual-hover";
-import type { AppLocale } from "@/lib/i18n/locales";
+import type { AppLocale } from "@andyyyds/shared/i18n/locales";
 
 /**
  * 站长前台：默认中文原文，英文悬浮展示；普通访客只看 text。

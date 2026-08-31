@@ -4,8 +4,8 @@ import {
   SUPPORTED_LOCALES,
   isAppLocale,
   type AppLocale,
-} from "@/lib/i18n/locales";
-import { resolveLocaleFromAcceptLanguage } from "@/lib/i18n/resolve-locale";
+} from "@andyyyds/shared/i18n/locales";
+import { resolveLocaleFromAcceptLanguage } from "@andyyyds/shared/i18n/resolve-locale";
 
 /**
  * 无 cookie 时按 Accept-Language 写入 yyds_locale，稳定后续页面请求语言。

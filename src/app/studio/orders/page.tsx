@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation";
 import { StudioNav } from "@/components/studio-nav";
-import { getSession } from "@/lib/auth";
-import { prisma } from "@/lib/db";
-import { parseStoredAnswers } from "@/lib/order-form";
-import { isAdmin } from "@/lib/roles";
-import { formatPrice } from "@/lib/utils";
+import { getSession } from "@andyyyds/shared/auth";
+import { prisma } from "@andyyyds/shared/db";
+import { parseStoredAnswers } from "@andyyyds/shared/order-form";
+import { isAdmin } from "@andyyyds/shared/roles";
+import { formatPrice } from "@andyyyds/shared/utils";
 
 export const dynamic = "force-dynamic";
 

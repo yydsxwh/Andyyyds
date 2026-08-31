@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSession } from "@/lib/auth";
-import { prisma } from "@/lib/db";
+import { getSession } from "@andyyyds/shared/auth";
+import { prisma } from "@andyyyds/shared/db";
 import {
   getDistributionSettings,
   validateDistributionRates,
-} from "@/lib/distribution";
+} from "@andyyyds/shared/distribution";
 import {
   canManageDistributionSettings,
   canViewDistribution,
-} from "@/lib/roles";
+} from "@andyyyds/shared/roles";
 
 export async function GET() {
   const session = await getSession();

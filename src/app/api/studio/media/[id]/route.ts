@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/db";
-import { ASSET_DESC_MAX, ASSET_NAME_MAX } from "@/lib/media";
-import { deleteStoredFile } from "@/lib/storage";
-import { canDeleteMedia } from "@/lib/roles";
-import { requireCourseStudioUser, studioErrorResponse } from "@/lib/studio";
+import { prisma } from "@andyyyds/shared/db";
+import { ASSET_DESC_MAX, ASSET_NAME_MAX } from "@andyyyds/shared/media";
+import { deleteStoredFile } from "@andyyyds/shared/storage";
+import { canDeleteMedia } from "@andyyyds/shared/roles";
+import { requireCourseStudioUser, studioErrorResponse } from "@andyyyds/shared/studio";
 
 const patchSchema = z.object({
   name: z.string().trim().min(1).max(ASSET_NAME_MAX).optional(),

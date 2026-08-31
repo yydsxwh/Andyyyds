@@ -7,10 +7,10 @@
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/db";
-import { MEETUP_PRODUCT_TYPE } from "@/lib/meetup";
-import { PRODUCT_PLAZA_ORDER_BY } from "@/lib/product-display-order";
-import { requireAdmin, studioErrorResponse } from "@/lib/studio";
+import { prisma } from "@andyyyds/shared/db";
+import { MEETUP_PRODUCT_TYPE } from "@andyyyds/meetup/lib/meetup";
+import { PRODUCT_PLAZA_ORDER_BY } from "@andyyyds/shared/product-display-order";
+import { requireAdmin, studioErrorResponse } from "@andyyyds/shared/studio";
 
 export const runtime = "nodejs";
 

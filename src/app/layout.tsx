@@ -9,23 +9,23 @@ import { SiteFontLinks } from "@/components/site-font-loader";
 import { SiteHeader } from "@/components/site-header";
 import { SiteTypographyStyles } from "@/components/site-typography-styles";
 import { TiltParallaxProvider } from "@/components/tilt-parallax-provider";
-import { DEFAULT_DECORATE, DEFAULT_LOGO_URL } from "@/lib/decorate";
-import { getRequestLocaleContext } from "@/lib/i18n/get-request-locale";
-import { resolveContentText } from "@/lib/i18n/content-resolve";
-import { getDecorateConfig } from "@/lib/site-settings";
-import { resolveThemeFx } from "@/lib/site-theme-islands";
+import { DEFAULT_DECORATE, DEFAULT_LOGO_URL } from "@andyyyds/shared/decorate";
+import { getRequestLocaleContext } from "@andyyyds/shared/i18n/get-request-locale";
+import { resolveContentText } from "@andyyyds/shared/i18n/content-resolve";
+import { getDecorateConfig } from "@andyyyds/shared/site-settings";
+import { resolveThemeFx } from "@andyyyds/shared/site-theme-islands";
 import {
   buildThemeStyleVars,
   paletteById,
   themePackById,
-} from "@/lib/site-theme";
+} from "@andyyyds/shared/site-theme";
 import {
   buildTypographyCss,
   buildTypographyFontVars,
   collectTypographyFontUrls,
   typoRoleClass,
   typoRoleStyle,
-} from "@/lib/site-typography";
+} from "@andyyyds/shared/site-typography";
 import "./globals.css";
 
 // 不用 next/font/google：香港机器构建时常拉不到 fonts.googleapis.com 导致整站发版失败。

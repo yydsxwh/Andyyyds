@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ShopBottomNav } from "@/components/shop-bottom-nav";
-import { getSession } from "@/lib/auth";
-import { prisma } from "@/lib/db";
-import { parseStoredAnswers } from "@/lib/order-form";
-import { productDetailPath } from "@/lib/product-types";
-import { resolveStoredAccessUrl } from "@/lib/storage";
-import { formatPrice } from "@/lib/utils";
+import { getSession } from "@andyyyds/shared/auth";
+import { prisma } from "@andyyyds/shared/db";
+import { parseStoredAnswers } from "@andyyyds/shared/order-form";
+import { productDetailPath } from "@andyyyds/shared/product-types";
+import { resolveStoredAccessUrl } from "@andyyyds/shared/storage";
+import { formatPrice } from "@andyyyds/shared/utils";
 
 export const dynamic = "force-dynamic";
 
