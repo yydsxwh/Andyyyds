@@ -472,6 +472,9 @@ model SiteSettings {
   /// 大学论坛全站配置（JSON）：成员发帖/评论/互动/私信开关 + 顶部公告栏
   forumJson String @default("")
 
+  /// 个人IP外平台主页（JSON）：B站/抖音/小红书主页，用于同步投稿到「个人介绍」
+  personSocialJson String @default("")
+
   /// 高德 Web 服务 Key：论坛/约搭搜国内店名与反查地址；空则回退 OSM
   amapWebKey String @default("")
 
@@ -768,6 +771,34 @@ model CouponRedemption {
   @@unique([couponId, userId])
 }
 
+/// 个人IP从 B站 / 抖音 / 小红书同步来的投稿（展示在「个人介绍」）
+model PersonSocialPost {
+  id          String    @id @default(cuid())
+  /// BILIBILI | DOUYIN | XIAOHONGSHU
+  platform    String
+  /// 平台侧稳定 id：bvid / aweme_id / 笔记 id
+  externalId  String
+  title       String    @default("")
+  digest      String    @default("")
+  coverUrl    String    @default("")
+  sourceUrl   String    @default("")
+  /// video=视频投稿，article=专栏/图文，note=笔记
+  contentKind String    @default("video")
+  publishedAt DateTime?
+  syncedAt    DateTime  @default(now())
+  isDeleted   Boolean   @default(false)
+  sortOrder   Int       @default(0)
+  isPinned    Boolean   @default(false)
+  isFeatured  Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([platform, externalId])
+  @@index([isDeleted, isPinned, sortOrder])
+  @@index([publishedAt])
+  @@index([platform])
+}
+
 /// 公众号已发表图文（freepublish 同步到本站「公司宣传」）
 model WechatMpArticle {
   id           String   @id @default(cuid())
@@ -992,6 +1023,10 @@ model ForumSchoolVerification {
   realName     String
   studentId    String          @default("")
   campusEmail  String          @default("")
+  /// 年级，如 2023级 / 大三 / 研一
+  grade        String          @default("")
+  /// 专业，如 计算机科学与技术
+  major        String          @default("")
   proofUrl     String          @default("")
   /// PENDING | VERIFIED | REJECTED
   status       String          @default("PENDING")

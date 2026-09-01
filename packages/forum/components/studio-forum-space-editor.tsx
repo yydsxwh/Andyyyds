@@ -134,7 +134,7 @@ export function StudioForumSpaceEditor({
         {campus ? (
           <label className="block text-sm">
             <span className="text-[var(--muted)]">
-              本校邮箱后缀（可选；命中则认证当场通过）
+              本校邮箱后缀（可选，仅作资料，认证仍须站长审核）
             </span>
             <input
               className="mt-1 w-full min-h-11 rounded-2xl border border-[var(--line)] bg-transparent px-3"

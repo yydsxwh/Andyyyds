@@ -3,6 +3,9 @@ import { AboutPageView } from "@andyyyds/person/components/about-page";
 import { NavPageTemplateShell } from "@/components/nav-page-template-shell";
 import { resolveContentText } from "@andyyyds/shared/i18n/content-resolve";
 import { getRequestLocaleContext } from "@andyyyds/shared/i18n/get-request-locale";
+import { PersonSocialFeed } from "@andyyyds/person/components/person-social-feed";
+import { PERSON_SOCIAL_POST_ORDER_BY } from "@andyyyds/person/lib/person-social";
+import { prisma } from "@andyyyds/shared/db";
 import type { PortalAboutPage } from "@andyyyds/shared/portal";
 import { getPortalConfig } from "@andyyyds/shared/site-settings";
 
@@ -79,19 +82,62 @@ async function localizeAboutPage(
   };
 }
 
-export default async function PersonAboutPage() {
-  const [portal, localeCtx] = await Promise.all([
+const POSTS_PAGE_SIZE = 24;
+
+type Props = {
+  searchParams: Promise<{ page?: string }>;
+};
+
+export default async function PersonAboutPage({ searchParams }: Props) {
+  const params = await searchParams;
+  const requested = Number.parseInt(String(params.page || "1"), 10);
+  const pageRaw = Number.isFinite(requested) && requested > 0 ? requested : 1;
+
+  const [portal, localeCtx, postTotal] = await Promise.all([
     getPortalConfig(),
     getRequestLocaleContext(),
+    prisma.personSocialPost.count({ where: { isDeleted: false } }),
   ]);
   const person = await localizeAboutPage(
     portal.person,
     localeCtx.contentLocale,
     localeCtx.bilingual,
   );
+
+  const totalPages = Math.max(1, Math.ceil(postTotal / POSTS_PAGE_SIZE));
+  const page = Math.min(pageRaw, totalPages);
+  const posts = await prisma.personSocialPost.findMany({
+    where: { isDeleted: false },
+    orderBy: PERSON_SOCIAL_POST_ORDER_BY,
+    skip: (page - 1) * POSTS_PAGE_SIZE,
+    take: POSTS_PAGE_SIZE,
+  });
+
   return (
     <NavPageTemplateShell type="person">
-      <AboutPageView page={person} />
+      <div className="container py-8 sm:py-10">
+        <AboutPageView page={person} embedded />
+        <PersonSocialFeed
+          posts={posts.map((row) => ({
+            id: row.id,
+            platform: row.platform,
+            title: row.title,
+            digest: row.digest,
+            coverUrl: row.coverUrl,
+            sourceUrl: row.sourceUrl,
+            publishedAt: row.publishedAt,
+            isPinned: row.isPinned,
+            isFeatured: row.isFeatured,
+            contentKind: row.contentKind,
+          }))}
+          pagination={{
+            page,
+            totalPages,
+            totalCount: postTotal,
+            pageSize: POSTS_PAGE_SIZE,
+          }}
+        />
+      </div>
     </NavPageTemplateShell>
   );
 }

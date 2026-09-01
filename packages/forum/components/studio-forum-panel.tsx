@@ -310,7 +310,7 @@ export function StudioForumPanel({ initialUniversities }: Props) {
           {kind === "UNIVERSITY" ? (
             <label className="block text-sm sm:col-span-2">
               <span className="text-[var(--muted)]">
-                限制本校邮箱（可选）。填写后，认证时校园邮箱命中后缀可当场通过；否则交站长审核。留空则提交实名信息后直接通过。
+                本校邮箱后缀（可选，仅作资料，认证仍须站长审核）
               </span>
               <input
                 className="mt-1 w-full min-h-11 rounded-2xl border border-[var(--line)] bg-transparent px-3"

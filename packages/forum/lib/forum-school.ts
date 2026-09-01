@@ -3,19 +3,19 @@
  *
  * 每人只能占两档：一所本科、一所研究生（可同一所学校）。
  * 通过后可发「仅本校认证用户可见」帖，也能看到别人的本校贴。
- * 站长审核 PENDING；校园邮箱命中该校后缀则当场通过。
+ * 学生提交后一律 PENDING，由站长审核。
  */
 
 import type { Prisma } from "@prisma/client";
 import {
-  emailMatchesUniversityDomains,
   FORUM_AUDIENCE_PUBLIC,
   FORUM_AUDIENCE_SCHOOL,
   FORUM_CAMPUS_EMAIL_MAX,
+  FORUM_GRADE_MAX,
+  FORUM_MAJOR_MAX,
   FORUM_REAL_NAME_MAX,
   FORUM_STUDENT_ID_MAX,
   isForumPostAudience,
-  parseEmailDomains,
   type ForumPostAudience,
 } from "@andyyyds/forum/lib/forum";
 import { isAdmin, type RoleInput } from "@andyyyds/shared/roles";
@@ -51,6 +51,9 @@ export type ForumSchoolSlot = {
   realName?: string;
   studentId?: string;
   campusEmail?: string;
+  grade?: string;
+  major?: string;
+  proofUrl?: string;
   reviewNote?: string;
 };
 
@@ -167,13 +170,27 @@ export function normalizeCampusEmail(raw: string): string {
   return raw.trim().toLowerCase().slice(0, FORUM_CAMPUS_EMAIL_MAX);
 }
 
+export function normalizeGrade(raw: string): string {
+  return raw.replace(/\s+/g, " ").trim().slice(0, FORUM_GRADE_MAX);
+}
+
+export function normalizeMajor(raw: string): string {
+  return raw.replace(/\s+/g, " ").trim().slice(0, FORUM_MAJOR_MAX);
+}
+
 export function validateSchoolVerifyInput(input: {
   realName: string;
   studentId: string;
   campusEmail?: string;
+  grade: string;
+  major: string;
+  proofUrl: string;
 }): string | null {
   if (input.realName.length < 2) return "请填写真实姓名";
   if (input.studentId.length < 4) return "请填写学号";
+  if (input.grade.length < 1) return "请填写年级";
+  if (input.major.length < 2) return "请填写专业";
+  if (!input.proofUrl) return "请上传学生证或学生卡照片";
   if (input.campusEmail && !input.campusEmail.includes("@")) {
     return "校园邮箱格式不正确";
   }
@@ -181,24 +198,11 @@ export function validateSchoolVerifyInput(input: {
 }
 
 /**
- * 有学校邮箱后缀配置时：账号邮箱或填写的校园邮箱命中则当场通过。
- * 未配置后缀：与旧「加入分区」相同，提交实名信息后直接通过。
+ * 学生认证一律待站长审核。站长自己提交可当场通过，避免自己审自己。
  */
 export function decideForumVerifyStatus(args: {
   session: RoleInput & { email?: string };
-  emailDomains: string;
-  campusEmail: string;
 }): ForumVerifyStatus {
   if (isAdmin(args.session)) return "VERIFIED";
-  const domains = parseEmailDomains(args.emailDomains);
-  if (domains.length === 0) return "VERIFIED";
-  const emails = [args.campusEmail, args.session.email || ""].filter(Boolean);
-  if (
-    emails.some((email) =>
-      emailMatchesUniversityDomains(email, args.emailDomains),
-    )
-  ) {
-    return "VERIFIED";
-  }
   return "PENDING";
 }

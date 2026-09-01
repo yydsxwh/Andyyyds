@@ -97,6 +97,7 @@ export type SiteSettingsRow = {
   bgMusicJson: string;
   jamendoClientId: string;
   forumJson: string;
+  personSocialJson: string;
   amapWebKey: string;
   updatedAt: Date;
 };
@@ -139,6 +140,8 @@ export async function getSiteSettings(): Promise<SiteSettingsRow> {
     jamendoClientId:
       (row as { jamendoClientId?: string }).jamendoClientId || "",
     forumJson: (row as { forumJson?: string }).forumJson || "",
+    personSocialJson:
+      (row as { personSocialJson?: string }).personSocialJson || "",
     amapWebKey: (row as { amapWebKey?: string }).amapWebKey || "",
   } as SiteSettingsRow;
   cache = { at: Date.now(), row: normalized };

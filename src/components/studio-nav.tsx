@@ -39,6 +39,7 @@ export async function StudioNav({
     | "templates"
     | "cms"
     | "wechat-mp"
+    | "person-social"
     | "bg-music"
     | "settings";
   area?: "creator" | "admin";

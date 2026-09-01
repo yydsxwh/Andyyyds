@@ -48,6 +48,8 @@ export const FORUM_NOTICE_HREF_MAX = 500;
 export const FORUM_REAL_NAME_MAX = 20;
 export const FORUM_STUDENT_ID_MAX = 32;
 export const FORUM_CAMPUS_EMAIL_MAX = 80;
+export const FORUM_GRADE_MAX = 20;
+export const FORUM_MAJOR_MAX = 40;
 
 /** 后台关闭成员能力时的前台/接口提示；站长走 bypass，看不到这些 */
 export const FORUM_CLOSED = {

@@ -53,6 +53,7 @@ export const STUDIO_ADMIN_HUB_NAV_KEYS = [
   "templates",
   "cms",
   "wechat-mp",
+  "person-social",
   "bg-music",
   "settings",
 ] as const;
@@ -87,6 +88,7 @@ export const DEFAULT_STUDIO_NAV: StudioNavConfig = {
     { key: "decorate", label: "装修", href: "/studio/decorate" },
     { key: "cms", label: "内容管理", href: "/studio/cms" },
     { key: "wechat-mp", label: "公众号宣传", href: "/studio/wechat-mp" },
+    { key: "person-social", label: "个人IP投稿", href: "/studio/person-social" },
     { key: "bg-music", label: "背景音乐", href: "/studio/bg-music" },
     { key: "settings", label: "系统设置", href: "/studio/settings" },
   ],
@@ -176,6 +178,17 @@ function migrateStoredSections(parsed: Partial<StudioNavConfig>): {
       seenAdmin.add(key);
       topAdmin.push(item);
     }
+  }
+
+  // 旧 CMS 没有「个人IP投稿」时，插到公众号宣传后面，避免被挤到菜单末尾
+  if (!seenAdmin.has("person-social")) {
+    seenAdmin.add("person-social");
+    const entry = { key: "person-social" };
+    const wechatIdx = topAdmin.findIndex(
+      (item) => String(item.key || "") === "wechat-mp",
+    );
+    if (wechatIdx >= 0) topAdmin.splice(wechatIdx + 1, 0, entry);
+    else topAdmin.push(entry);
   }
 
   return {

@@ -133,7 +133,7 @@ export function ForumJoinBar({
   return (
     <div className="w-full max-w-sm space-y-3 rounded-[24px] border border-[var(--line)] p-3">
       <p className="text-sm leading-6 text-[var(--muted)]">
-        认证一所本科、可选再认证一所研究生后，即可在对应学校发帖。
+        认证时请填年级、专业并上传学生证。每人一所本科，可选再认证一所研究生。
       </p>
       <ForumSchoolVerifyForm
         universities={[

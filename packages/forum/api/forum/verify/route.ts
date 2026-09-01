@@ -9,6 +9,8 @@ import { getSession } from "@andyyyds/shared/auth";
 import { prisma } from "@andyyyds/shared/db";
 import {
   FORUM_CAMPUS_EMAIL_MAX,
+  FORUM_GRADE_MAX,
+  FORUM_MAJOR_MAX,
   FORUM_REAL_NAME_MAX,
   FORUM_STUDENT_ID_MAX,
   isOwnedForumMediaUrl,
@@ -19,6 +21,8 @@ import {
   FORUM_DEGREE_LABEL,
   isForumDegreeLevel,
   normalizeCampusEmail,
+  normalizeGrade,
+  normalizeMajor,
   normalizeRealName,
   normalizeStudentId,
   validateSchoolVerifyInput,
@@ -30,6 +34,8 @@ const postSchema = z.object({
   realName: z.string().trim().min(1).max(FORUM_REAL_NAME_MAX),
   studentId: z.string().trim().min(1).max(FORUM_STUDENT_ID_MAX),
   campusEmail: z.string().trim().max(FORUM_CAMPUS_EMAIL_MAX).optional(),
+  grade: z.string().trim().min(1).max(FORUM_GRADE_MAX),
+  major: z.string().trim().min(1).max(FORUM_MAJOR_MAX),
   proofUrl: z.string().trim().max(2000).optional(),
 });
 
@@ -50,6 +56,9 @@ async function loadSlots(userId: string) {
     realName: row.realName,
     studentId: row.studentId,
     campusEmail: row.campusEmail,
+    grade: row.grade,
+    major: row.major,
+    proofUrl: row.proofUrl,
     reviewNote: row.reviewNote,
   }));
 }
@@ -79,21 +88,8 @@ export async function POST(req: Request) {
     const realName = normalizeRealName(body.realName);
     const studentId = normalizeStudentId(body.studentId);
     const campusEmail = normalizeCampusEmail(body.campusEmail || "");
-    const invalid = validateSchoolVerifyInput({
-      realName,
-      studentId,
-      campusEmail,
-    });
-    if (invalid) {
-      return NextResponse.json({ error: invalid }, { status: 400 });
-    }
-    const proofUrl = (body.proofUrl || "").trim();
-    if (proofUrl && !isOwnedForumMediaUrl(proofUrl, session.id)) {
-      return NextResponse.json(
-        { error: "证明材料无效，请重新上传" },
-        { status: 400 },
-      );
-    }
+    const grade = normalizeGrade(body.grade);
+    const major = normalizeMajor(body.major);
 
     const university = await prisma.forumUniversity.findUnique({
       where: { id: body.universityId },
@@ -111,10 +107,27 @@ export async function POST(req: Request) {
       },
     });
 
+    const proofUrl = (body.proofUrl || "").trim() || existing?.proofUrl || "";
+    if (proofUrl && !isOwnedForumMediaUrl(proofUrl, session.id)) {
+      return NextResponse.json(
+        { error: "学生证照片无效，请重新上传" },
+        { status: 400 },
+      );
+    }
+    const invalid = validateSchoolVerifyInput({
+      realName,
+      studentId,
+      campusEmail,
+      grade,
+      major,
+      proofUrl,
+    });
+    if (invalid) {
+      return NextResponse.json({ error: invalid }, { status: 400 });
+    }
+
     const status = decideForumVerifyStatus({
       session,
-      emailDomains: university.emailDomains,
-      campusEmail,
     });
 
     const record = existing
@@ -125,6 +138,8 @@ export async function POST(req: Request) {
             realName,
             studentId,
             campusEmail,
+            grade,
+            major,
             proofUrl,
             status,
             reviewNote: status === "PENDING" ? "" : existing.reviewNote,
@@ -140,6 +155,8 @@ export async function POST(req: Request) {
             realName,
             studentId,
             campusEmail,
+            grade,
+            major,
             proofUrl,
             status,
           },

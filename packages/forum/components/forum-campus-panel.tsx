@@ -28,7 +28,7 @@ export function ForumCampusPanel({ universities, slots }: Props) {
     <section className="surface rounded-[28px] p-5">
       <h2 className="text-lg font-semibold">大学论坛 · 实名学校认证</h2>
       <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
-        每人只能认证一所本科学校，研究生可再认证一所。通过后可在对应学校发帖，并能看「仅本校认证用户可见」的内容。
+        每人只能认证一所本科学校，研究生可再认证一所。请填写年级、专业，并上传学生证或学生卡照片。通过后可在对应学校发帖，并能看「仅本校认证用户可见」的内容。
       </p>
       <div className="mt-3 flex flex-wrap gap-2 text-sm">
         <StatusChip

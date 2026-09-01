@@ -21,8 +21,10 @@ import {
 
 type Zone = {
   id: string;
+  key: string;
   name: string;
   enabled: boolean;
+  sortOrder: number;
   parentId?: string | null;
 };
 

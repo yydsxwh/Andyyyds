@@ -15,6 +15,8 @@ export type StudioForumVerification = {
   realName: string;
   studentId: string;
   campusEmail: string;
+  grade: string;
+  major: string;
   proofUrl: string;
   status: string;
   reviewNote: string;
@@ -65,7 +67,7 @@ export function StudioForumVerifyPanel({
       <div>
         <h2 className="text-lg font-semibold">学校实名认证审核</h2>
         <p className="mt-1 text-sm text-[var(--muted)]">
-          校园邮箱命中该校后缀的会自动通过。其余待审记录在此处理。每人限一所本科、一所研究生。
+          提交后由站长核对学生证、年级和专业。每人限一所本科、一所研究生。
         </p>
       </div>
       {message ? <p className="text-sm text-[var(--brand)]">{message}</p> : null}
@@ -89,6 +91,8 @@ export function StudioForumVerifyPanel({
                     </p>
                     <p className="mt-1 text-xs text-[var(--muted)]">
                       {row.user.name} · {row.user.email} · 学号 {row.studentId}
+                      {row.grade ? ` · ${row.grade}` : ""}
+                      {row.major ? ` · ${row.major}` : ""}
                       {row.campusEmail ? ` · ${row.campusEmail}` : ""}
                     </p>
                     <p className="mt-1 text-xs text-[var(--muted)]">状态：{status}</p>
@@ -98,14 +102,24 @@ export function StudioForumVerifyPanel({
                   </div>
                   {row.proofUrl ? (
                     <a
-                      className="text-sm text-[var(--brand)]"
+                      className="block shrink-0"
                       href={row.proofUrl}
                       target="_blank"
                       rel="noreferrer"
                     >
-                      证明材料
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={row.proofUrl}
+                        alt="学生证"
+                        className="h-24 w-36 rounded-xl border border-[var(--line)] object-cover"
+                      />
+                      <span className="mt-1 block text-center text-xs text-[var(--brand)]">
+                        查看学生证
+                      </span>
                     </a>
-                  ) : null}
+                  ) : (
+                    <span className="text-xs text-[var(--muted)]">未上传学生证</span>
+                  )}
                 </div>
                 {row.status === "PENDING" ? (
                   <div className="mt-3 flex flex-col gap-2 sm:flex-row">

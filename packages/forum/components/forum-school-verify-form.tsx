@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   FORUM_CAMPUS_EMAIL_MAX,
+  FORUM_GRADE_MAX,
+  FORUM_MAJOR_MAX,
   FORUM_REAL_NAME_MAX,
   FORUM_STUDENT_ID_MAX,
 } from "@andyyyds/forum/lib/forum";
@@ -13,6 +15,7 @@ import {
   type ForumDegreeLevel,
 } from "@andyyyds/forum/lib/forum-school";
 import { FORUM_UNIVERSITY_REGION_LABEL } from "@andyyyds/forum/lib/forum-university";
+import { classifyForumFile, uploadForumMediaFile } from "@andyyyds/forum/lib/forum-browser-upload";
 
 export type ForumVerifyUniversityOption = {
   id: string;
@@ -30,6 +33,9 @@ export type ForumVerifySlotView = {
   realName?: string;
   studentId?: string;
   campusEmail?: string;
+  grade?: string;
+  major?: string;
+  proofUrl?: string;
   reviewNote?: string;
 };
 
@@ -69,6 +75,10 @@ export function ForumSchoolVerifyForm({
   const [realName, setRealName] = useState(currentSlot?.realName || "");
   const [studentId, setStudentId] = useState(currentSlot?.studentId || "");
   const [campusEmail, setCampusEmail] = useState(currentSlot?.campusEmail || "");
+  const [grade, setGrade] = useState(currentSlot?.grade || "");
+  const [major, setMajor] = useState(currentSlot?.major || "");
+  const [proofUrl, setProofUrl] = useState(currentSlot?.proofUrl || "");
+  const [proofPreview, setProofPreview] = useState(currentSlot?.proofUrl || "");
   const [error, setError] = useState("");
   const [hint, setHint] = useState("");
   const [busy, setBusy] = useState(false);
@@ -104,14 +114,41 @@ export function ForumSchoolVerifyForm({
       setRealName(slot.realName || "");
       setStudentId(slot.studentId || "");
       setCampusEmail(slot.campusEmail || "");
+      setGrade(slot.grade || "");
+      setMajor(slot.major || "");
+      setProofUrl(slot.proofUrl || "");
+      setProofPreview(slot.proofUrl || "");
     }
     setError("");
     setHint("");
   }
 
+  async function onPickProof(file: File | null) {
+    if (!file) return;
+    if (classifyForumFile(file) !== "image") {
+      setError("学生证请上传图片（jpg / png / webp / gif）");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const uploaded = await uploadForumMediaFile(file);
+      setProofUrl(uploaded.url);
+      setProofPreview(uploaded.previewUrl || uploaded.url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "学生证上传失败");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function submit() {
     if (!universityId) {
       setError("请选择学校");
+      return;
+    }
+    if (!proofUrl) {
+      setError("请上传学生证或学生卡照片");
       return;
     }
     if (
@@ -135,6 +172,9 @@ export function ForumSchoolVerifyForm({
           realName,
           studentId,
           campusEmail,
+          grade,
+          major,
+          proofUrl,
         }),
       });
       const data = await res.json();
@@ -234,6 +274,28 @@ export function ForumSchoolVerifyForm({
           placeholder="在校学号"
         />
       </label>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="block text-sm">
+          <span className="text-[var(--muted)]">年级</span>
+          <input
+            className="mt-1 w-full min-h-11 rounded-2xl border border-[var(--line)] bg-transparent px-3"
+            value={grade}
+            onChange={(e) => setGrade(e.target.value)}
+            maxLength={FORUM_GRADE_MAX}
+            placeholder="如 2023级 / 大三 / 研一"
+          />
+        </label>
+        <label className="block text-sm">
+          <span className="text-[var(--muted)]">专业</span>
+          <input
+            className="mt-1 w-full min-h-11 rounded-2xl border border-[var(--line)] bg-transparent px-3"
+            value={major}
+            onChange={(e) => setMajor(e.target.value)}
+            maxLength={FORUM_MAJOR_MAX}
+            placeholder="如 计算机科学与技术"
+          />
+        </label>
+      </div>
       <label className="block text-sm">
         <span className="text-[var(--muted)]">校园邮箱（选填）</span>
         <input
@@ -242,9 +304,37 @@ export function ForumSchoolVerifyForm({
           onChange={(e) => setCampusEmail(e.target.value)}
           maxLength={FORUM_CAMPUS_EMAIL_MAX}
           type="email"
-          placeholder="命中学校后缀可当场通过"
+          placeholder="选填"
         />
       </label>
+      <div className="block text-sm">
+        <span className="text-[var(--muted)]">学生证 / 学生卡照片</span>
+        <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
+          拍清晰的学生证或一卡通正面，站长核对姓名、学号和学校。微信里可直接拍照或从相册选。
+        </p>
+        {proofPreview ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={proofPreview}
+            alt="学生证预览"
+            className="mt-2 max-h-40 w-full rounded-2xl border border-[var(--line)] object-contain"
+          />
+        ) : null}
+        <label className="btn btn-secondary mt-2 inline-flex min-h-11 cursor-pointer items-center justify-center px-5">
+          {busy ? "上传中…" : proofUrl ? "重新上传" : "上传照片"}
+          <input
+            type="file"
+            accept="image/*"
+            className="sr-only"
+            disabled={busy}
+            onChange={(e) => {
+              const file = e.target.files?.[0] || null;
+              e.target.value = "";
+              void onPickProof(file);
+            }}
+          />
+        </label>
+      </div>
 
       {occupying ? (
         <p className="text-xs leading-5 text-amber-800">

@@ -219,6 +219,9 @@ export default async function AccountPage() {
           realName: row.realName,
           studentId: row.studentId,
           campusEmail: row.campusEmail,
+          grade: row.grade,
+          major: row.major,
+          proofUrl: row.proofUrl,
           reviewNote: row.reviewNote,
         }))}
       />
