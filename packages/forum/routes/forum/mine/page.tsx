@@ -46,7 +46,7 @@ export default async function ForumMinePage({
 
   const include = {
     author: { select: { name: true, avatarUrl: true } },
-    zone: { select: { name: true } },
+    zone: { select: { name: true, parent: { select: { name: true } } } },
     university: { select: { slug: true } },
   } as const;
 

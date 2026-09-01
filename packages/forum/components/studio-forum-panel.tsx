@@ -24,6 +24,7 @@ export type StudioForumZone = {
   name: string;
   enabled: boolean;
   sortOrder: number;
+  parentId?: string | null;
 };
 
 export type StudioForumUniversity = {
@@ -615,7 +616,9 @@ function UniversityEditor({
         zones={uni.zones}
         disabled={busy}
         onZonesChange={onZonesChange}
-        onAdd={async (name) => onPatch(uni.id, { addZone: { name } })}
+        onAdd={async (name, parentId) =>
+          onPatch(uni.id, { addZone: { name, parentId } })
+        }
       />
     </div>
   );

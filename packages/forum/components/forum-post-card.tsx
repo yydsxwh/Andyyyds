@@ -8,6 +8,7 @@ import {
   type ForumMediaItem,
 } from "@andyyyds/forum/lib/forum";
 import { isSchoolRestrictedAudience } from "@andyyyds/forum/lib/forum-school";
+import { forumZoneDisplayName } from "@andyyyds/forum/lib/forum-zone";
 
 export type ForumPostCardData = {
   id: string;
@@ -18,7 +19,7 @@ export type ForumPostCardData = {
   watchCount: number;
   createdAt: string | Date;
   author: { name: string; avatarUrl: string | null };
-  zone: { name: string };
+  zone: { name: string; parent?: { name: string } | null };
   university: { slug: string };
   media?: ForumMediaItem[];
   place?: string;
@@ -38,7 +39,7 @@ export function ForumPostCard({ post }: { post: ForumPostCardData }) {
         <UserAvatar name={post.author.name} src={post.author.avatarUrl} size="sm" />
         <span className="truncate">{post.author.name}</span>
         <span>·</span>
-        <span>{post.zone.name}</span>
+        <span>{forumZoneDisplayName(post.zone)}</span>
         <span className="ml-auto">{formatForumTime(post.createdAt)}</span>
       </div>
       <h3 className="mt-3 text-base font-semibold sm:text-lg">

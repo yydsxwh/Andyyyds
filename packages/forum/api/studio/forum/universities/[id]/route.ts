@@ -34,6 +34,7 @@ const patchSchema = z.object({
   addZone: z
     .object({
       name: z.string().trim().min(1).max(FORUM_ZONE_NAME_MAX),
+      parentId: z.string().min(1).optional(),
     })
     .optional(),
 });
@@ -72,14 +73,32 @@ export async function PATCH(req: Request, ctx: Ctx) {
     }
 
     if (body.addZone) {
+      let parentId: string | null = null;
+      if (body.addZone.parentId) {
+        const parent = await prisma.forumZone.findFirst({
+          where: {
+            id: body.addZone.parentId,
+            universityId: id,
+            parentId: null,
+          },
+        });
+        if (!parent) {
+          return NextResponse.json(
+            { error: "二级话题只能挂在一级话题下面" },
+            { status: 400 },
+          );
+        }
+        parentId = parent.id;
+      }
       const key = `z-${Date.now().toString(36)}`;
       const maxSort = await prisma.forumZone.aggregate({
-        where: { universityId: id },
+        where: { universityId: id, parentId },
         _max: { sortOrder: true },
       });
       await prisma.forumZone.create({
         data: {
           universityId: id,
+          parentId,
           key,
           name: body.addZone.name,
           sortOrder: (maxSort._max.sortOrder || 0) + 10,

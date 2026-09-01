@@ -36,6 +36,11 @@ import {
   canPostInForumSpace,
   isCampusForumSpace,
 } from "@andyyyds/forum/lib/forum-space";
+import {
+  findOpenForumZone,
+  forumPostZoneWhere,
+} from "@andyyyds/forum/lib/forum-zone-db";
+import { FORUM_ZONE_NAME_SELECT } from "@andyyyds/forum/lib/forum-zone";
 import { canManageForum } from "@andyyyds/shared/roles";
 
 const mediaSchema = z.object({
@@ -69,10 +74,11 @@ export async function GET(req: Request) {
   const session = await getSession();
   const isAdminUser = session ? canManageForum(session) : false;
 
+  const zoneFilter = zoneId ? await forumPostZoneWhere(zoneId) : {};
   const posts = await prisma.forumPost.findMany({
     where: {
       ...(universityId ? { universityId } : {}),
-      ...(zoneId ? { zoneId } : {}),
+      ...zoneFilter,
       ...(isAdminUser ? { status: { in: ["PUBLISHED", "HIDDEN"] } } : { status: "PUBLISHED" }),
       ...forumAudienceVisibleWhere({
         id: session?.id,
@@ -82,7 +88,7 @@ export async function GET(req: Request) {
     },
     include: {
       author: { select: { id: true, name: true, avatarUrl: true } },
-      zone: { select: { id: true, key: true, name: true } },
+      zone: { select: { id: true, key: true, ...FORUM_ZONE_NAME_SELECT } },
       university: { select: { id: true, name: true, slug: true } },
     },
     orderBy: { createdAt: "desc" },
@@ -119,13 +125,7 @@ export async function POST(req: Request) {
         { status: 403 },
       );
     }
-    const zone = await prisma.forumZone.findFirst({
-      where: {
-        id: body.zoneId,
-        universityId: body.universityId,
-        enabled: true,
-      },
-    });
+    const zone = await findOpenForumZone(body.universityId, body.zoneId);
     if (!zone) {
       return NextResponse.json({ error: "专区不存在或已关闭" }, { status: 400 });
     }
@@ -178,6 +178,7 @@ export async function POST(req: Request) {
         ? await resolveForumBroadcastTargets({
             extraUniversityIds: extraIds,
             sourceZoneKey: zone.key,
+            sourceParentKey: zone.parent?.key,
           })
         : { targets: [], skipped: [] };
     const mediaJson = serializeForumMedia(media);
@@ -209,7 +210,7 @@ export async function POST(req: Request) {
         },
         include: {
           author: { select: { id: true, name: true, avatarUrl: true } },
-          zone: { select: { id: true, key: true, name: true } },
+          zone: { select: { id: true, key: true, ...FORUM_ZONE_NAME_SELECT } },
           university: { select: { id: true, name: true, slug: true } },
         },
       });

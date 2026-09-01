@@ -11,11 +11,20 @@ import {
   type ForumMediaKind,
 } from "@andyyyds/forum/lib/forum";
 import {
+  forumZoneChildren,
+  forumZoneTops,
+} from "@andyyyds/forum/lib/forum-zone";
+import {
   classifyForumFile,
   uploadForumMediaFile,
 } from "@andyyyds/forum/lib/forum-browser-upload";
 
-type Zone = { id: string; name: string; enabled: boolean };
+type Zone = {
+  id: string;
+  name: string;
+  enabled: boolean;
+  parentId?: string | null;
+};
 
 type DraftMedia = {
   id: string;
@@ -65,11 +74,27 @@ export function ForumComposer({
 }: Props) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
-  const enabledZones = zones.filter((z) => z.enabled);
+  const keepZoneId = initial?.zoneId || defaultZoneId || "";
+  const keepZone = zones.find((zone) => zone.id === keepZoneId);
+  const selectableZones = zones.filter((zone) => {
+    if (zone.id === keepZoneId || zone.id === keepZone?.parentId) return true;
+    if (!zone.enabled) return false;
+    if (!zone.parentId) return true;
+    const parent = zones.find((item) => item.id === zone.parentId);
+    return Boolean(parent?.enabled);
+  });
+  const topZones = forumZoneTops(selectableZones);
+  const seedZone =
+    selectableZones.find((zone) => zone.id === keepZoneId) || topZones[0];
   const [draftId, setDraftId] = useState(initial?.id || "");
-  const [zoneId, setZoneId] = useState(
-    initial?.zoneId || defaultZoneId || enabledZones[0]?.id || "",
+  const [primaryZoneId, setPrimaryZoneId] = useState(
+    seedZone?.parentId || seedZone?.id || "",
   );
+  const [secondaryZoneId, setSecondaryZoneId] = useState(
+    seedZone?.parentId ? seedZone.id : "",
+  );
+  const childZones = forumZoneChildren(selectableZones, primaryZoneId);
+  const zoneId = secondaryZoneId || primaryZoneId;
   const [title, setTitle] = useState(initial?.title || "");
   const [body, setBody] = useState(initial?.body || "");
   const [place, setPlace] = useState(initial?.place || "");
@@ -253,20 +278,42 @@ export function ForumComposer({
       }}
     >
       <label className="block text-sm">
-        <span className="text-[var(--muted)]">专区</span>
+        <span className="text-[var(--muted)]">
+          {childZones.length > 0 ? "一级话题" : "话题专区"}
+        </span>
         <select
           className="mt-1 w-full min-h-11 rounded-2xl border border-[var(--line)] bg-transparent px-3"
-          value={zoneId}
-          onChange={(e) => setZoneId(e.target.value)}
+          value={primaryZoneId}
+          onChange={(e) => {
+            setPrimaryZoneId(e.target.value);
+            setSecondaryZoneId("");
+          }}
           required
         >
-          {enabledZones.map((zone) => (
+          {topZones.map((zone) => (
             <option key={zone.id} value={zone.id}>
               {zone.name}
             </option>
           ))}
         </select>
       </label>
+      {childZones.length > 0 ? (
+        <label className="block text-sm">
+          <span className="text-[var(--muted)]">二级话题</span>
+          <select
+            className="mt-1 w-full min-h-11 rounded-2xl border border-[var(--line)] bg-transparent px-3"
+            value={secondaryZoneId}
+            onChange={(e) => setSecondaryZoneId(e.target.value)}
+          >
+            <option value="">发在一级（不选二级）</option>
+            {childZones.map((zone) => (
+              <option key={zone.id} value={zone.id}>
+                {zone.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
       <label className="block text-sm">
         <span className="text-[var(--muted)]">标题</span>
         <input

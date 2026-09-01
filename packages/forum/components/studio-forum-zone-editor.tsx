@@ -1,12 +1,16 @@
 "use client";
 
 /**
- * 高校（及圈子/同城）话题栏：后台可改名、排序、显示、新增、删除。
+ * 话题专区后台：一级、二级都能改名、排序、显示、新增、删除。
  * 「推荐」是前台总览，不进这张表。
  */
 
 import { useMemo, useState } from "react";
 import { FORUM_ZONE_NAME_MAX } from "@andyyyds/forum/lib/forum";
+import {
+  forumZoneChildren,
+  forumZoneTops,
+} from "@andyyyds/forum/lib/forum-zone";
 
 export type StudioForumZoneRow = {
   id: string;
@@ -14,12 +18,13 @@ export type StudioForumZoneRow = {
   name: string;
   enabled: boolean;
   sortOrder: number;
+  parentId?: string | null;
 };
 
 type Props = {
   zones: StudioForumZoneRow[];
   disabled?: boolean;
-  onAdd: (name: string) => Promise<boolean>;
+  onAdd: (name: string, parentId?: string) => Promise<boolean>;
   onZonesChange: (zones: StudioForumZoneRow[]) => void;
 };
 
@@ -30,17 +35,12 @@ export function StudioForumZoneEditor({
   onZonesChange,
 }: Props) {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
-  const [newName, setNewName] = useState("");
+  const [newTopName, setNewTopName] = useState("");
+  const [newChildName, setNewChildName] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState("");
   const [note, setNote] = useState("");
 
-  const sorted = useMemo(
-    () =>
-      [...zones].sort(
-        (a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name),
-      ),
-    [zones],
-  );
+  const tops = useMemo(() => forumZoneTops(zones), [zones]);
 
   function nameOf(zone: StudioForumZoneRow) {
     return drafts[zone.id] ?? zone.name;
@@ -96,8 +96,11 @@ export function StudioForumZoneEditor({
   }
 
   async function move(zone: StudioForumZoneRow, direction: -1 | 1) {
-    const index = sorted.findIndex((item) => item.id === zone.id);
-    const swap = sorted[index + direction];
+    const siblings = zone.parentId
+      ? forumZoneChildren(zones, zone.parentId)
+      : tops;
+    const index = siblings.findIndex((item) => item.id === zone.id);
+    const swap = siblings[index + direction];
     if (!swap) return;
     setBusyId(zone.id);
     setNote("");
@@ -131,12 +134,15 @@ export function StudioForumZoneEditor({
   }
 
   async function remove(zone: StudioForumZoneRow) {
-    if (sorted.length <= 1) {
-      setNote("至少保留一个话题。");
+    const isTop = !zone.parentId;
+    if (isTop && tops.length <= 1) {
+      setNote("至少保留一个一级话题。");
       return;
     }
     const ok = window.confirm(
-      `删除话题「${zone.name}」？该话题下的帖会转到其他话题，前台话题栏不再显示这一项。`,
+      isTop
+        ? `删除一级话题「${zone.name}」？它下面的二级话题会一并删除，帖会转到其他一级话题。`
+        : `删除二级话题「${zone.name}」？该话题下的帖会转到一级话题。`,
     );
     if (!ok) return;
     setBusyId(zone.id);
@@ -150,90 +156,133 @@ export function StudioForumZoneEditor({
         setNote(data.error || "删除失败");
         return;
       }
-      onZonesChange(zones.filter((item) => item.id !== zone.id));
+      onZonesChange(
+        zones.filter((item) => item.id !== zone.id && item.parentId !== zone.id),
+      );
       setNote(`已删除「${zone.name}」。`);
     } finally {
       setBusyId("");
     }
   }
 
-  async function addTopic() {
-    const name = newName.trim();
+  async function addTop() {
+    const name = newTopName.trim();
     if (!name) return;
     const ok = await onAdd(name);
-    if (ok) setNewName("");
+    if (ok) setNewTopName("");
   }
+
+  async function addChild(parentId: string) {
+    const name = (newChildName[parentId] || "").trim();
+    if (!name) return;
+    const ok = await onAdd(name, parentId);
+    if (ok) {
+      setNewChildName((prev) => ({ ...prev, [parentId]: "" }));
+    }
+  }
+
+  const rowBusy = disabled || Boolean(busyId);
 
   return (
     <section className="space-y-3">
       <div>
-        <h4 className="text-sm font-semibold">话题栏</h4>
+        <h4 className="text-sm font-semibold">话题专区</h4>
         <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
-          这里改的是学校页「推荐」右边那一排话题。可改名、换顺序、隐藏、新增和删除。推荐是总览全部帖，不在这张表里。
+          一级出现在学校页「推荐」右边那一排。每个一级下面可以再加二级。两级都能改名、换顺序、隐藏、新增和删除。推荐是总览全部帖，不在这张表里。
         </p>
       </div>
       <ul className="space-y-3">
-        {sorted.map((zone, index) => {
-          const rowBusy = disabled || Boolean(busyId);
+        {tops.map((zone, index) => {
+          const children = forumZoneChildren(zones, zone.id);
           const dirty = nameOf(zone).trim() !== zone.name;
           return (
             <li
               key={zone.id}
-              className="rounded-[20px] border border-[var(--line)] p-3"
+              className="space-y-3 rounded-[20px] border border-[var(--line)] p-3"
             >
-              <label className="block text-sm">
-                <span className="text-[var(--muted)]">话题名称</span>
-                <input
-                  className="mt-1 w-full min-h-11 rounded-2xl border border-[var(--line)] bg-transparent px-3"
-                  value={nameOf(zone)}
-                  maxLength={FORUM_ZONE_NAME_MAX}
-                  disabled={rowBusy}
-                  onChange={(e) =>
-                    setDrafts((prev) => ({ ...prev, [zone.id]: e.target.value }))
-                  }
-                />
-              </label>
-              <div className="mt-2 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  className="btn btn-primary min-h-11 px-4 text-sm"
-                  disabled={rowBusy || !dirty || !nameOf(zone).trim()}
-                  onClick={() => void saveName(zone)}
-                >
-                  保存名称
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-secondary min-h-11 px-4 text-sm"
-                  disabled={rowBusy}
-                  onClick={() => void toggleEnabled(zone)}
-                >
-                  {zone.enabled ? "在话题栏隐藏" : "在话题栏显示"}
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-secondary min-h-11 px-4 text-sm"
-                  disabled={rowBusy || index === 0}
-                  onClick={() => void move(zone, -1)}
-                >
-                  上移
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-secondary min-h-11 px-4 text-sm"
-                  disabled={rowBusy || index === sorted.length - 1}
-                  onClick={() => void move(zone, 1)}
-                >
-                  下移
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-secondary min-h-11 px-4 text-sm"
-                  disabled={rowBusy || sorted.length <= 1}
-                  onClick={() => void remove(zone)}
-                >
-                  删除
-                </button>
+              <ZoneFields
+                label="一级话题"
+                zone={zone}
+                draftName={nameOf(zone)}
+                dirty={dirty}
+                busy={rowBusy}
+                canMoveUp={index > 0}
+                canMoveDown={index < tops.length - 1}
+                canDelete={tops.length > 1}
+                onDraftChange={(value) =>
+                  setDrafts((prev) => ({ ...prev, [zone.id]: value }))
+                }
+                onSave={() => void saveName(zone)}
+                onToggle={() => void toggleEnabled(zone)}
+                onMoveUp={() => void move(zone, -1)}
+                onMoveDown={() => void move(zone, 1)}
+                onDelete={() => void remove(zone)}
+              />
+              <div className="space-y-2 rounded-2xl bg-[var(--line)]/25 p-3">
+                <p className="text-sm font-medium">二级话题</p>
+                {children.length === 0 ? (
+                  <p className="text-sm text-[var(--muted)]">
+                    还没有二级。不加也可以，发帖会直接落在这一级。
+                  </p>
+                ) : (
+                  <ul className="space-y-2">
+                    {children.map((child, childIndex) => {
+                      const childDirty = nameOf(child).trim() !== child.name;
+                      return (
+                        <li
+                          key={child.id}
+                          className="rounded-2xl border border-[var(--line)] bg-[var(--bg)] p-3"
+                        >
+                          <ZoneFields
+                            label="二级话题"
+                            zone={child}
+                            draftName={nameOf(child)}
+                            dirty={childDirty}
+                            busy={rowBusy}
+                            canMoveUp={childIndex > 0}
+                            canMoveDown={childIndex < children.length - 1}
+                            canDelete
+                            onDraftChange={(value) =>
+                              setDrafts((prev) => ({ ...prev, [child.id]: value }))
+                            }
+                            onSave={() => void saveName(child)}
+                            onToggle={() => void toggleEnabled(child)}
+                            onMoveUp={() => void move(child, -1)}
+                            onMoveDown={() => void move(child, 1)}
+                            onDelete={() => void remove(child)}
+                          />
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <input
+                    className="min-h-11 flex-1 rounded-2xl border border-[var(--line)] bg-transparent px-3"
+                    value={newChildName[zone.id] || ""}
+                    onChange={(e) =>
+                      setNewChildName((prev) => ({
+                        ...prev,
+                        [zone.id]: e.target.value,
+                      }))
+                    }
+                    maxLength={FORUM_ZONE_NAME_MAX}
+                    disabled={disabled}
+                    placeholder="新二级名称，如 食堂"
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-secondary min-h-11 px-4"
+                    disabled={
+                      disabled ||
+                      !(newChildName[zone.id] || "").trim() ||
+                      Boolean(busyId)
+                    }
+                    onClick={() => void addChild(zone.id)}
+                  >
+                    添加二级
+                  </button>
+                </div>
               </div>
             </li>
           );
@@ -242,22 +291,111 @@ export function StudioForumZoneEditor({
       <div className="flex flex-col gap-2 sm:flex-row">
         <input
           className="min-h-11 flex-1 rounded-2xl border border-[var(--line)] bg-transparent px-3"
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
+          value={newTopName}
+          onChange={(e) => setNewTopName(e.target.value)}
           maxLength={FORUM_ZONE_NAME_MAX}
           disabled={disabled}
-          placeholder="新话题名称，如 实习招聘"
+          placeholder="新一级名称，如 实习招聘"
         />
         <button
           type="button"
           className="btn btn-primary min-h-11 px-4"
-          disabled={disabled || !newName.trim() || Boolean(busyId)}
-          onClick={() => void addTopic()}
+          disabled={disabled || !newTopName.trim() || Boolean(busyId)}
+          onClick={() => void addTop()}
         >
-          添加话题
+          添加一级
         </button>
       </div>
       {note ? <p className="text-sm text-[var(--brand)]">{note}</p> : null}
     </section>
+  );
+}
+
+function ZoneFields({
+  label,
+  zone,
+  draftName,
+  dirty,
+  busy,
+  canMoveUp,
+  canMoveDown,
+  canDelete,
+  onDraftChange,
+  onSave,
+  onToggle,
+  onMoveUp,
+  onMoveDown,
+  onDelete,
+}: {
+  label: string;
+  zone: StudioForumZoneRow;
+  draftName: string;
+  dirty: boolean;
+  busy: boolean;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
+  canDelete: boolean;
+  onDraftChange: (value: string) => void;
+  onSave: () => void;
+  onToggle: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div>
+      <label className="block text-sm">
+        <span className="text-[var(--muted)]">{label}</span>
+        <input
+          className="mt-1 w-full min-h-11 rounded-2xl border border-[var(--line)] bg-transparent px-3"
+          value={draftName}
+          maxLength={FORUM_ZONE_NAME_MAX}
+          disabled={busy}
+          onChange={(e) => onDraftChange(e.target.value)}
+        />
+      </label>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <button
+          type="button"
+          className="btn btn-primary min-h-11 px-4 text-sm"
+          disabled={busy || !dirty || !draftName.trim()}
+          onClick={onSave}
+        >
+          保存名称
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary min-h-11 px-4 text-sm"
+          disabled={busy}
+          onClick={onToggle}
+        >
+          {zone.enabled ? "隐藏" : "显示"}
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary min-h-11 px-4 text-sm"
+          disabled={busy || !canMoveUp}
+          onClick={onMoveUp}
+        >
+          上移
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary min-h-11 px-4 text-sm"
+          disabled={busy || !canMoveDown}
+          onClick={onMoveDown}
+        >
+          下移
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary min-h-11 px-4 text-sm"
+          disabled={busy || !canDelete}
+          onClick={onDelete}
+        >
+          删除
+        </button>
+      </div>
+    </div>
   );
 }

@@ -34,6 +34,8 @@ import {
 } from "@andyyyds/forum/lib/forum-broadcast";
 import { getForumSiteConfig } from "@andyyyds/forum/lib/forum-settings";
 import { isCampusForumSpace } from "@andyyyds/forum/lib/forum-space";
+import { findOpenForumZone } from "@andyyyds/forum/lib/forum-zone-db";
+import { FORUM_ZONE_NAME_SELECT } from "@andyyyds/forum/lib/forum-zone";
 import { canManageForum } from "@andyyyds/shared/roles";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -61,7 +63,7 @@ async function loadPost(id: string) {
     where: { id },
     include: {
       author: { select: { id: true, name: true, avatarUrl: true } },
-      zone: { select: { id: true, key: true, name: true } },
+      zone: { select: { id: true, key: true, ...FORUM_ZONE_NAME_SELECT } },
       university: { select: { id: true, name: true, slug: true, enabled: true } },
       comments: {
         include: { author: { select: { id: true, name: true, avatarUrl: true } } },
@@ -173,13 +175,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
       longitude = coords.longitude;
     }
     if (body.zoneId) {
-      const zone = await prisma.forumZone.findFirst({
-        where: {
-          id: body.zoneId,
-          universityId: post.universityId,
-          enabled: true,
-        },
-      });
+      const zone = await findOpenForumZone(post.universityId, body.zoneId);
       if (!zone) {
         return NextResponse.json({ error: "专区不存在或已关闭" }, { status: 400 });
       }
@@ -235,12 +231,13 @@ export async function PATCH(req: Request, ctx: Ctx) {
           id: body.zoneId || post.zoneId,
           universityId: post.universityId,
         },
-        select: { key: true },
+        select: { key: true, parent: { select: { key: true } } },
       });
       if (zone) {
         broadcast = await resolveForumBroadcastTargets({
           extraUniversityIds: extraIds,
           sourceZoneKey: zone.key,
+          sourceParentKey: zone.parent?.key,
         });
       }
     }
@@ -260,7 +257,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
         },
         include: {
           author: { select: { id: true, name: true, avatarUrl: true } },
-          zone: { select: { id: true, key: true, name: true } },
+          zone: { select: { id: true, key: true, ...FORUM_ZONE_NAME_SELECT } },
           university: { select: { id: true, name: true, slug: true } },
         },
       });

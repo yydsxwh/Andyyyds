@@ -38,6 +38,7 @@ export function uniqueForumUniversityIds(
 export async function resolveForumBroadcastTargets(args: {
   extraUniversityIds: string[];
   sourceZoneKey: string;
+  sourceParentKey?: string;
 }): Promise<{
   targets: ForumBroadcastCampus[];
   skipped: ForumBroadcastSkip[];
@@ -55,7 +56,7 @@ export async function resolveForumBroadcastTargets(args: {
       zones: {
         where: { enabled: true },
         orderBy: { sortOrder: "asc" },
-        select: { id: true, key: true },
+        select: { id: true, key: true, parentId: true },
       },
     },
   });
@@ -74,7 +75,12 @@ export async function resolveForumBroadcastTargets(args: {
       continue;
     }
     const zone =
-      uni.zones.find((item) => item.key === args.sourceZoneKey) || uni.zones[0];
+      uni.zones.find((item) => item.key === args.sourceZoneKey) ||
+      (args.sourceParentKey
+        ? uni.zones.find((item) => item.key === args.sourceParentKey)
+        : undefined) ||
+      uni.zones.find((item) => !item.parentId) ||
+      uni.zones[0];
     if (!zone) {
       skipped.push({
         universityId: id,

@@ -17,6 +17,13 @@ import {
   parseForumSpaceKind,
 } from "@andyyyds/forum/lib/forum-space";
 import { forumAudienceVisibleWhere } from "@andyyyds/forum/lib/forum-school";
+import {
+  findPublicForumZone,
+  forumZoneChildren,
+  forumZonePostIdFilter,
+  forumZoneTopOf,
+  forumZoneTops,
+} from "@andyyyds/forum/lib/forum-zone";
 import { signForumMedia } from "@andyyyds/forum/lib/forum-media";
 import { getForumSiteConfig, getPublicForumNotice } from "@andyyyds/forum/lib/forum-settings";
 import { canManageForum } from "@andyyyds/shared/roles";
@@ -85,15 +92,18 @@ export default async function ForumUniversityPage({
       : [];
   const zoneKey = query.zone?.trim() || "";
   const keyword = query.q?.trim().slice(0, 40) || "";
-  const activeZone = university.zones.find(
-    (z) => z.enabled && (z.key === zoneKey || z.id === zoneKey),
-  );
+  const activeZone = findPublicForumZone(university.zones, zoneKey);
+  const activeTop = forumZoneTopOf(university.zones, activeZone);
+  const secondaryZones = activeTop
+    ? forumZoneChildren(university.zones, activeTop.id).filter((zone) => zone.enabled)
+    : [];
+  const topZones = forumZoneTops(university.zones).filter((zone) => zone.enabled);
 
   const posts = await prisma.forumPost.findMany({
     where: {
       universityId: university.id,
       status: "PUBLISHED",
-      ...(activeZone ? { zoneId: activeZone.id } : {}),
+      ...(activeZone ? forumZonePostIdFilter(university.zones, activeZone) : {}),
       AND: [
         forumAudienceVisibleWhere({
           id: session?.id,
@@ -113,7 +123,7 @@ export default async function ForumUniversityPage({
     },
     include: {
       author: { select: { name: true, avatarUrl: true } },
-      zone: { select: { name: true } },
+      zone: { select: { name: true, parent: { select: { name: true } } } },
       university: { select: { slug: true } },
     },
     orderBy: { createdAt: "desc" },
@@ -229,9 +239,23 @@ export default async function ForumUniversityPage({
             active={!activeZone}
             label="推荐"
           />
-          {university.zones
-            .filter((z) => z.enabled)
-            .map((zone) => (
+          {topZones.map((zone) => (
+            <ZoneTab
+              key={zone.id}
+              href={campusHref(path, zone.key, keyword)}
+              active={activeTop?.id === zone.id}
+              label={zone.name}
+            />
+          ))}
+        </nav>
+        {activeTop && secondaryZones.length > 0 ? (
+          <nav className="-mx-1 flex gap-1 overflow-x-auto px-1">
+            <ZoneTab
+              href={campusHref(path, activeTop.key, keyword)}
+              active={!activeZone?.parentId}
+              label="全部"
+            />
+            {secondaryZones.map((zone) => (
               <ZoneTab
                 key={zone.id}
                 href={campusHref(path, zone.key, keyword)}
@@ -239,7 +263,8 @@ export default async function ForumUniversityPage({
                 label={zone.name}
               />
             ))}
-        </nav>
+          </nav>
+        ) : null}
 
         {posts.length === 0 ? (
           <p className="rounded-[24px] border border-dashed border-[var(--line)] px-5 py-16 text-center text-sm text-[var(--muted)]">

@@ -916,11 +916,15 @@ model ForumUniversity {
   @@index([enabled, sortOrder])
 }
 
-/// 分区内的专区（日常话题、圈子讨论、同城活动等）；创建分区时写入默认专区
+/// 分区内的话题专区。parentId 空=一级；有值=挂在该一级下的二级。最多两级。
 model ForumZone {
   id           String           @id @default(cuid())
   universityId String
   university   ForumUniversity  @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  /// 空 = 一级话题；有值必须指向同分区的一级话题
+  parentId     String?
+  parent       ForumZone?       @relation("ForumZoneTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children     ForumZone[]      @relation("ForumZoneTree")
   key          String
   name         String
   sortOrder    Int              @default(0)
@@ -931,6 +935,7 @@ model ForumZone {
 
   @@unique([universityId, key])
   @@index([universityId, sortOrder])
+  @@index([parentId, sortOrder])
 }
 
 /// 高校分区里的帖子（图文/视频合一，不再区分笔记）

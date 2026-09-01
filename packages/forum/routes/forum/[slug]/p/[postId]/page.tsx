@@ -25,6 +25,7 @@ import { signForumMedia } from "@andyyyds/forum/lib/forum-media";
 import { getForumSiteConfig, getPublicForumNotice } from "@andyyyds/forum/lib/forum-settings";
 import { getHideSocialChatFlag } from "@andyyyds/shared/site-settings";
 import { canManageForum } from "@andyyyds/shared/roles";
+import { forumZoneDisplayName } from "@andyyyds/forum/lib/forum-zone";
 import { getPublicSiteUrl } from "@andyyyds/shared/payments";
 import { resolveStoredAccessUrl } from "@andyyyds/shared/storage";
 
@@ -106,7 +107,7 @@ export default async function ForumPostPage({
     where: { id: postId },
     include: {
       author: { select: { id: true, name: true, avatarUrl: true } },
-      zone: { select: { name: true, key: true } },
+      zone: { select: { name: true, key: true, parent: { select: { name: true } } } },
       university: { select: { id: true, name: true, slug: true, enabled: true } },
       comments: {
         include: {
@@ -215,7 +216,7 @@ export default async function ForumPostPage({
           />
           <span>{post.author.name}</span>
           <span>·</span>
-          <span>{post.zone.name}</span>
+          <span>{forumZoneDisplayName(post.zone)}</span>
           <span className="ml-auto">{formatForumTime(post.createdAt)}</span>
         </div>
         <h1 className="text-2xl font-semibold sm:text-3xl">

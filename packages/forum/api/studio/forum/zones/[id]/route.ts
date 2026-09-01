@@ -1,6 +1,6 @@
 /**
  * PATCH /api/studio/forum/zones/[id] — 改话题名/排序/是否出现在话题栏
- * DELETE 删除话题。仍有帖时把帖挪到同校其他话题后再删，避免话题栏删不掉。
+ * DELETE 删除一级或二级话题。仍有帖时把帖挪到同分区其他话题后再删。
  */
 
 import { NextResponse } from "next/server";
@@ -17,6 +17,35 @@ const patchSchema = z.object({
   sortOrder: z.number().int().optional(),
 });
 
+async function pickFallbackZone(args: {
+  universityId: string;
+  excludeIds: string[];
+  preferId?: string | null;
+}) {
+  if (args.preferId && !args.excludeIds.includes(args.preferId)) {
+    const preferred = await prisma.forumZone.findFirst({
+      where: { id: args.preferId, universityId: args.universityId },
+    });
+    if (preferred) return preferred;
+  }
+  const top = await prisma.forumZone.findFirst({
+    where: {
+      universityId: args.universityId,
+      parentId: null,
+      NOT: { id: { in: args.excludeIds } },
+    },
+    orderBy: [{ enabled: "desc" }, { sortOrder: "asc" }],
+  });
+  if (top) return top;
+  return prisma.forumZone.findFirst({
+    where: {
+      universityId: args.universityId,
+      NOT: { id: { in: args.excludeIds } },
+    },
+    orderBy: [{ enabled: "desc" }, { sortOrder: "asc" }],
+  });
+}
+
 export async function PATCH(req: Request, ctx: Ctx) {
   try {
     await requireAdmin();
@@ -26,17 +55,19 @@ export async function PATCH(req: Request, ctx: Ctx) {
     if (!current) {
       return NextResponse.json({ error: "话题不存在" }, { status: 404 });
     }
-    if (body.enabled === false) {
-      const otherEnabled = await prisma.forumZone.count({
+    // 一级藏起来后，它下面的二级也不会出现在前台，所以至少留一个开着的一级
+    if (body.enabled === false && !current.parentId) {
+      const otherEnabledTops = await prisma.forumZone.count({
         where: {
           universityId: current.universityId,
+          parentId: null,
           enabled: true,
           NOT: { id },
         },
       });
-      if (otherEnabled === 0) {
+      if (otherEnabledTops === 0) {
         return NextResponse.json(
-          { error: "至少保留一个显示在话题栏里的话题" },
+          { error: "至少保留一个显示在话题栏里的一级话题" },
           { status: 400 },
         );
       }
@@ -58,40 +89,59 @@ export async function DELETE(_req: Request, ctx: Ctx) {
     const { id } = await ctx.params;
     const zone = await prisma.forumZone.findUnique({
       where: { id },
-      include: { _count: { select: { posts: true } } },
+      include: {
+        children: { select: { id: true } },
+      },
     });
     if (!zone) {
       return NextResponse.json({ error: "话题不存在" }, { status: 404 });
     }
-    const siblingCount = await prisma.forumZone.count({
-      where: { universityId: zone.universityId, NOT: { id } },
-    });
-    if (siblingCount === 0) {
-      return NextResponse.json(
-        { error: "至少保留一个话题，否则没法发帖" },
-        { status: 400 },
-      );
-    }
-    if (zone._count.posts > 0) {
-      const fallback = await prisma.forumZone.findFirst({
+    const childIds = zone.children.map((child) => child.id);
+    const removeIds = [zone.id, ...childIds];
+
+    if (!zone.parentId) {
+      const otherTops = await prisma.forumZone.count({
         where: {
           universityId: zone.universityId,
+          parentId: null,
           NOT: { id },
         },
-        orderBy: [{ enabled: "desc" }, { sortOrder: "asc" }],
       });
-      if (!fallback) {
+      if (otherTops === 0) {
         return NextResponse.json(
-          { error: "没有可接收旧帖的其他话题" },
+          { error: "至少保留一个一级话题，否则没法发帖" },
           { status: 400 },
         );
       }
-      await prisma.forumPost.updateMany({
-        where: { zoneId: id },
-        data: { zoneId: fallback.id },
-      });
     }
-    await prisma.forumZone.delete({ where: { id } });
+
+    const fallback = await pickFallbackZone({
+      universityId: zone.universityId,
+      excludeIds: removeIds,
+      preferId: zone.parentId,
+    });
+    const postCount = await prisma.forumPost.count({
+      where: { zoneId: { in: removeIds } },
+    });
+    if (postCount > 0 && !fallback) {
+      return NextResponse.json(
+        { error: "没有可接收旧帖的其他话题" },
+        { status: 400 },
+      );
+    }
+
+    await prisma.$transaction(async (tx) => {
+      if (postCount > 0 && fallback) {
+        await tx.forumPost.updateMany({
+          where: { zoneId: { in: removeIds } },
+          data: { zoneId: fallback.id },
+        });
+      }
+      if (childIds.length > 0) {
+        await tx.forumZone.deleteMany({ where: { id: { in: childIds } } });
+      }
+      await tx.forumZone.delete({ where: { id } });
+    });
     return NextResponse.json({ ok: true });
   } catch (error) {
     const mapped = studioErrorResponse(error);
