@@ -7,6 +7,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { StudioForumUniversityBoard } from "@andyyyds/forum/components/studio-forum-university-board";
+import { StudioForumZoneEditor } from "@andyyyds/forum/components/studio-forum-zone-editor";
 import {
   guessForumUniversityRegion,
   type ForumUniversityRegion,
@@ -363,30 +364,13 @@ export function StudioForumPanel({ initialUniversities }: Props) {
               uni={uni}
               busy={busy === uni.id}
               onPatch={patchUniversity}
-              onToggleZone={async (zoneId, enabled) => {
-                const res = await fetch(`/api/studio/forum/zones/${zoneId}`, {
-                  method: "PATCH",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ enabled }),
-                });
-                const data = await res.json();
-                if (!res.ok) {
-                  setMessage(data.error || "专区更新失败");
-                  return;
-                }
+              onZonesChange={(zones) =>
                 setRows((prev) =>
                   prev.map((row) =>
-                    row.id !== uni.id
-                      ? row
-                      : {
-                          ...row,
-                          zones: row.zones.map((z) =>
-                            z.id === zoneId ? { ...z, enabled } : z,
-                          ),
-                        },
+                    row.id === uni.id ? { ...row, zones } : row,
                   ),
-                );
-              }}
+                )
+              }
             />
           )}
         </StudioForumUniversityBoard>
@@ -439,33 +423,13 @@ export function StudioForumPanel({ initialUniversities }: Props) {
                     uni={uni}
                     busy={busy === uni.id}
                     onPatch={patchUniversity}
-                    onToggleZone={async (zoneId, enabled) => {
-                      const res = await fetch(
-                        `/api/studio/forum/zones/${zoneId}`,
-                        {
-                          method: "PATCH",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ enabled }),
-                        },
-                      );
-                      const data = await res.json();
-                      if (!res.ok) {
-                        setMessage(data.error || "专区更新失败");
-                        return;
-                      }
+                    onZonesChange={(zones) =>
                       setRows((prev) =>
                         prev.map((row) =>
-                          row.id !== uni.id
-                            ? row
-                            : {
-                                ...row,
-                                zones: row.zones.map((z) =>
-                                  z.id === zoneId ? { ...z, enabled } : z,
-                                ),
-                              },
+                          row.id === uni.id ? { ...row, zones } : row,
                         ),
-                      );
-                    }}
+                      )
+                    }
                   />
                 ) : null}
               </div>
@@ -480,12 +444,12 @@ function UniversityEditor({
   uni,
   busy,
   onPatch,
-  onToggleZone,
+  onZonesChange,
 }: {
   uni: StudioForumUniversity;
   busy: boolean;
   onPatch: (id: string, payload: Record<string, unknown>) => Promise<boolean>;
-  onToggleZone: (zoneId: string, enabled: boolean) => Promise<void>;
+  onZonesChange: (zones: StudioForumZone[]) => void;
 }) {
   const [slogan, setSlogan] = useState(uni.slogan);
   const [description, setDescription] = useState(uni.description);
@@ -493,7 +457,6 @@ function UniversityEditor({
   const [adAlt, setAdAlt] = useState(uni.adAlt);
   const [adImageUrl, setAdImageUrl] = useState(uni.adImageUrl);
   const [emailDomains, setEmailDomains] = useState(uni.emailDomains);
-  const [zoneName, setZoneName] = useState("");
   const [profileMessage, setProfileMessage] = useState("");
   const [adMessage, setAdMessage] = useState("");
   const [adUploading, setAdUploading] = useState(false);
@@ -648,45 +611,12 @@ function UniversityEditor({
         </button>
       </section>
 
-      <div>
-        <p className="text-sm font-medium">专区</p>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {uni.zones.map((zone) => (
-            <button
-              key={zone.id}
-              type="button"
-              className={`min-h-11 rounded-full px-3 text-sm ${
-                zone.enabled
-                  ? "bg-[var(--brand)]/10 text-[var(--brand)]"
-                  : "bg-[var(--line)] text-[var(--muted)] line-through"
-              }`}
-              onClick={() => void onToggleZone(zone.id, !zone.enabled)}
-            >
-              {zone.name}
-            </button>
-          ))}
-        </div>
-        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-          <input
-            className="min-h-11 flex-1 rounded-2xl border border-[var(--line)] bg-transparent px-3"
-            value={zoneName}
-            onChange={(e) => setZoneName(e.target.value)}
-            maxLength={20}
-            placeholder="新专区名称"
-          />
-          <button
-            type="button"
-            className="btn btn-secondary min-h-11 px-4"
-            disabled={busy || !zoneName.trim()}
-            onClick={() => {
-              void onPatch(uni.id, { addZone: { name: zoneName.trim() } });
-              setZoneName("");
-            }}
-          >
-            添加专区
-          </button>
-        </div>
-      </div>
+      <StudioForumZoneEditor
+        zones={uni.zones}
+        disabled={busy}
+        onZonesChange={onZonesChange}
+        onAdd={async (name) => onPatch(uni.id, { addZone: { name } })}
+      />
     </div>
   );
 }
