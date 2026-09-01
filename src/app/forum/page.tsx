@@ -8,7 +8,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const title = await getPortalNavPageTitle("forum", "论坛");
   return {
     title,
-    description: "大学论坛、兴趣圈子与本地同城，按分区交流",
+    description: "大学论坛、兴趣圈子、本地同城与单位机构，按分区交流",
   };
 }
 

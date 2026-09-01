@@ -16,7 +16,10 @@ import {
   FORUM_NAME_MAX,
   FORUM_SLOGAN_MAX,
 } from "@andyyyds/forum/lib/forum";
-import { parseForumSpaceKind } from "@andyyyds/forum/lib/forum-space";
+import {
+  forumSpaceStudioCopy,
+  parseForumSpaceKind,
+} from "@andyyyds/forum/lib/forum-space";
 
 async function uploadImage(file: File): Promise<string> {
   const form = new FormData();
@@ -41,6 +44,7 @@ export function StudioForumSpaceEditor({
   onZonesChange,
 }: Props) {
   const campus = parseForumSpaceKind(uni.kind) === "UNIVERSITY";
+  const nameLabel = forumSpaceStudioCopy(parseForumSpaceKind(uni.kind)).nameLabel;
   const [name, setName] = useState(uni.name);
   const [slug, setSlug] = useState(uni.slug);
   const [slogan, setSlogan] = useState(uni.slogan);
@@ -95,7 +99,7 @@ export function StudioForumSpaceEditor({
         <h2 className="text-lg font-semibold">分区资料</h2>
         <label className="block text-sm">
           <span className="text-[var(--muted)]">
-            {campus ? "学校名称" : "分区名称"}
+            {nameLabel}
           </span>
           <input
             className="mt-1 w-full min-h-11 rounded-2xl border border-[var(--line)] bg-transparent px-3"

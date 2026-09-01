@@ -39,7 +39,7 @@ const createSchema = z.object({
   emailDomains: z.string().trim().max(200).optional(),
   enabled: z.boolean().optional(),
   region: z.enum(["CHINA", "INTERNATIONAL"]).optional(),
-  kind: z.enum(["UNIVERSITY", "CIRCLE", "CITY"]).optional(),
+  kind: z.enum(["UNIVERSITY", "CIRCLE", "CITY", "ORG"]).optional(),
 });
 
 export async function GET() {

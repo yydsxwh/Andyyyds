@@ -1,16 +1,15 @@
 import Link from "next/link";
 import {
   FORUM_SPACE_KIND_LABEL,
+  FORUM_SPACE_KINDS,
   FORUM_SPACE_LIST_PATH,
   type ForumSpaceKind,
 } from "@andyyyds/forum/lib/forum-space";
 
-const SECTIONS: ForumSpaceKind[] = ["UNIVERSITY", "CIRCLE", "CITY"];
-
 export function ForumSectionNav({ current }: { current: ForumSpaceKind }) {
   return (
     <nav className="-mx-1 flex gap-2 overflow-x-auto px-1" aria-label="论坛分区">
-      {SECTIONS.map((kind) => {
+      {FORUM_SPACE_KINDS.map((kind) => {
         const active = kind === current;
         return (
           <Link

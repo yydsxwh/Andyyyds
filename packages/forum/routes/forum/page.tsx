@@ -7,21 +7,20 @@ import { prisma } from "@andyyyds/shared/db";
 import { canManageForum } from "@andyyyds/shared/roles";
 import { getPublicForumNotice } from "@andyyyds/forum/lib/forum-settings";
 import {
+  FORUM_SPACE_HUB_HEADLINE,
   FORUM_SPACE_KIND_HINT,
   FORUM_SPACE_KIND_LABEL,
+  FORUM_SPACE_KINDS,
   FORUM_SPACE_LIST_PATH,
   ensureStarterForumSpaces,
-  type ForumSpaceKind,
 } from "@andyyyds/forum/lib/forum-space";
 
 export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "论坛",
-  description: "大学论坛、兴趣圈子与本地同城，按分区交流",
+  description: "大学论坛、兴趣圈子、本地同城与单位机构，按分区交流",
 };
-
-const HUB_SECTIONS: ForumSpaceKind[] = ["UNIVERSITY", "CIRCLE", "CITY"];
 
 export default async function ForumHomePage() {
   const session = await getSession();
@@ -29,10 +28,11 @@ export default async function ForumHomePage() {
   await Promise.all([
     ensureStarterForumSpaces("CIRCLE"),
     ensureStarterForumSpaces("CITY"),
+    ensureStarterForumSpaces("ORG"),
   ]);
 
   const groups = await Promise.all(
-    HUB_SECTIONS.map(async (kind) => {
+    FORUM_SPACE_KINDS.map(async (kind) => {
       const [spaces, posts] = await Promise.all([
         prisma.forumUniversity.count({ where: { enabled: true, kind } }),
         prisma.forumPost.count({
@@ -57,7 +57,7 @@ export default async function ForumHomePage() {
             选一个分区进去聊
           </h1>
           <p className="max-w-2xl text-sm leading-7 text-[var(--muted)]">
-            大学论坛、兴趣圈子、本地同城都是论坛下的分区。高校要实名认证后发帖；圈子和同城登录就能发。全站同一账号，不用另开论坛号。
+            大学论坛、兴趣圈子、本地同城、单位机构都是论坛下的分区。高校要实名认证后发帖；圈子、同城和单位登录就能发。全站同一账号，不用另开论坛号。
           </p>
           <ForumAccountBar
             loggedIn={Boolean(session)}
@@ -91,7 +91,7 @@ export default async function ForumHomePage() {
           </div>
         </header>
 
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {groups.map((group) => (
             <Link
               key={group.kind}
@@ -102,11 +102,7 @@ export default async function ForumHomePage() {
                 {FORUM_SPACE_KIND_LABEL[group.kind]}
               </p>
               <h2 className="mt-2 text-xl font-semibold">
-                {group.kind === "UNIVERSITY"
-                  ? "按学校找同学"
-                  : group.kind === "CIRCLE"
-                    ? "按兴趣找同好"
-                    : "按城市找附近"}
+                {FORUM_SPACE_HUB_HEADLINE[group.kind]}
               </h2>
               <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
                 {FORUM_SPACE_KIND_HINT[group.kind]}

@@ -11,6 +11,8 @@ import { prisma } from "@andyyyds/shared/db";
 import { forumMemberMay, parseForumMedia } from "@andyyyds/forum/lib/forum";
 import {
   canPostInForumSpace,
+  FORUM_SPACE_FALLBACK_SLOGAN,
+  FORUM_SPACE_LIST_BACK,
   forumSpaceEmptyHint,
   forumSpaceListPath,
   isCampusForumSpace,
@@ -168,7 +170,7 @@ export default async function ForumUniversityPage({
               href={forumSpaceListPath(spaceKind)}
               className="text-sm text-[var(--brand)]"
             >
-              ← {campusSpace ? "全部高校" : spaceKind === "CIRCLE" ? "全部圈子" : "全部同城"}
+              ← {FORUM_SPACE_LIST_BACK[spaceKind]}
             </Link>
             <h1 className="mt-1 text-2xl font-semibold sm:text-3xl">
               {university.name}
@@ -176,11 +178,7 @@ export default async function ForumUniversityPage({
             <p className="mt-1 max-w-xl truncate text-sm text-[var(--muted)]">
               {university.slogan ||
                 university.description ||
-                (campusSpace
-                  ? "本校同学的交流专区"
-                  : spaceKind === "CIRCLE"
-                    ? "兴趣同好的交流圈子"
-                    : "同城邻居的交流专区")}
+                FORUM_SPACE_FALLBACK_SLOGAN[spaceKind]}
             </p>
             <div className="mt-2 max-w-xl">
               <ForumAccountBar

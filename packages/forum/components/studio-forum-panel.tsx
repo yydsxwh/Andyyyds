@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * 站长论坛：大学 / 兴趣圈子 / 本地同城分区、广告栏、专区。
+ * 站长论坛：大学 / 兴趣圈子 / 本地同城 / 单位机构分区、广告栏、专区。
  */
 
 import { useState } from "react";
@@ -14,6 +14,8 @@ import {
 } from "@andyyyds/forum/lib/forum-university";
 import {
   FORUM_SPACE_KIND_LABEL,
+  FORUM_SPACE_KINDS,
+  forumSpaceStudioCopy,
   parseForumSpaceKind,
   studioForumSpaceEditPath,
   type ForumSpaceKind,
@@ -206,25 +208,12 @@ export function StudioForumPanel({ initialUniversities }: Props) {
     }
   }
 
-  const nameLabel =
-    kind === "CIRCLE" ? "圈子名称" : kind === "CITY" ? "城市名称" : "学校名称";
-  const namePlaceholder =
-    kind === "CIRCLE"
-      ? "如 摄影圈"
-      : kind === "CITY"
-        ? "如 杭州同城"
-        : "如 北京大学";
-  const sloganPlaceholder =
-    kind === "CIRCLE"
-      ? "拍片、后期、约拍…"
-      : kind === "CITY"
-        ? "吃喝玩乐、租房互助…"
-        : "同学交流、选课、二手、跑腿…";
+  const copy = forumSpaceStudioCopy(kind);
 
   return (
     <div className="space-y-8">
       <div className="flex gap-2 overflow-x-auto">
-        {(["UNIVERSITY", "CIRCLE", "CITY"] as const).map((item) => (
+        {FORUM_SPACE_KINDS.map((item) => (
           <button
             key={item}
             type="button"
@@ -248,7 +237,7 @@ export function StudioForumPanel({ initialUniversities }: Props) {
         </h2>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block text-sm">
-            <span className="text-[var(--muted)]">{nameLabel}</span>
+            <span className="text-[var(--muted)]">{copy.nameLabel}</span>
             <input
               className="mt-1 w-full min-h-11 rounded-2xl border border-[var(--line)] bg-transparent px-3"
               value={name}
@@ -260,7 +249,7 @@ export function StudioForumPanel({ initialUniversities }: Props) {
               }}
               required
               maxLength={40}
-              placeholder={namePlaceholder}
+              placeholder={copy.namePlaceholder}
             />
           </label>
           <label className="block text-sm">
@@ -275,10 +264,10 @@ export function StudioForumPanel({ initialUniversities }: Props) {
                 }
               }}
               maxLength={40}
-              placeholder={kind === "UNIVERSITY" ? "pku" : kind === "CITY" ? "hangzhou" : "photo"}
+              placeholder={copy.slugPlaceholder}
             />
           </label>
-          {kind !== "CIRCLE" ? (
+          {copy.showRegion ? (
             <label className="block text-sm">
               <span className="text-[var(--muted)]">分类</span>
               <select
@@ -288,12 +277,8 @@ export function StudioForumPanel({ initialUniversities }: Props) {
                   setRegion(e.target.value as ForumUniversityRegion)
                 }
               >
-                <option value="CHINA">
-                  {kind === "CITY" ? "国内城市" : "中国高校"}
-                </option>
-                <option value="INTERNATIONAL">
-                  {kind === "CITY" ? "海外城市" : "国际高校"}
-                </option>
+                <option value="CHINA">{copy.regionChina}</option>
+                <option value="INTERNATIONAL">{copy.regionIntl}</option>
               </select>
             </label>
           ) : null}
@@ -304,7 +289,7 @@ export function StudioForumPanel({ initialUniversities }: Props) {
               value={slogan}
               onChange={(e) => setSlogan(e.target.value)}
               maxLength={80}
-              placeholder={sloganPlaceholder}
+              placeholder={copy.sloganPlaceholder}
             />
           </label>
           {kind === "UNIVERSITY" ? (
@@ -340,13 +325,7 @@ export function StudioForumPanel({ initialUniversities }: Props) {
           className="mt-1 w-full min-h-11 rounded-2xl border border-[var(--line)] bg-transparent px-3"
           value={listQuery}
           onChange={(e) => setListQuery(e.target.value)}
-          placeholder={
-            kind === "CIRCLE"
-              ? "搜圈子名或路径"
-              : kind === "CITY"
-                ? "搜城市名或路径"
-                : "搜学校名或路径"
-          }
+          placeholder={copy.searchPlaceholder}
         />
       </label>
 

@@ -11,13 +11,13 @@ function authHref(path: "/login" | "/register", next: string) {
 }
 
 /**
- * 论坛与全站同账号：不另开号，登录后即可加入高校发帖。
+ * 论坛与全站同账号：不另开号。高校要实名；圈子/同城/单位登录即可发帖。
  */
 export function ForumAccountBar({ loggedIn, name, loginNext }: Props) {
   if (loggedIn) {
     return (
       <p className="text-sm leading-6 text-[var(--muted)]">
-        已用网站账号登录{name ? `：${name}` : ""}。论坛与课程、商城同一套登录，加入高校后就能发帖。
+        已用网站账号登录{name ? `：${name}` : ""}。论坛与课程、商城同一套登录，不用另开论坛号。
       </p>
     );
   }

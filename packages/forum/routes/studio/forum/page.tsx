@@ -43,7 +43,7 @@ export default async function StudioForumPage() {
       <div>
         <h1 className="text-3xl font-semibold">论坛</h1>
         <p className="mt-2 text-sm text-[var(--muted)]">
-          大学论坛、兴趣圈子、本地同城都是论坛分区。开关、顶部公告栏、各分区广告栏分别保存。关开关只限制其他用户；站长自己发帖、评论、私信不受影响。
+          大学论坛、兴趣圈子、本地同城、单位机构都是论坛分区。开关、顶部公告栏、各分区广告栏分别保存。关开关只限制其他用户；站长自己发帖、评论、私信不受影响。
         </p>
       </div>
       <div className="surface rounded-[28px] p-4 sm:p-6">

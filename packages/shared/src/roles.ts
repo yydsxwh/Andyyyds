@@ -233,7 +233,7 @@ export function canManageMeetups(roleOrRoles: RoleInput): boolean {
   return isAdmin(roleOrRoles);
 }
 
-/** 站长后台管理论坛分区（大学 / 圈子 / 同城，/studio/forum） */
+/** 站长后台管理论坛分区（大学 / 圈子 / 同城 / 单位机构，/studio/forum） */
 export function canManageForum(roleOrRoles: RoleInput): boolean {
   return isAdmin(roleOrRoles);
 }

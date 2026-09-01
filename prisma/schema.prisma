@@ -915,7 +915,7 @@ model Order {
 }
 
 /// 论坛分区。表名沿用 ForumUniversity，避免改帖子/专区外键。
-/// kind：UNIVERSITY 大学论坛 | CIRCLE 兴趣圈子 | CITY 本地同城。大学只是其中一类。
+/// kind：UNIVERSITY 大学论坛 | CIRCLE 兴趣圈子 | CITY 本地同城 | ORG 单位机构。大学只是其中一类。
 model ForumUniversity {
   id          String      @id @default(cuid())
   name        String
@@ -927,11 +927,11 @@ model ForumUniversity {
   adImageUrl  String      @default("")
   adHref      String      @default("")
   adAlt       String      @default("")
-  /// 仅大学分区：限制认证的校园邮箱后缀；圈子/同城忽略
+  /// 仅大学分区：限制认证的校园邮箱后缀；圈子/同城/单位忽略
   emailDomains String     @default("")
-  /// 大学/同城：CHINA 国内 | INTERNATIONAL 海外；圈子可空置
+  /// 大学/同城/单位：CHINA 国内 | INTERNATIONAL 海外；圈子可空置
   region      String      @default("CHINA")
-  /// UNIVERSITY | CIRCLE | CITY
+  /// UNIVERSITY | CIRCLE | CITY | ORG
   kind        String      @default("UNIVERSITY")
   enabled     Boolean     @default(true)
   sortOrder   Int         @default(0)
