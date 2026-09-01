@@ -22,7 +22,6 @@ export default async function StudioForumPage() {
 
   const universities = await prisma.forumUniversity.findMany({
     include: {
-      zones: { orderBy: { sortOrder: "asc" } },
       _count: { select: { members: true, posts: true, zones: true } },
     },
     orderBy: FORUM_UNIVERSITY_LIST_ORDER_BY,
@@ -66,6 +65,7 @@ export default async function StudioForumPage() {
           initialUniversities={universities.map((row) => ({
             ...row,
             kind: row.kind || "UNIVERSITY",
+            zones: [],
           }))}
         />
       </div>

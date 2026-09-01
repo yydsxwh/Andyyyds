@@ -6,8 +6,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { StudioForumUniversityBoard } from "@andyyyds/forum/components/studio-forum-university-board";
-import { StudioForumZoneEditor } from "@andyyyds/forum/components/studio-forum-zone-editor";
 import {
   guessForumUniversityRegion,
   type ForumUniversityRegion,
@@ -15,6 +15,7 @@ import {
 import {
   FORUM_SPACE_KIND_LABEL,
   parseForumSpaceKind,
+  studioForumSpaceEditPath,
   type ForumSpaceKind,
 } from "@andyyyds/forum/lib/forum-space";
 
@@ -48,15 +49,6 @@ export type StudioForumUniversity = {
 
 type Props = { initialUniversities: StudioForumUniversity[] };
 
-async function uploadImage(file: File): Promise<string> {
-  const form = new FormData();
-  form.set("file", file);
-  const res = await fetch("/api/upload/image", { method: "POST", body: form });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "上传失败");
-  return data.url as string;
-}
-
 export function StudioForumPanel({ initialUniversities }: Props) {
   const router = useRouter();
   const [rows, setRows] = useState(initialUniversities);
@@ -68,10 +60,13 @@ export function StudioForumPanel({ initialUniversities }: Props) {
   const [emailDomains, setEmailDomains] = useState("");
   const [region, setRegion] = useState<ForumUniversityRegion>("CHINA");
   const [kind, setKind] = useState<ForumSpaceKind>("UNIVERSITY");
-  const [openId, setOpenId] = useState("");
-  const visibleRows = rows.filter(
-    (row) => parseForumSpaceKind(row.kind) === kind,
-  );
+  const [listQuery, setListQuery] = useState("");
+  const visibleRows = rows.filter((row) => {
+    if (parseForumSpaceKind(row.kind) !== kind) return false;
+    const q = listQuery.trim().toLowerCase();
+    if (!q) return true;
+    return row.name.toLowerCase().includes(q) || row.slug.toLowerCase().includes(q);
+  });
 
   async function createUniversity(event: React.FormEvent) {
     event.preventDefault();
@@ -100,7 +95,7 @@ export function StudioForumPanel({ initialUniversities }: Props) {
       setSlogan("");
       setEmailDomains("");
       setRegion("CHINA");
-      setOpenId(data.university.id);
+      router.push(studioForumSpaceEditPath(data.university.id));
       router.refresh();
     } finally {
       setBusy("");
@@ -339,16 +334,32 @@ export function StudioForumPanel({ initialUniversities }: Props) {
         <p className="text-sm text-[var(--brand)]">{message}</p>
       ) : null}
 
+      <label className="block text-sm">
+        <span className="text-[var(--muted)]">搜索当前列表</span>
+        <input
+          className="mt-1 w-full min-h-11 rounded-2xl border border-[var(--line)] bg-transparent px-3"
+          value={listQuery}
+          onChange={(e) => setListQuery(e.target.value)}
+          placeholder={
+            kind === "CIRCLE"
+              ? "搜圈子名或路径"
+              : kind === "CITY"
+                ? "搜城市名或路径"
+                : "搜学校名或路径"
+          }
+        />
+      </label>
+
       {visibleRows.length === 0 ? (
         <p className="text-sm text-[var(--muted)]">
-          还没有{FORUM_SPACE_KIND_LABEL[kind]}分区。
+          {listQuery.trim()
+            ? "没有匹配的分区。"
+            : `还没有${FORUM_SPACE_KIND_LABEL[kind]}分区。`}
         </p>
       ) : kind === "UNIVERSITY" ? (
         <StudioForumUniversityBoard
           rows={visibleRows}
           busy={busy}
-          openId={openId}
-          onOpen={setOpenId}
           onReorder={persistLists}
           onResetDefault={resetDefaultOrder}
           onMoveRegion={(id, nextRegion) =>
@@ -358,268 +369,66 @@ export function StudioForumPanel({ initialUniversities }: Props) {
             void patchUniversity(uni.id, { enabled: !uni.enabled })
           }
           onRemove={(uni) => void removeUniversity(uni.id, uni.name)}
-        >
-          {(uni) => (
-            <UniversityEditor
-              key={uni.id}
-              uni={uni}
-              busy={busy === uni.id}
-              onPatch={patchUniversity}
-              onZonesChange={(zones) =>
-                setRows((prev) =>
-                  prev.map((row) =>
-                    row.id === uni.id ? { ...row, zones } : row,
-                  ),
-                )
-              }
-            />
-          )}
-        </StudioForumUniversityBoard>
+        />
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {visibleRows
             .slice()
             .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
             .map((uni) => (
               <div
                 key={uni.id}
-                className="rounded-[24px] border border-[var(--line)] p-4"
+                className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[var(--line)] px-3 py-2"
               >
-                <div className="flex flex-wrap items-center justify-between gap-2">
+                <Link
+                  href={studioForumSpaceEditPath(uni.id)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="min-h-11 min-w-0 text-left text-base font-semibold leading-[2.75rem]"
+                >
+                  {uni.name}
+                  <span className="ml-2 text-xs font-normal text-[var(--muted)]">
+                    {uni._count.posts} 帖 · {uni.enabled ? "已开" : "已关"}
+                  </span>
+                </Link>
+                <div className="flex flex-wrap gap-2">
+                  <a
+                    className="btn btn-secondary min-h-11 px-3 text-sm"
+                    href={`/forum/${uni.slug}`}
+                  >
+                    打开前台
+                  </a>
+                  <Link
+                    className="btn btn-primary min-h-11 px-3 text-sm"
+                    href={studioForumSpaceEditPath(uni.id)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    编辑
+                  </Link>
                   <button
                     type="button"
-                    className="min-h-11 text-left text-base font-semibold"
+                    className="btn btn-secondary min-h-11 px-3 text-sm"
+                    disabled={Boolean(busy)}
                     onClick={() =>
-                      setOpenId((current) => (current === uni.id ? "" : uni.id))
+                      void patchUniversity(uni.id, { enabled: !uni.enabled })
                     }
                   >
-                    {uni.name}
-                    <span className="ml-2 text-xs font-normal text-[var(--muted)]">
-                      {uni._count.posts} 帖 · {uni.enabled ? "已开" : "已关"}
-                    </span>
+                    {uni.enabled ? "关闭" : "开启"}
                   </button>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      className="btn btn-secondary min-h-11 px-3 text-sm"
-                      disabled={Boolean(busy)}
-                      onClick={() =>
-                        void patchUniversity(uni.id, { enabled: !uni.enabled })
-                      }
-                    >
-                      {uni.enabled ? "关闭" : "开启"}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-secondary min-h-11 px-3 text-sm"
-                      disabled={Boolean(busy)}
-                      onClick={() => void removeUniversity(uni.id, uni.name)}
-                    >
-                      删除
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-secondary min-h-11 px-3 text-sm"
+                    disabled={Boolean(busy)}
+                    onClick={() => void removeUniversity(uni.id, uni.name)}
+                  >
+                    删除
+                  </button>
                 </div>
-                {openId === uni.id ? (
-                  <UniversityEditor
-                    uni={uni}
-                    busy={busy === uni.id}
-                    onPatch={patchUniversity}
-                    onZonesChange={(zones) =>
-                      setRows((prev) =>
-                        prev.map((row) =>
-                          row.id === uni.id ? { ...row, zones } : row,
-                        ),
-                      )
-                    }
-                  />
-                ) : null}
               </div>
             ))}
         </div>
       )}
-    </div>
-  );
-}
-
-function UniversityEditor({
-  uni,
-  busy,
-  onPatch,
-  onZonesChange,
-}: {
-  uni: StudioForumUniversity;
-  busy: boolean;
-  onPatch: (id: string, payload: Record<string, unknown>) => Promise<boolean>;
-  onZonesChange: (zones: StudioForumZone[]) => void;
-}) {
-  const [slogan, setSlogan] = useState(uni.slogan);
-  const [description, setDescription] = useState(uni.description);
-  const [adHref, setAdHref] = useState(uni.adHref);
-  const [adAlt, setAdAlt] = useState(uni.adAlt);
-  const [adImageUrl, setAdImageUrl] = useState(uni.adImageUrl);
-  const [emailDomains, setEmailDomains] = useState(uni.emailDomains);
-  const [profileMessage, setProfileMessage] = useState("");
-  const [adMessage, setAdMessage] = useState("");
-  const [adUploading, setAdUploading] = useState(false);
-
-  async function saveProfile() {
-    setProfileMessage("");
-    const ok = await onPatch(uni.id, {
-      slogan,
-      description,
-      ...(parseForumSpaceKind(uni.kind) === "UNIVERSITY" ? { emailDomains } : {}),
-    });
-    if (ok) setProfileMessage("已保存分区资料。");
-  }
-
-  async function saveAd() {
-    setAdMessage("");
-    const ok = await onPatch(uni.id, {
-      adHref,
-      adAlt,
-      adImageUrl,
-    });
-    if (ok) setAdMessage("已保存广告栏。");
-  }
-
-  async function pickAdImage(file: File | undefined) {
-    if (!file) return;
-    setAdMessage("");
-    setAdUploading(true);
-    try {
-      const url = await uploadImage(file);
-      setAdImageUrl(url);
-    } catch (error) {
-      setAdMessage(error instanceof Error ? error.message : "广告图上传失败");
-    } finally {
-      setAdUploading(false);
-    }
-  }
-
-  return (
-    <div className="mt-4 space-y-6 border-t border-[var(--line)] pt-4">
-      <section className="space-y-3">
-        <h4 className="text-sm font-semibold">分区资料</h4>
-        <label className="block text-sm">
-          <span className="text-[var(--muted)]">介绍</span>
-          <textarea
-            className="mt-1 min-h-24 w-full rounded-2xl border border-[var(--line)] bg-transparent px-3 py-2"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-          />
-        </label>
-        <label className="block text-sm">
-          <span className="text-[var(--muted)]">口号</span>
-          <input
-            className="mt-1 w-full min-h-11 rounded-2xl border border-[var(--line)] bg-transparent px-3"
-            value={slogan}
-            onChange={(e) => setSlogan(e.target.value)}
-          />
-        </label>
-        {parseForumSpaceKind(uni.kind) === "UNIVERSITY" ? (
-          <label className="block text-sm">
-            <span className="text-[var(--muted)]">本校邮箱后缀（可选；命中则认证当场通过）</span>
-            <input
-              className="mt-1 w-full min-h-11 rounded-2xl border border-[var(--line)] bg-transparent px-3"
-              value={emailDomains}
-              onChange={(e) => setEmailDomains(e.target.value)}
-            />
-          </label>
-        ) : null}
-        {profileMessage ? (
-          <p className="text-sm text-[var(--brand)]">{profileMessage}</p>
-        ) : null}
-        <button
-          type="button"
-          className="btn btn-primary min-h-11 px-5"
-          disabled={busy}
-          onClick={() => void saveProfile()}
-        >
-          {busy ? "保存中…" : "保存资料"}
-        </button>
-      </section>
-
-      <section className="space-y-3">
-        <h4 className="text-sm font-semibold">广告栏</h4>
-        <p className="text-sm leading-6 text-[var(--muted)]">
-          只影响该分区页顶部广告。改这里不会动开关或全站公告栏。上传新图后请点「保存广告栏」才会发布。
-        </p>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="block text-sm">
-            <span className="text-[var(--muted)]">广告跳转链接</span>
-            <input
-              className="mt-1 w-full min-h-11 rounded-2xl border border-[var(--line)] bg-transparent px-3"
-              value={adHref}
-              onChange={(e) => setAdHref(e.target.value)}
-              placeholder="https://"
-            />
-          </label>
-          <label className="block text-sm">
-            <span className="text-[var(--muted)]">广告说明</span>
-            <input
-              className="mt-1 w-full min-h-11 rounded-2xl border border-[var(--line)] bg-transparent px-3"
-              value={adAlt}
-              onChange={(e) => setAdAlt(e.target.value)}
-            />
-          </label>
-        </div>
-        <label className="block text-sm">
-          <span className="text-[var(--muted)]">广告图</span>
-          <input
-            className="mt-1 block w-full text-sm"
-            type="file"
-            accept="image/*"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              e.target.value = "";
-              void pickAdImage(file);
-            }}
-          />
-          {adImageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={adImageUrl}
-              alt={adAlt || "广告预览"}
-              className="mt-2 max-h-28 rounded-2xl object-cover"
-            />
-          ) : (
-            <p className="mt-1 text-xs text-[var(--muted)]">未上传时前台显示广告栏占位。</p>
-          )}
-        </label>
-        {adImageUrl ? (
-          <button
-            type="button"
-            className="btn btn-secondary min-h-11 px-4 text-sm"
-            disabled={busy || adUploading}
-            onClick={() => setAdImageUrl("")}
-          >
-            清除广告图
-          </button>
-        ) : null}
-        {adUploading ? (
-          <p className="text-sm text-[var(--muted)]">广告图上传中…</p>
-        ) : null}
-        {adMessage ? (
-          <p className="text-sm text-[var(--brand)]">{adMessage}</p>
-        ) : null}
-        <button
-          type="button"
-          className="btn btn-primary min-h-11 px-5"
-          disabled={busy || adUploading}
-          onClick={() => void saveAd()}
-        >
-          {busy ? "保存中…" : "保存广告栏"}
-        </button>
-      </section>
-
-      <StudioForumZoneEditor
-        zones={uni.zones}
-        disabled={busy}
-        onZonesChange={onZonesChange}
-        onAdd={async (name, parentId) =>
-          onPatch(uni.id, { addZone: { name, parentId } })
-        }
-      />
     </div>
   );
 }

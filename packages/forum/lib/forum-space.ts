@@ -83,6 +83,10 @@ export function forumSpaceListPath(kind: string | null | undefined): string {
   return FORUM_SPACE_LIST_PATH[parseForumSpaceKind(kind)];
 }
 
+export function studioForumSpaceEditPath(id: string): string {
+  return `/studio/forum/${id}/edit`;
+}
+
 export function forumSpaceEmptyHint(kind: ForumSpaceKind): string {
   if (kind === "CIRCLE") return "这个圈子还没有帖子，登录后发第一篇吧。";
   if (kind === "CITY") return "这座城市还没有帖子，登录后发第一篇吧。";
