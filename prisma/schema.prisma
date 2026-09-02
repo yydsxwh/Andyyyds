@@ -897,6 +897,8 @@ model ForumUniversity {
   adAlt       String      @default("")
   /// 可选：限制加入的邮箱后缀，逗号分隔如 stu.edu.cn,xxx.edu.cn；空则任意登录用户可加入
   emailDomains String     @default("")
+  /// CHINA 中国高校 | INTERNATIONAL 国际高校；审核页与分区列表按此分组
+  region      String      @default("CHINA")
   enabled     Boolean     @default(true)
   sortOrder   Int         @default(0)
   members     User[]
