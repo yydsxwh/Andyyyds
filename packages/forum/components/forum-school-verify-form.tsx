@@ -13,6 +13,10 @@ import {
   type ForumDegreeLevel,
 } from "@andyyyds/forum/lib/forum-school";
 import { FORUM_UNIVERSITY_REGION_LABEL } from "@andyyyds/forum/lib/forum-university";
+import {
+  classifyForumFile,
+  uploadForumMediaFile,
+} from "@andyyyds/forum/lib/forum-browser-upload";
 
 export type ForumVerifyUniversityOption = {
   id: string;
@@ -30,6 +34,9 @@ export type ForumVerifySlotView = {
   realName?: string;
   studentId?: string;
   campusEmail?: string;
+  proofUrl?: string;
+  /** 已签发的 inline 预览链；没有则回退 proofUrl */
+  proofPreview?: string;
   reviewNote?: string;
 };
 
@@ -69,6 +76,10 @@ export function ForumSchoolVerifyForm({
   const [realName, setRealName] = useState(currentSlot?.realName || "");
   const [studentId, setStudentId] = useState(currentSlot?.studentId || "");
   const [campusEmail, setCampusEmail] = useState(currentSlot?.campusEmail || "");
+  const [proofUrl, setProofUrl] = useState(currentSlot?.proofUrl || "");
+  const [proofPreview, setProofPreview] = useState(
+    currentSlot?.proofPreview || currentSlot?.proofUrl || "",
+  );
   const [error, setError] = useState("");
   const [hint, setHint] = useState("");
   const [busy, setBusy] = useState(false);
@@ -104,9 +115,31 @@ export function ForumSchoolVerifyForm({
       setRealName(slot.realName || "");
       setStudentId(slot.studentId || "");
       setCampusEmail(slot.campusEmail || "");
+      setProofUrl(slot.proofUrl || "");
+      setProofPreview(slot.proofPreview || slot.proofUrl || "");
     }
     setError("");
     setHint("");
+  }
+
+  async function onPickProof(file: File | null) {
+    if (!file) return;
+    if (classifyForumFile(file) !== "image") {
+      setError("学生证请上传图片（jpg / png / webp / gif）");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const uploaded = await uploadForumMediaFile(file);
+      // 入库用 canonical URL；预览用签名链，避免私有 OSS 在 <img> 里 403
+      setProofUrl(uploaded.url);
+      setProofPreview(uploaded.previewUrl || uploaded.url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "学生证上传失败");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function submit() {
@@ -135,6 +168,7 @@ export function ForumSchoolVerifyForm({
           realName,
           studentId,
           campusEmail,
+          proofUrl,
         }),
       });
       const data = await res.json();
@@ -245,6 +279,34 @@ export function ForumSchoolVerifyForm({
           placeholder="命中学校后缀可当场通过"
         />
       </label>
+      <div className="block text-sm">
+        <span className="text-[var(--muted)]">学生证 / 学生卡照片</span>
+        <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
+          拍清晰的正面。站点启用 OSS 时文件进 Bucket；后台「查看图片」在页内预览，不会直接下载。
+        </p>
+        {proofPreview ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={proofPreview}
+            alt="学生证预览"
+            className="mt-2 max-h-40 w-full rounded-2xl border border-[var(--line)] object-contain"
+          />
+        ) : null}
+        <label className="btn btn-secondary mt-2 inline-flex min-h-11 cursor-pointer items-center justify-center px-5 touch-manipulation">
+          {busy ? "上传中…" : proofUrl ? "重新上传" : "上传照片"}
+          <input
+            type="file"
+            accept="image/*"
+            className="sr-only"
+            disabled={busy}
+            onChange={(e) => {
+              const file = e.target.files?.[0] || null;
+              e.target.value = "";
+              void onPickProof(file);
+            }}
+          />
+        </label>
+      </div>
 
       {occupying ? (
         <p className="text-xs leading-5 text-amber-800">

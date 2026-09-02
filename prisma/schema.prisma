@@ -74,6 +74,7 @@ model User {
   forumPosts           ForumPost[]
   forumComments        ForumComment[]
   forumActions         ForumAction[]
+  forumSchoolVerifications ForumSchoolVerification[]
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
 
@@ -901,6 +902,7 @@ model ForumUniversity {
   members     User[]
   zones       ForumZone[]
   posts       ForumPost[]
+  verifications ForumSchoolVerification[]
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
@@ -961,6 +963,34 @@ model ForumPost {
   @@index([zoneId, createdAt])
   @@index([authorId, createdAt])
   @@index([authorId, status, updatedAt])
+}
+
+/// 高校实名认证（本科/研究生各一档）；学生证照片存 proofUrl（OSS 或本地 uploads）
+model ForumSchoolVerification {
+  id           String          @id @default(cuid())
+  userId       String
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  universityId String
+  university   ForumUniversity @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  /// UNDERGRAD 本科 | GRADUATE 研究生
+  degreeLevel  String
+  realName     String
+  studentId    String          @default("")
+  campusEmail  String          @default("")
+  /// 学生证/学生卡照片：入库为 canonical URL，预览须签发 inline，下载才用 attachment
+  proofUrl     String          @default("")
+  /// PENDING | VERIFIED | REJECTED
+  status       String          @default("PENDING")
+  reviewNote   String          @default("")
+  reviewedAt   DateTime?
+  reviewedById String?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@unique([userId, degreeLevel])
+  @@index([universityId, status])
+  @@index([status, createdAt])
+  @@index([userId, status])
 }
 
 model ForumComment {

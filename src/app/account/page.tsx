@@ -210,17 +210,25 @@ export default async function AccountPage() {
 
       <ForumCampusPanel
         universities={forumUniversities}
-        slots={forumVerifySlots.map((row) => ({
-          degreeLevel: row.degreeLevel,
-          universityId: row.universityId,
-          universityName: row.university.name,
-          universitySlug: row.university.slug,
-          status: row.status,
-          realName: row.realName,
-          studentId: row.studentId,
-          campusEmail: row.campusEmail,
-          reviewNote: row.reviewNote,
-        }))}
+        slots={await Promise.all(
+          forumVerifySlots.map(async (row) => ({
+            degreeLevel: row.degreeLevel,
+            universityId: row.universityId,
+            universityName: row.university.name,
+            universitySlug: row.university.slug,
+            status: row.status,
+            realName: row.realName,
+            studentId: row.studentId,
+            campusEmail: row.campusEmail,
+            proofUrl: row.proofUrl,
+            proofPreview: row.proofUrl
+              ? await resolveStoredAccessUrl(row.proofUrl, {
+                  contentDisposition: "inline",
+                })
+              : "",
+            reviewNote: row.reviewNote,
+          })),
+        )}
       />
 
       {/* —— 按角色的快捷入口 —— */}
