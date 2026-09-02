@@ -5,12 +5,12 @@
 import { readFileSync } from "fs";
 import { createHash } from "crypto";
 import { PrismaClient } from "@prisma/client";
-import { normalizeWechatArticleUrl, sanitizeMpArticleHtml } from "../src/lib/wechat-mp-content.ts";
+import { normalizeWechatArticleUrl, sanitizeMpArticleHtml } from "../packages/company/lib/wechat-mp-content.ts";
 import {
   clearWechatMediaSessionCache,
   mirrorWechatMediaUrl,
   rewriteMpContentImages,
-} from "../src/lib/wechat-mp-media.ts";
+} from "../packages/company/lib/wechat-mp-media.ts";
 
 const path = process.argv[2];
 const publishedAtArg = process.argv[3] || "";
