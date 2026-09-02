@@ -112,6 +112,37 @@ function ossObjectKeyFromUrl(fileUrl: string, creds: OssCreds): string | null {
   }
 }
 
+export type StoredContentDisposition = "inline" | "attachment";
+
+export type ResolveStoredAccessOptions = {
+  expiresInSec?: number;
+  /**
+   * 覆盖 OSS 响应头：inline 给 <img> 预览，attachment 才触发浏览器下载。
+   * 不传则沿用对象自身 Content-Disposition（上传时默认没有 attachment）。
+   */
+  contentDisposition?: StoredContentDisposition;
+  fileName?: string;
+};
+
+/** OSS response-content-disposition 取值；签名用原文，URL 再编码 */
+export function ossResponseContentDisposition(
+  mode: StoredContentDisposition,
+  fileName?: string,
+): string {
+  if (mode === "inline") return "inline";
+  const safe = safeFileName(fileName || "file");
+  return `attachment;filename="${safe}"`;
+}
+
+function normalizeResolveStoredAccessOptions(
+  expiresInSecOrOptions?: number | ResolveStoredAccessOptions,
+): ResolveStoredAccessOptions {
+  if (typeof expiresInSecOrOptions === "number") {
+    return { expiresInSec: expiresInSecOrOptions };
+  }
+  return expiresInSecOrOptions || {};
+}
+
 /**
  * 为私有 Bucket 对象签发 GET 临时 URL。
  * 新版 OSS 常关闭「对象 ACL」，上传时不能再带 x-oss-object-acl，读须走签名。
@@ -125,11 +156,24 @@ export function signOssGetUrl(input: {
    * 不填则用公网前缀 / Bucket 地域域名。
    */
   downloadHost?: string;
+  contentDisposition?: StoredContentDisposition;
+  fileName?: string;
 }) {
   const expires =
     Math.floor(Date.now() / 1000) +
     (input.expiresInSec ?? OSS_SIGNED_URL_TTL_SEC);
-  const resource = `/${input.creds.bucket}/${input.objectKey}`;
+  const extraPairs: Array<[string, string]> = [];
+  if (input.contentDisposition) {
+    extraPairs.push([
+      "response-content-disposition",
+      ossResponseContentDisposition(input.contentDisposition, input.fileName),
+    ]);
+  }
+  extraPairs.sort(([a], [b]) => a.localeCompare(b));
+  const extraResource = extraPairs.map(([k, v]) => `${k}=${v}`).join("&");
+  const resource = extraResource
+    ? `/${input.creds.bucket}/${input.objectKey}?${extraResource}`
+    : `/${input.creds.bucket}/${input.objectKey}`;
   const stringToSign = `GET\n\n\n${expires}\n${resource}`;
   const signature = crypto
     .createHmac("sha1", input.creds.accessKeySecret)
@@ -146,6 +190,9 @@ export function signOssGetUrl(input: {
     Expires: String(expires),
     Signature: signature,
   });
+  for (const [key, value] of extraPairs) {
+    params.set(key, value);
+  }
   return `${base}/${input.objectKey}?${params.toString()}`;
 }
 
@@ -210,11 +257,14 @@ export async function getAppInstallerDownloadUrl(
 /**
  * 本地/外链原样返回；本站 OSS 对象返回签名 URL（兼容私有 Bucket）。
  * 若未配置 OSS 密钥则退回原始 URL，避免装修页整体挂掉。
+ * 第二个参数兼容旧的过期秒数，也可传 { contentDisposition } 区分预览/下载。
  */
 export async function resolveStoredAccessUrl(
   fileUrl: string,
-  expiresInSec = OSS_SIGNED_URL_TTL_SEC,
+  expiresInSecOrOptions: number | ResolveStoredAccessOptions = OSS_SIGNED_URL_TTL_SEC,
 ): Promise<string> {
+  const options = normalizeResolveStoredAccessOptions(expiresInSecOrOptions);
+  const expiresInSec = options.expiresInSec ?? OSS_SIGNED_URL_TTL_SEC;
   if (!fileUrl || fileUrl.startsWith("/") || isVodUrl(fileUrl)) {
     return fileUrl;
   }
@@ -224,9 +274,162 @@ export async function resolveStoredAccessUrl(
     const creds = getOssCreds(settings);
     const objectKey = ossObjectKeyFromUrl(fileUrl, creds);
     if (!objectKey) return fileUrl;
-    return signOssGetUrl({ objectKey, creds, expiresInSec });
+    return signOssGetUrl({
+      objectKey,
+      creds,
+      expiresInSec,
+      contentDisposition: options.contentDisposition,
+      fileName: options.fileName,
+    });
   } catch {
     return fileUrl;
+  }
+}
+
+export type StoredObjectProbe = {
+  exists: boolean;
+  /** 实际读到的位置；URL 形如 OSS 但对象不在则为 missing */
+  location: "local" | "oss" | "external" | "missing";
+  objectKey: string;
+  /** 库里的地址是否指向当前配置的 OSS Bucket */
+  storedOnOss: boolean;
+};
+
+function imageMimeFromName(name: string) {
+  if (/\.png$/i.test(name)) return "image/png";
+  if (/\.webp$/i.test(name)) return "image/webp";
+  if (/\.gif$/i.test(name)) return "image/gif";
+  return "image/jpeg";
+}
+
+async function ossObjectExists(objectKey: string, creds: OssCreds) {
+  const signed = signOssGetUrl({ objectKey, creds, expiresInSec: 120 });
+  try {
+    const probe = await fetch(signed, {
+      method: "GET",
+      headers: { Range: "bytes=0-0" },
+      signal: AbortSignal.timeout(4000),
+    });
+    return probe.ok || probe.status === 206;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 判断入库地址对应的文件还在不在：先看本地 uploads，再看当前 OSS Bucket。
+ * 认证审核预览前用来提示「OSS 有图 / 仅本地 / 已丢失」，避免灯箱空白。
+ */
+export async function probeStoredObject(fileUrl: string): Promise<StoredObjectProbe> {
+  const empty: StoredObjectProbe = {
+    exists: false,
+    location: "missing",
+    objectKey: "",
+    storedOnOss: false,
+  };
+  if (!fileUrl.trim()) return empty;
+
+  if (fileUrl.startsWith("/uploads/")) {
+    const relative = fileUrl.replace(/^\/+/, "");
+    const absolute = path.join(process.cwd(), "public", relative);
+    try {
+      await access(absolute);
+      return {
+        exists: true,
+        location: "local",
+        objectKey: relative,
+        storedOnOss: false,
+      };
+    } catch {
+      // 库里仍是本地路径时，文件可能已迁到同 key 的 OSS
+    }
+    try {
+      const settings = await getSiteSettings();
+      if (settings.storageProvider === "ALIYUN_OSS") {
+        const creds = getOssCreds(settings);
+        if (await ossObjectExists(relative, creds)) {
+          return {
+            exists: true,
+            location: "oss",
+            objectKey: relative,
+            storedOnOss: true,
+          };
+        }
+      }
+    } catch {
+      // 未配 OSS 或探测失败
+    }
+    return { ...empty, objectKey: relative };
+  }
+
+  try {
+    const settings = await getSiteSettings();
+    if (settings.storageProvider === "ALIYUN_OSS") {
+      const creds = getOssCreds(settings);
+      const objectKey = ossObjectKeyFromUrl(fileUrl, creds);
+      if (objectKey) {
+        const exists = await ossObjectExists(objectKey, creds);
+        return {
+          exists,
+          location: exists ? "oss" : "missing",
+          objectKey,
+          storedOnOss: true,
+        };
+      }
+    }
+  } catch {
+    // 未配 OSS
+  }
+
+  if (/^https?:\/\//i.test(fileUrl)) {
+    return {
+      exists: true,
+      location: "external",
+      objectKey: "",
+      storedOnOss: false,
+    };
+  }
+  return empty;
+}
+
+export function storedFileMimeType(fileUrl: string, fallback = "image/jpeg") {
+  try {
+    const name = decodeURIComponent(fileUrl.split("?")[0] || "").split("/").pop() || "";
+    if (!name || !/\.(png|jpe?g|webp|gif)$/i.test(name)) return fallback;
+    return imageMimeFromName(name);
+  } catch {
+    return fallback;
+  }
+}
+
+export function storedFileDownloadName(fileUrl: string, fallback = "student-proof.jpg") {
+  try {
+    const name = decodeURIComponent(fileUrl.split("?")[0] || "").split("/").pop() || "";
+    return safeFileName(name || fallback);
+  } catch {
+    return fallback;
+  }
+}
+
+/** 已知 object key 时签发读链（本地路径丢文件、只剩 OSS 同 key 时用） */
+export async function resolveStoredAccessByKey(
+  objectKey: string,
+  options: ResolveStoredAccessOptions = {},
+): Promise<string | null> {
+  if (!objectKey) return null;
+  try {
+    const settings = await getSiteSettings();
+    if (settings.storageProvider !== "ALIYUN_OSS") return null;
+    const creds = getOssCreds(settings);
+    return signOssGetUrl({
+      objectKey,
+      creds,
+      expiresInSec: options.expiresInSec ?? OSS_SIGNED_URL_TTL_SEC,
+      contentDisposition: options.contentDisposition,
+      fileName: options.fileName,
+    });
+  } catch {
+    return null;
   }
 }
 

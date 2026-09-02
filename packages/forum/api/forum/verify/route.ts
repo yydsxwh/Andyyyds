@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@andyyyds/shared/auth";
 import { prisma } from "@andyyyds/shared/db";
+import { resolveStoredAccessUrl } from "@andyyyds/shared/storage";
 import {
   FORUM_CAMPUS_EMAIL_MAX,
   FORUM_REAL_NAME_MAX,
@@ -39,18 +40,26 @@ async function loadSlots(userId: string) {
       university: { select: { id: true, name: true, slug: true, enabled: true } },
     },
   });
-  return rows.map((row) => ({
-    id: row.id,
-    degreeLevel: row.degreeLevel,
-    universityId: row.universityId,
-    universityName: row.university.name,
-    universitySlug: row.university.slug,
-    status: row.status,
-    realName: row.realName,
-    studentId: row.studentId,
-    campusEmail: row.campusEmail,
-    reviewNote: row.reviewNote,
-  }));
+  return Promise.all(
+    rows.map(async (row) => ({
+      id: row.id,
+      degreeLevel: row.degreeLevel,
+      universityId: row.universityId,
+      universityName: row.university.name,
+      universitySlug: row.university.slug,
+      status: row.status,
+      realName: row.realName,
+      studentId: row.studentId,
+      campusEmail: row.campusEmail,
+      proofUrl: row.proofUrl,
+      proofPreview: row.proofUrl
+        ? await resolveStoredAccessUrl(row.proofUrl, {
+            contentDisposition: "inline",
+          })
+        : "",
+      reviewNote: row.reviewNote,
+    })),
+  );
 }
 
 export async function GET() {
@@ -86,13 +95,6 @@ export async function POST(req: Request) {
     if (invalid) {
       return NextResponse.json({ error: invalid }, { status: 400 });
     }
-    const proofUrl = (body.proofUrl || "").trim();
-    if (proofUrl && !isOwnedForumMediaUrl(proofUrl, session.id)) {
-      return NextResponse.json(
-        { error: "证明材料无效，请重新上传" },
-        { status: 400 },
-      );
-    }
 
     const university = await prisma.forumUniversity.findUnique({
       where: { id: body.universityId },
@@ -109,6 +111,15 @@ export async function POST(req: Request) {
         },
       },
     });
+
+    // 没重传时保留原图，避免审核页突然变成「未上传」
+    const proofUrl = (body.proofUrl || "").trim() || existing?.proofUrl || "";
+    if (proofUrl && !isOwnedForumMediaUrl(proofUrl, session.id)) {
+      return NextResponse.json(
+        { error: "证明材料无效，请重新上传" },
+        { status: 400 },
+      );
+    }
 
     const status = decideForumVerifyStatus({
       session,
