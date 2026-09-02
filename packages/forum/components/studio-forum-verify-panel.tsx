@@ -8,6 +8,7 @@ import {
   type ForumDegreeLevel,
   type ForumVerifyStatus,
 } from "@andyyyds/forum/lib/forum-school";
+
 function proofApiPath(
   id: string,
   mode: "preview" | "download" | "meta",
