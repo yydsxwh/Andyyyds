@@ -17,6 +17,10 @@ import {
   themePackById,
 } from "@andyyyds/shared/site-theme";
 import { normalizeTypography } from "@andyyyds/shared/site-typography";
+import {
+  HOME_CLOCK_STYLES,
+  normalizeHomeClock,
+} from "@andyyyds/shared/home-clock";
 import { requireAdmin, studioErrorResponse } from "@andyyyds/shared/studio";
 import {
   getSiteSettings,
@@ -77,6 +81,15 @@ const patchSchema = z.object({
         animation: z.string().max(32).optional(),
       }),
     )
+    .optional(),
+  homeClock: z
+    .object({
+      style: z.enum(HOME_CLOCK_STYLES).optional(),
+      xPercent: z.number().min(0).max(100).nullable().optional(),
+      yPercent: z.number().min(0).max(100).nullable().optional(),
+      showDigital: z.boolean().optional(),
+      showProverb: z.boolean().optional(),
+    })
     .optional(),
 });
 
@@ -142,6 +155,10 @@ export async function PATCH(req: Request) {
         ? { ...current.typography, ...body.typography }
         : current.typography,
     );
+    const homeClock = normalizeHomeClock({
+      ...current.homeClock,
+      ...(body.homeClock || {}),
+    });
 
     const next = {
       logoUrl: (body.logoUrl ?? current.logoUrl).trim() || DEFAULT_DECORATE.logoUrl,
@@ -183,6 +200,7 @@ export async function PATCH(req: Request) {
       layoutDensity,
       fontSizes,
       typography,
+      homeClock,
     };
 
     const row = await prisma.siteSettings.update({

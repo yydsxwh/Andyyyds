@@ -1,12 +1,21 @@
 "use client";
 
 /**
- * 首页右上角时钟：挂在顶栏头像下方，不与菜单同一行，避免把导航挤残。
- * 仅在首页展示；时区偏好存 localStorage。
+ * 首页时钟：装扮决定样式；站长可拖到任意位置，松手写入 decorateJson。
+ * 访客只看摆好的位置，避免每人把钟拖乱。
  */
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
+import {
+  HomeClockFace,
+  HOME_CLOCK_FRAME_CLASS,
+} from "@/components/home-clock-face";
+import {
+  DEFAULT_HOME_CLOCK,
+  normalizeHomeClock,
+  type HomeClockConfig,
+} from "@andyyyds/shared/home-clock";
 import {
   DEFAULT_MEETUP_TIMEZONE,
   MEETUP_TZ_CITIES,
@@ -18,6 +27,8 @@ import {
 
 const TZ_STORAGE_KEY = "yyds.homeClock.timeZone";
 const PROVERB = "一寸光阴一寸金，寸金难买寸光阴。";
+const DRAG_THRESHOLD_PX = 8;
+const EDGE_PAD_PX = 8;
 
 function readStoredTimeZone(): string {
   if (typeof window === "undefined") return DEFAULT_MEETUP_TIMEZONE;
@@ -49,175 +60,59 @@ function formatClock(now: Date, timeZone: string): string {
   }
 }
 
-/** 按所选时区取时/分/秒，供模拟钟面指针计算 */
-function getZonedHms(
-  now: Date,
-  timeZone: string,
-): { hour: number; minute: number; second: number } {
-  try {
-    const parts = new Intl.DateTimeFormat("en-GB", {
-      timeZone,
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hourCycle: "h23",
-    }).formatToParts(now);
-    const num = (type: Intl.DateTimeFormatPartTypes) =>
-      Number(parts.find((p) => p.type === type)?.value || 0);
-    return {
-      hour: num("hour"),
-      minute: num("minute"),
-      second: num("second"),
-    };
-  } catch {
-    return {
-      hour: now.getHours(),
-      minute: now.getMinutes(),
-      second: now.getSeconds(),
-    };
-  }
+function clampBox(left: number, top: number, width: number, height: number) {
+  const maxLeft = Math.max(EDGE_PAD_PX, window.innerWidth - width - EDGE_PAD_PX);
+  const maxTop = Math.max(EDGE_PAD_PX, window.innerHeight - height - EDGE_PAD_PX);
+  return {
+    left: Math.min(maxLeft, Math.max(EDGE_PAD_PX, left)),
+    top: Math.min(maxTop, Math.max(EDGE_PAD_PX, top)),
+  };
 }
 
-/**
- * 艺术感模拟钟：双圈表盘、刻度、随真实时间走动的时/分/秒针。
- * 尺寸小仍可读；颜色跟品牌金，避免通用扁平时钟感。
- */
-function AnalogClockFace({
-  now,
-  timeZone,
-  className = "",
-}: {
-  now: Date;
-  timeZone: string;
-  className?: string;
-}) {
-  const uid = useId().replace(/:/g, "");
-  const faceId = `homeClockFace-${uid}`;
-  const rimId = `homeClockRim-${uid}`;
-  const { hour, minute, second } = getZonedHms(now, timeZone);
-  // 连续角：秒带动分、分带动时，走动更顺滑
-  const secondDeg = second * 6;
-  const minuteDeg = minute * 6 + second * 0.1;
-  const hourDeg = (hour % 12) * 30 + minute * 0.5 + second * (0.5 / 60);
+type Props = {
+  config?: HomeClockConfig | null;
+  canDrag?: boolean;
+};
 
-  const ticks = Array.from({ length: 12 }, (_, i) => {
-    const deg = i * 30;
-    const major = i % 3 === 0;
-    return (
-      <line
-        key={i}
-        x1="32"
-        y1={major ? 8.5 : 9.5}
-        x2="32"
-        y2={major ? 13.5 : 12}
-        stroke="currentColor"
-        strokeWidth={major ? 1.6 : 1}
-        strokeLinecap="round"
-        opacity={major ? 0.72 : 0.38}
-        transform={`rotate(${deg} 32 32)`}
-      />
-    );
-  });
-
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 64 64"
-      fill="none"
-      aria-hidden
-    >
-      <defs>
-        <radialGradient id={faceId} cx="50%" cy="38%" r="62%">
-          <stop offset="0%" stopColor="var(--brand)" stopOpacity="0.18" />
-          <stop offset="55%" stopColor="var(--brand)" stopOpacity="0.06" />
-          <stop offset="100%" stopColor="var(--brand)" stopOpacity="0" />
-        </radialGradient>
-        <linearGradient id={rimId} x1="12" y1="8" x2="52" y2="56">
-          <stop offset="0%" stopColor="var(--brand)" stopOpacity="0.95" />
-          <stop offset="100%" stopColor="var(--brand-strong)" stopOpacity="0.75" />
-        </linearGradient>
-      </defs>
-
-      {/* 外圈光晕 */}
-      <circle cx="32" cy="32" r="30" fill={`url(#${faceId})`} />
-      {/* 双层表圈 */}
-      <circle
-        cx="32"
-        cy="32"
-        r="28.5"
-        stroke={`url(#${rimId})`}
-        strokeWidth="1.75"
-      />
-      <circle
-        cx="32"
-        cy="32"
-        r="25.2"
-        stroke="currentColor"
-        strokeWidth="0.7"
-        opacity="0.28"
-      />
-
-      {ticks}
-
-      {/* 时针：略粗、偏短 */}
-      <g transform={`rotate(${hourDeg} 32 32)`}>
-        <line
-          x1="32"
-          y1="32"
-          x2="32"
-          y2="18"
-          stroke="currentColor"
-          strokeWidth="2.4"
-          strokeLinecap="round"
-          opacity="0.92"
-        />
-      </g>
-      {/* 分针 */}
-      <g transform={`rotate(${minuteDeg} 32 32)`}>
-        <line
-          x1="32"
-          y1="33.5"
-          x2="32"
-          y2="12.5"
-          stroke="currentColor"
-          strokeWidth="1.7"
-          strokeLinecap="round"
-          opacity="0.85"
-        />
-      </g>
-      {/* 秒针：细长、品牌色，尾部小配重 */}
-      <g transform={`rotate(${secondDeg} 32 32)`}>
-        <line
-          x1="32"
-          y1="38"
-          x2="32"
-          y2="10"
-          stroke="var(--brand-strong)"
-          strokeWidth="1"
-          strokeLinecap="round"
-        />
-        <circle cx="32" cy="39.5" r="1.35" fill="var(--brand-strong)" />
-      </g>
-
-      {/* 轴心：双环铆钉感 */}
-      <circle cx="32" cy="32" r="2.6" fill="var(--brand)" />
-      <circle cx="32" cy="32" r="1.15" fill="white" opacity="0.9" />
-    </svg>
-  );
-}
-
-export function SiteHomeClock({ className = "" }: { className?: string }) {
+export function SiteHomeClock({ config, canDrag = false }: Props) {
   const pathname = usePathname();
   const isHome = pathname === "/";
+  const clock = normalizeHomeClock(config);
   const [timeZone, setTimeZone] = useState(DEFAULT_MEETUP_TIMEZONE);
   const [now, setNow] = useState(() => new Date());
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [placed, setPlaced] = useState<{ x: number; y: number } | null>(() =>
+    clock.xPercent == null || clock.yPercent == null
+      ? null
+      : { x: clock.xPercent, y: clock.yPercent },
+  );
+  const [dragging, setDragging] = useState(false);
+  const [saveHint, setSaveHint] = useState("");
   const rootRef = useRef<HTMLDivElement>(null);
+  const skipClickRef = useRef(false);
+  const dragRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    origLeft: number;
+    origTop: number;
+    moved: boolean;
+    lastX: number;
+    lastY: number;
+  } | null>(null);
 
   useEffect(() => {
     setTimeZone(readStoredTimeZone());
   }, []);
+
+  useEffect(() => {
+    if (clock.xPercent == null || clock.yPercent == null) {
+      setPlaced(null);
+      return;
+    }
+    setPlaced({ x: clock.xPercent, y: clock.yPercent });
+  }, [clock.xPercent, clock.yPercent]);
 
   useEffect(() => {
     if (!isHome) return;
@@ -247,6 +142,7 @@ export function SiteHomeClock({ className = "" }: { className?: string }) {
 
   const label = meetupTimeZoneLabel(timeZone);
   const clockText = formatClock(now, timeZone);
+  const customPlace = placed != null;
 
   function pickZone(tz: string) {
     const next = normalizeMeetupTimeZone(tz);
@@ -260,46 +156,156 @@ export function SiteHomeClock({ className = "" }: { className?: string }) {
     setQuery("");
   }
 
+  async function persistPlace(xPercent: number, yPercent: number) {
+    setSaveHint("正在保存位置…");
+    try {
+      const res = await fetch("/api/studio/decorate", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          // 只写位置，样式以库里为准，避免覆盖刚在装扮页改的表盘
+          homeClock: { xPercent, yPercent },
+        }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error || "保存失败");
+      }
+      setSaveHint("位置已保存，访客会看到这里");
+    } catch (error) {
+      setSaveHint(error instanceof Error ? error.message : "保存失败");
+    }
+  }
+
+  function onPointerDown(event: React.PointerEvent<HTMLButtonElement>) {
+    if (!canDrag || event.button !== 0) return;
+    const box = rootRef.current?.getBoundingClientRect();
+    if (!box) return;
+    dragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      origLeft: box.left,
+      origTop: box.top,
+      moved: false,
+      lastX: placed?.x ?? 0,
+      lastY: placed?.y ?? 0,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function onPointerMove(event: React.PointerEvent<HTMLButtonElement>) {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const dx = event.clientX - drag.startX;
+    const dy = event.clientY - drag.startY;
+    if (!drag.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) return;
+    drag.moved = true;
+    setDragging(true);
+    setOpen(false);
+    const box = rootRef.current?.getBoundingClientRect();
+    const width = box?.width || 160;
+    const height = box?.height || 56;
+    const next = clampBox(drag.origLeft + dx, drag.origTop + dy, width, height);
+    const xPercent = Math.round((next.left / window.innerWidth) * 1000) / 10;
+    const yPercent = Math.round((next.top / window.innerHeight) * 1000) / 10;
+    drag.lastX = xPercent;
+    drag.lastY = yPercent;
+    setPlaced({ x: xPercent, y: yPercent });
+  }
+
+  function onPointerUp(event: React.PointerEvent<HTMLButtonElement>) {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    dragRef.current = null;
+    setDragging(false);
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    } catch {
+      /* already released */
+    }
+    if (drag.moved) {
+      skipClickRef.current = true;
+      void persistPlace(drag.lastX, drag.lastY);
+    }
+  }
+
+  function onClockClick() {
+    if (skipClickRef.current) {
+      skipClickRef.current = false;
+      return;
+    }
+    setOpen((v) => !v);
+  }
+
+  const placeStyle = customPlace
+    ? { left: `${placed.x}%`, top: `${placed.y}%` }
+    : { right: "0.75rem", top: "4.55rem" };
+
   return (
     <div
       ref={rootRef}
-      className={`relative flex max-w-[min(100%,20rem)] flex-col items-end gap-0.5 sm:max-w-none ${className}`}
+      className={`fixed z-[35] flex max-w-[min(100%,20rem)] select-none flex-col items-end gap-0.5 sm:max-w-none ${
+        dragging ? "cursor-grabbing" : ""
+      }`}
+      style={placeStyle}
     >
       <button
         type="button"
-        className="flex min-h-11 items-center gap-1 rounded-full border border-[var(--line)] bg-white/50 px-1.5 py-1 text-[var(--ink)] shadow-[var(--glass-inset)] backdrop-blur-md transition active:bg-black/5 sm:gap-1.5 sm:px-3"
+        className={`flex min-h-11 items-center gap-1 rounded-full border px-1.5 py-1 backdrop-blur-md transition sm:gap-1.5 sm:px-3 ${
+          HOME_CLOCK_FRAME_CLASS[clock.style] || HOME_CLOCK_FRAME_CLASS.imperial
+        } ${canDrag ? "touch-none cursor-grab active:cursor-grabbing" : "active:opacity-90"}`}
         aria-expanded={open}
         aria-haspopup="dialog"
-        title={`当前时区：${label}（点击切换）`}
-        onClick={() => setOpen((v) => !v)}
+        title={
+          canDrag
+            ? `按住拖动摆位置 · 当前时区：${label}`
+            : `当前时区：${label}（点击切换）`
+        }
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        onClick={onClockClick}
       >
-        <span className="relative inline-flex h-8 w-8 shrink-0 text-[var(--ink)] sm:h-9 sm:w-9">
-          <AnalogClockFace
+        <span className="relative inline-flex h-8 w-8 shrink-0 sm:h-9 sm:w-9">
+          <HomeClockFace
             now={now}
             timeZone={timeZone}
+            style={clock.style}
             className="h-full w-full"
           />
         </span>
-        <span className="hidden tabular-nums text-sm font-semibold tracking-wide min-[480px]:inline">
-          {clockText}
-        </span>
-        <span className="hidden max-w-[5.5rem] truncate text-xs text-[var(--muted)] sm:inline">
+        {clock.showDigital ? (
+          <span className="hidden tabular-nums text-sm font-semibold tracking-wide min-[480px]:inline">
+            {clockText}
+          </span>
+        ) : null}
+        <span className="hidden max-w-[5.5rem] truncate text-xs opacity-80 sm:inline">
           {label}
         </span>
       </button>
 
-      <p
-        className="hidden max-w-[16rem] text-right text-[10px] leading-snug text-[var(--brand-strong)] sm:block sm:max-w-none sm:text-xs"
-        title={PROVERB}
-      >
-        {PROVERB}
-      </p>
+      {clock.showProverb ? (
+        <p
+          className="hidden max-w-[16rem] text-right text-[10px] leading-snug opacity-90 sm:block sm:max-w-none sm:text-xs"
+          title={PROVERB}
+        >
+          {PROVERB}
+        </p>
+      ) : null}
+
+      {canDrag ? (
+        <p className="hidden text-[10px] leading-4 text-[var(--muted)] sm:block">
+          {saveHint || "按住时钟拖动，松手保存位置"}
+        </p>
+      ) : null}
 
       {open ? (
         <div
           role="dialog"
           aria-label="选择时区"
-          className="absolute right-0 top-full z-50 mt-2 w-[min(100vw-1.5rem,20rem)] rounded-2xl border border-[var(--line)] bg-white/95 p-3 shadow-lg backdrop-blur-md"
+          className="absolute right-0 top-full z-50 mt-2 w-[min(100vw-1.5rem,20rem)] rounded-2xl border border-[var(--line)] bg-white/95 p-3 text-[var(--ink)] shadow-lg backdrop-blur-md"
         >
           <p className="mb-2 text-xs text-[var(--muted)]">
             选择显示时区（仅影响本机首页时钟）
@@ -356,3 +362,5 @@ export function SiteHomeClock({ className = "" }: { className?: string }) {
     </div>
   );
 }
+
+export { DEFAULT_HOME_CLOCK };

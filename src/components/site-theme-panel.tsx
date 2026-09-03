@@ -8,7 +8,18 @@ import {
   type SaveStatus,
 } from "@/components/save-feedback";
 import { SiteFontLoader } from "@/components/site-font-loader";
+import {
+  HomeClockFace,
+  HOME_CLOCK_FRAME_CLASS,
+} from "@/components/home-clock-face";
 import type { DecorateConfig } from "@andyyyds/shared/decorate";
+import {
+  HOME_CLOCK_STYLES,
+  HOME_CLOCK_STYLE_META,
+  homeClockEqual,
+  normalizeHomeClock,
+  type HomeClockConfig,
+} from "@andyyyds/shared/home-clock";
 import { resolveThemeFx } from "@andyyyds/shared/site-theme-islands";
 import {
   DEFAULT_FONT_SIZES,
@@ -58,7 +69,7 @@ import {
   type TypographyConfig,
 } from "@andyyyds/shared/site-typography";
 
-type TabKey = "packs" | "backgrounds" | "palettes" | "layout" | "type";
+type TabKey = "packs" | "backgrounds" | "palettes" | "layout" | "type" | "clock";
 type PaletteFilter = "all" | ThemePaletteCategory;
 type PackFilter = "all" | ThemePackCategory;
 
@@ -70,6 +81,7 @@ type ThemeDraft = {
   layoutDensity: LayoutDensity;
   fontSizes: FontSizesConfig;
   typography: TypographyConfig;
+  homeClock: HomeClockConfig;
 };
 
 type Props = {
@@ -82,6 +94,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "palettes", label: "换配色" },
   { key: "layout", label: "换版式" },
   { key: "type", label: "文字" },
+  { key: "clock", label: "时钟" },
 ];
 
 function draftFromConfig(config: DecorateConfig): ThemeDraft {
@@ -92,6 +105,7 @@ function draftFromConfig(config: DecorateConfig): ThemeDraft {
     layoutDensity: config.layoutDensity,
     fontSizes: normalizeFontSizes(config.fontSizes),
     typography: normalizeTypography(config.typography),
+    homeClock: normalizeHomeClock(config.homeClock),
   };
 }
 
@@ -107,7 +121,11 @@ function draftsEqual(a: ThemeDraft, b: ThemeDraft): boolean {
   const sizesMatch = FONT_SIZE_FIELDS.every(
     (field) => a.fontSizes[field.key] === b.fontSizes[field.key],
   );
-  return sizesMatch && typographyEqual(a.typography, b.typography);
+  return (
+    sizesMatch &&
+    typographyEqual(a.typography, b.typography) &&
+    homeClockEqual(a.homeClock, b.homeClock)
+  );
 }
 
 export function SiteThemePanel({ initial }: Props) {
@@ -133,6 +151,7 @@ export function SiteThemePanel({ initial }: Props) {
     layoutDensity,
     fontSizes,
     typography,
+    homeClock,
   } = draft;
   const isDirty = !draftsEqual(draft, saved);
   const savedRef = useRef(saved);
@@ -162,6 +181,7 @@ export function SiteThemePanel({ initial }: Props) {
     initial.fontSizes?.portalCardDesc,
     initial.fontSizes?.filterTag,
     initial.typography,
+    initial.homeClock,
   ]);
 
   // 未保存离开页：浏览器原生提示（站内 Link 无法拦截，靠文案提醒）
@@ -294,6 +314,7 @@ export function SiteThemePanel({ initial }: Props) {
       layoutDensity: draft.layoutDensity,
       fontSizes: draft.fontSizes,
       typography: draft.typography,
+      homeClock: draft.homeClock,
     });
     setMessage(`已试穿「${pack.name}」，请点「保存装扮」后全站生效`);
   }
@@ -361,6 +382,14 @@ export function SiteThemePanel({ initial }: Props) {
     );
   }
 
+  function applyHomeClock(patch: Partial<HomeClockConfig>) {
+    setDraft((prev) => ({
+      ...prev,
+      homeClock: normalizeHomeClock({ ...prev.homeClock, ...patch }),
+    }));
+    setMessage("已试穿时钟，请点「保存装扮」后全站生效");
+  }
+
   function resetDraft() {
     // 撤销到上次成功写入 decorateJson 的组合，而不是清空
     setDraft(saved);
@@ -382,6 +411,8 @@ export function SiteThemePanel({ initial }: Props) {
         layoutDensity,
         fontSizes,
         typography,
+        // 未改时钟时不回写，避免覆盖首页刚拖好的位置
+        ...(homeClockEqual(homeClock, saved.homeClock) ? {} : { homeClock }),
       }),
     });
     setSaving(false);
@@ -480,7 +511,7 @@ export function SiteThemePanel({ initial }: Props) {
           </p>
         ) : (
           <p className="mt-2 text-xs text-[var(--muted)]">
-            点选主题/背景/配色只在本页试穿，不会自动改全站；确认后必须点「保存装扮」。
+            点选主题/背景/配色/时钟只在本页试穿，不会自动改全站；确认后必须点「保存装扮」。时钟位置请回首页按住拖动。
           </p>
         )}
       </div>
@@ -529,7 +560,7 @@ export function SiteThemePanel({ initial }: Props) {
             点击下方仅试穿，需点「保存装扮」才改全站
           </span>
         </div>
-        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           <CurrentSlot
             label="主题包"
             title={currentPack?.name || "自定义"}
@@ -557,6 +588,11 @@ export function SiteThemePanel({ initial }: Props) {
             label="文字"
             title={`${fontById(typography.heroTitle.fontFamily).name} · ${fontSizes.heroTitle}px`}
             preview="linear-gradient(135deg, var(--brand-soft), var(--card))"
+          />
+          <CurrentSlot
+            label="时钟"
+            title={HOME_CLOCK_STYLE_META[homeClock.style]?.name || "皇家金"}
+            preview="linear-gradient(145deg, #1a140c, #d4af37 55%, #f3e6c4)"
           />
         </div>
       </div>
@@ -835,6 +871,10 @@ export function SiteThemePanel({ initial }: Props) {
           onResetSizes={resetFontSizes}
           onResetTypography={resetTypography}
         />
+      ) : null}
+
+      {tab === "clock" ? (
+        <ClockTab clock={homeClock} onChange={applyHomeClock} />
       ) : null}
     </div>
   );
@@ -1205,6 +1245,133 @@ function TypeTab({
             );
           })}
         </div>
+      </div>
+    </section>
+  );
+}
+
+/** 腕表广告常用 10:10 姿态；按上海时区换算成 UTC */
+const CLOCK_PREVIEW_POSE = new Date(Date.UTC(2026, 0, 1, 2, 10, 31));
+const CLOCK_PREVIEW_TZ = "Asia/Shanghai";
+
+function ClockTab({
+  clock,
+  onChange,
+}: {
+  clock: HomeClockConfig;
+  onChange: (patch: Partial<HomeClockConfig>) => void;
+}) {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(new Date()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const placed =
+    clock.xPercent != null && clock.yPercent != null
+      ? `距左 ${clock.xPercent}% · 距顶 ${clock.yPercent}%`
+      : "默认：顶栏右下角";
+
+  return (
+    <section className="space-y-5">
+      <Header
+        title="首页时钟"
+        hint="选一套奢华表盘；位置请回首页按住时钟拖动，松手即保存。访客看到同一套样式和位置。"
+      />
+
+      <div
+        className={`flex flex-col items-center gap-3 rounded-[22px] border px-4 py-6 sm:flex-row sm:items-center sm:justify-center sm:gap-5 ${
+          HOME_CLOCK_FRAME_CLASS[clock.style] || HOME_CLOCK_FRAME_CLASS.imperial
+        }`}
+      >
+        <span className="inline-flex h-24 w-24 sm:h-28 sm:w-28">
+          <HomeClockFace
+            now={now}
+            timeZone={CLOCK_PREVIEW_TZ}
+            style={clock.style}
+            className="h-full w-full"
+          />
+        </span>
+        <div className="text-center sm:text-left">
+          <p className="text-lg font-semibold tracking-wide">
+            {HOME_CLOCK_STYLE_META[clock.style]?.name}
+          </p>
+          <p className="mt-1 text-sm opacity-80">
+            {HOME_CLOCK_STYLE_META[clock.style]?.hint}
+          </p>
+          <p className="mt-2 text-xs opacity-70">当前摆放：{placed}</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {HOME_CLOCK_STYLES.map((style) => {
+          const meta = HOME_CLOCK_STYLE_META[style];
+          const selected = clock.style === style;
+          return (
+            <button
+              key={style}
+              type="button"
+              onClick={() => onChange({ style })}
+              className={`min-h-11 rounded-2xl border p-3 text-left transition ${
+                selected
+                  ? "border-[var(--brand)] ring-2 ring-[var(--brand)]/30"
+                  : "border-[var(--line)] bg-white/90 hover:border-[var(--brand)]/40"
+              }`}
+            >
+              <span
+                className={`mb-2 flex h-16 items-center justify-center rounded-xl ${
+                  HOME_CLOCK_FRAME_CLASS[style]
+                }`}
+              >
+                <HomeClockFace
+                  now={CLOCK_PREVIEW_POSE}
+                  timeZone={CLOCK_PREVIEW_TZ}
+                  style={style}
+                  className="h-14 w-14"
+                />
+              </span>
+              <p className="text-sm font-medium">{meta.name}</p>
+              <p className="mt-0.5 text-[11px] leading-4 text-[var(--muted)]">
+                {meta.hint}
+              </p>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="flex min-h-12 items-center justify-between gap-3 rounded-2xl border border-[var(--line)] bg-white/90 px-4">
+          <span className="text-sm">显示数字时间</span>
+          <input
+            type="checkbox"
+            className="h-5 w-5 accent-[var(--brand)]"
+            checked={clock.showDigital}
+            onChange={(event) => onChange({ showDigital: event.target.checked })}
+          />
+        </label>
+        <label className="flex min-h-12 items-center justify-between gap-3 rounded-2xl border border-[var(--line)] bg-white/90 px-4">
+          <span className="text-sm">显示金句</span>
+          <input
+            type="checkbox"
+            className="h-5 w-5 accent-[var(--brand)]"
+            checked={clock.showProverb}
+            onChange={(event) => onChange({ showProverb: event.target.checked })}
+          />
+        </label>
+      </div>
+
+      <div className="flex flex-col gap-2 rounded-2xl border border-[var(--line)] bg-white/80 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-[var(--muted)]">
+          想改位置：打开首页，按住时钟拖到想要的地方。窄屏微信里同样可拖。
+        </p>
+        <button
+          type="button"
+          className="btn btn-secondary min-h-11 shrink-0 px-4 text-sm"
+          disabled={clock.xPercent == null && clock.yPercent == null}
+          onClick={() => onChange({ xPercent: null, yPercent: null })}
+        >
+          恢复默认右上角
+        </button>
       </div>
     </section>
   );

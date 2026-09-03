@@ -18,6 +18,11 @@ import {
   normalizeTypography,
   type TypographyConfig,
 } from "@andyyyds/shared/site-typography";
+import {
+  DEFAULT_HOME_CLOCK,
+  normalizeHomeClock,
+  type HomeClockConfig,
+} from "@andyyyds/shared/home-clock";
 
 export type DecorateBanner = {
   id: string;
@@ -75,6 +80,8 @@ export type DecorateConfig = {
   fontSizes: FontSizesConfig;
   /** 各文本角色的字体 / 特效 / 动画；缺省兼容旧 decorateJson */
   typography: TypographyConfig;
+  /** 首页时钟样式与摆放；未配置时用右上默认角 */
+  homeClock: HomeClockConfig;
 };
 
 export const DEFAULT_LOGO_URL = "/brand/logo.png";
@@ -122,6 +129,7 @@ export const DEFAULT_DECORATE: DecorateConfig = {
   layoutDensity: DEFAULT_LAYOUT_DENSITY,
   fontSizes: { ...DEFAULT_FONT_SIZES },
   typography: structuredClone(DEFAULT_TYPOGRAPHY),
+  homeClock: { ...DEFAULT_HOME_CLOCK },
 };
 
 function newId() {
@@ -251,6 +259,7 @@ export function parseDecorate(raw: string | null | undefined): DecorateConfig {
         DEFAULT_HERO_SECONDARY_CTA,
       ),
       ...theme,
+      homeClock: normalizeHomeClock(parsed.homeClock),
     };
   } catch {
     return structuredClone(DEFAULT_DECORATE);

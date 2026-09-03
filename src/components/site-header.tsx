@@ -11,7 +11,7 @@ import { getRequestLocaleContext } from "@andyyyds/shared/i18n/get-request-local
 import { translateMessage } from "@andyyyds/shared/i18n/messages";
 import { navHoverMessageKey, navMessageKey } from "@andyyyds/shared/i18n/nav-labels";
 import { typoRoleClass, typoRoleStyle } from "@andyyyds/shared/site-typography";
-import { canAccessStudio, hasRole, isAdmin } from "@andyyyds/shared/roles";
+import { canAccessStudio, canManageDecorate, hasRole, isAdmin } from "@andyyyds/shared/roles";
 import {
   getDecorateConfig,
   getPortalConfig,
@@ -161,6 +161,7 @@ export async function SiteHeader() {
   }
 
   return (
+    <>
     <header className="glass-bar tilt-glass-bar sticky top-0 z-40 overflow-visible border-b">
       <div className="relative grid min-h-14 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-3 py-2 sm:min-h-16 sm:gap-3 sm:px-3 lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:px-4">
         <Link
@@ -242,9 +243,12 @@ export async function SiteHeader() {
             </>
           )}
         </div>
-        {/* 时钟不进菜单行：贴在顶栏右上、头像下方，避免把「站长管理」挤成半截 */}
-        <SiteHomeClock className="absolute right-3 top-full z-30 mt-1.5 sm:right-4" />
       </div>
     </header>
+    <SiteHomeClock
+      config={decorate.homeClock}
+      canDrag={Boolean(session && canManageDecorate(session))}
+    />
+    </>
   );
 }
