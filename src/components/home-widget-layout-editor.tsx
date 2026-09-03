@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -14,6 +15,7 @@ import {
 } from "@/components/save-feedback";
 import { HomePortalCardBody } from "@/components/home-portal-card-body";
 import { SiteHomeClock } from "@/components/site-home-clock";
+import type { DecorateConfig } from "@andyyyds/shared/decorate";
 import {
   HOME_WIDGET_CLOCK_ID,
   HOME_WIDGET_DEFAULT_CANVAS_MIN_HEIGHT_PX,
@@ -60,6 +62,8 @@ export function HomeWidgetLayoutEditor({ initial, navItems }: Props) {
   const router = useRouter();
   const canvasRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<DragState | null>(null);
+  const itemsRef = useRef<Record<string, HomeWidgetBox>>({});
+  const enabledRef = useRef(false);
   const navKeys = useMemo(
     () => navItems.map((item) => item.key),
     [navItems],
@@ -75,16 +79,22 @@ export function HomeWidgetLayoutEditor({ initial, navItems }: Props) {
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<SaveStatus>(null);
 
+  itemsRef.current = items;
+  enabledRef.current = enabled;
+
   const minHeight = resolveCanvasMinHeightPx(items, canvasMinHeightPx);
   const selected = items[selectedId];
 
-  function patchBox(id: string, partial: Partial<HomeWidgetBox>) {
-    // 一拖就视为要上自由布局，避免摆好了却忘勾选、前台毫无变化
+  function applyBox(id: string, nextBox: HomeWidgetBox) {
+    // 一改位置/尺寸就启用，避免摆好了却忘勾选、前台毫无变化
     setEnabled(true);
-    setItems((prev) => ({
-      ...prev,
-      [id]: clampHomeWidgetBox({ ...prev[id], ...partial }),
-    }));
+    setItems((prev) => ({ ...prev, [id]: nextBox }));
+  }
+
+  function patchBox(id: string, partial: Partial<HomeWidgetBox>) {
+    const current = itemsRef.current[id];
+    if (!current) return;
+    applyBox(id, clampHomeWidgetBox({ ...current, ...partial }));
   }
 
   function resetDefaults() {
@@ -95,17 +105,40 @@ export function HomeWidgetLayoutEditor({ initial, navItems }: Props) {
     setFeedback({ kind: "ok", text: "已恢复默认摆放，记得点保存" });
   }
 
+  function applyDrag(clientX: number, clientY: number) {
+    const drag = dragRef.current;
+    const canvas = canvasRef.current;
+    if (!drag || !canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const dxPct = ((clientX - drag.startX) / Math.max(rect.width, 1)) * 100;
+    const dyPx = clientY - drag.startY;
+    const next =
+      drag.kind === "move"
+        ? clampHomeWidgetBox({
+            ...drag.orig,
+            xPct: drag.orig.xPct + dxPct,
+            yPx: drag.orig.yPx + dyPx,
+          })
+        : clampHomeWidgetBox({
+            ...drag.orig,
+            wPct: drag.orig.wPct + dxPct,
+            hPx: drag.orig.hPx + dyPx,
+          });
+    applyBox(drag.id, next);
+  }
+
   function onPointerDown(
     e: ReactPointerEvent<HTMLElement>,
     id: string,
     kind: DragKind,
   ) {
+    // 窗口级 move/up：避免每次 setState 重绘把 pointer capture 丢掉
     e.preventDefault();
     e.stopPropagation();
-    setSelectedId(id);
-    const box = items[id];
+    const box = itemsRef.current[id];
     if (!box) return;
-    e.currentTarget.setPointerCapture(e.pointerId);
+    setSelectedId(id);
+    setEnabled(true);
     dragRef.current = {
       id,
       kind,
@@ -116,44 +149,39 @@ export function HomeWidgetLayoutEditor({ initial, navItems }: Props) {
     };
   }
 
-  function onPointerMove(e: ReactPointerEvent<HTMLElement>) {
-    const drag = dragRef.current;
-    if (!drag || drag.pointerId !== e.pointerId) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const dxPct = ((e.clientX - drag.startX) / Math.max(rect.width, 1)) * 100;
-    const dyPx = e.clientY - drag.startY;
-    if (drag.kind === "move") {
-      patchBox(drag.id, {
-        xPct: drag.orig.xPct + dxPct,
-        yPx: drag.orig.yPx + dyPx,
-      });
-      return;
+  useEffect(() => {
+    function onMove(e: PointerEvent) {
+      const drag = dragRef.current;
+      if (!drag || drag.pointerId !== e.pointerId) return;
+      e.preventDefault();
+      applyDrag(e.clientX, e.clientY);
     }
-    patchBox(drag.id, {
-      wPct: drag.orig.wPct + dxPct,
-      hPx: drag.orig.hPx + dyPx,
-    });
-  }
-
-  function onPointerUp(e: ReactPointerEvent<HTMLElement>) {
-    if (!dragRef.current || dragRef.current.pointerId !== e.pointerId) return;
-    try {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    } catch {
-      /* ignore */
+    function onUp(e: PointerEvent) {
+      const drag = dragRef.current;
+      if (!drag || drag.pointerId !== e.pointerId) return;
+      applyDrag(e.clientX, e.clientY);
+      dragRef.current = null;
     }
-    dragRef.current = null;
-  }
+    window.addEventListener("pointermove", onMove, { passive: false });
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+  }, []);
 
   async function save() {
     setSaving(true);
     setFeedback(null);
     const payload: HomeWidgetLayoutConfig = normalizeHomeWidgetLayout({
-      enabled,
-      canvasMinHeightPx: minHeight,
-      items,
+      enabled: enabledRef.current,
+      canvasMinHeightPx: resolveCanvasMinHeightPx(
+        itemsRef.current,
+        canvasMinHeightPx,
+      ),
+      items: itemsRef.current,
     });
     const result = await postSave("/api/studio/decorate", {
       method: "PATCH",
@@ -165,9 +193,16 @@ export function HomeWidgetLayoutEditor({ initial, navItems }: Props) {
       setFeedback({ kind: "error", text: result.error || "保存失败" });
       return;
     }
+    const saved = (result.data.decorate as DecorateConfig | undefined)
+      ?.homeWidgetLayout;
+    if (saved) {
+      setEnabled(saved.enabled);
+      setItems(mergeHomeWidgetBoxes(saved.items, navKeys));
+      setCanvasMinHeightPx(saved.canvasMinHeightPx);
+    }
     setFeedback({
       kind: "ok",
-      text: enabled
+      text: payload.enabled
         ? "首页摆放已保存，前台按此位置与尺寸显示"
         : "已保存。尚未启用自由布局，前台仍是栅格卡片和顶栏时钟",
     });
@@ -285,11 +320,11 @@ export function HomeWidgetLayoutEditor({ initial, navItems }: Props) {
 
       <div
         ref={canvasRef}
-        className="relative overflow-hidden rounded-[24px] border border-dashed border-[var(--line)] bg-[var(--bg-deep)]/40"
+        className="relative select-none overflow-hidden rounded-[24px] border border-dashed border-[var(--line)] bg-[var(--bg-deep)]/40"
         style={{ minHeight }}
       >
         <p className="pointer-events-none absolute left-3 top-2 z-0 text-xs text-[var(--muted)]">
-          按住卡片拖动；右下角方块拉大小
+          按住顶条拖动；右下角方块拉大小
         </p>
         {widgetIds.map((id) => {
           const box = items[id];
@@ -297,28 +332,27 @@ export function HomeWidgetLayoutEditor({ initial, navItems }: Props) {
           const selectedRing =
             selectedId === id
               ? "ring-2 ring-[var(--brand)] ring-offset-2"
-              : "ring-1 ring-transparent";
+              : "ring-1 ring-black/10";
           const nav = navItems.find((item) => homeWidgetNavId(item.key) === id);
           return (
             <div
               key={id}
-              role="button"
-              tabIndex={0}
-              aria-label={`${widgetLabel(id, navItems)}，拖动移动`}
-              className={`absolute z-10 touch-none overflow-visible ${selectedRing} ${
-                id === HOME_WIDGET_CLOCK_ID ? "rounded-[28px]" : "rounded-[28px]"
-              }`}
+              className={`absolute z-10 overflow-visible rounded-[28px] ${selectedRing}`}
               style={homeWidgetBoxStyle(box)}
-              onPointerDown={(e) => onPointerDown(e, id, "move")}
-              onPointerMove={onPointerMove}
-              onPointerUp={onPointerUp}
-              onPointerCancel={onPointerUp}
             >
-              <div className="pointer-events-none h-full w-full cursor-move">
+              <button
+                type="button"
+                aria-label={`${widgetLabel(id, navItems)}，拖动移动`}
+                className="absolute inset-x-0 top-0 z-20 flex min-h-11 cursor-move touch-none items-center justify-center rounded-t-[28px] bg-[var(--brand)]/90 px-2 text-xs font-medium text-white"
+                onPointerDown={(e) => onPointerDown(e, id, "move")}
+              >
+                拖动 · {widgetLabel(id, navItems)}
+              </button>
+              <div className="pointer-events-none h-full w-full pt-11">
                 {id === HOME_WIDGET_CLOCK_ID ? (
                   <SiteHomeClock forceVisible fill className="h-full w-full" />
                 ) : (
-                  <div className="surface-soft group h-full overflow-hidden rounded-[28px] p-5">
+                  <div className="surface-soft group h-full overflow-hidden rounded-b-[28px] p-4">
                     <HomePortalCardBody
                       label={nav?.label || id}
                       comingSoon={nav?.comingSoon}
@@ -329,13 +363,10 @@ export function HomeWidgetLayoutEditor({ initial, navItems }: Props) {
               <button
                 type="button"
                 aria-label={`${widgetLabel(id, navItems)}，拉角缩放`}
-                className="absolute -bottom-1 -right-1 z-20 flex h-11 w-11 items-center justify-center touch-none"
+                className="absolute -bottom-1 -right-1 z-30 flex h-11 w-11 cursor-se-resize touch-none items-center justify-center"
                 onPointerDown={(e) => onPointerDown(e, id, "resize")}
-                onPointerMove={onPointerMove}
-                onPointerUp={onPointerUp}
-                onPointerCancel={onPointerUp}
               >
-                <span className="h-4 w-4 rounded-sm border-2 border-[var(--brand)] bg-white shadow" />
+                <span className="h-5 w-5 rounded-sm border-2 border-[var(--brand)] bg-white shadow" />
               </button>
             </div>
           );
