@@ -5,7 +5,7 @@
  * 仅在首页展示；时区偏好存 localStorage。
  */
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
 import { usePathname } from "next/navigation";
 import {
   DEFAULT_MEETUP_TIMEZONE,
@@ -206,9 +206,22 @@ function AnalogClockFace({
   );
 }
 
-export function SiteHomeClock({ className = "" }: { className?: string }) {
+export function SiteHomeClock({
+  className = "",
+  style,
+  forceVisible = false,
+  fill = false,
+}: {
+  className?: string;
+  style?: CSSProperties;
+  /** 装扮画布预览不在「/」，仍要渲染真实时钟 */
+  forceVisible?: boolean;
+  /** 铺满装扮指定的盒子，而不是顶栏那套右对齐收缩 */
+  fill?: boolean;
+}) {
   const pathname = usePathname();
   const isHome = pathname === "/";
+  const visible = forceVisible || isHome;
   const [timeZone, setTimeZone] = useState(DEFAULT_MEETUP_TIMEZONE);
   const [now, setNow] = useState(() => new Date());
   const [open, setOpen] = useState(false);
@@ -220,10 +233,10 @@ export function SiteHomeClock({ className = "" }: { className?: string }) {
   }, []);
 
   useEffect(() => {
-    if (!isHome) return;
+    if (!visible) return;
     const id = window.setInterval(() => setNow(new Date()), 1000);
     return () => window.clearInterval(id);
-  }, [isHome]);
+  }, [visible]);
 
   useEffect(() => {
     if (!open) return;
@@ -243,7 +256,7 @@ export function SiteHomeClock({ className = "" }: { className?: string }) {
     [],
   );
 
-  if (!isHome) return null;
+  if (!visible) return null;
 
   const label = meetupTimeZoneLabel(timeZone);
   const clockText = formatClock(now, timeZone);
@@ -263,33 +276,64 @@ export function SiteHomeClock({ className = "" }: { className?: string }) {
   return (
     <div
       ref={rootRef}
-      className={`relative flex max-w-[min(100%,20rem)] flex-col items-end gap-0.5 sm:max-w-none ${className}`}
+      style={style}
+      className={
+        fill
+          ? `relative flex h-full min-h-11 w-full max-w-none flex-col items-stretch gap-0.5 ${className}`
+          : `relative flex max-w-[min(100%,20rem)] flex-col items-end gap-0.5 sm:max-w-none ${className}`
+      }
     >
       <button
         type="button"
-        className="flex min-h-11 items-center gap-1 rounded-full border border-[var(--line)] bg-white/50 px-1.5 py-1 text-[var(--ink)] shadow-[var(--glass-inset)] backdrop-blur-md transition active:bg-black/5 sm:gap-1.5 sm:px-3"
+        className={
+          fill
+            ? "flex min-h-11 h-full w-full items-center justify-center gap-1.5 rounded-[28px] border border-[var(--line)] bg-white/50 px-2 py-1 text-[var(--ink)] shadow-[var(--glass-inset)] backdrop-blur-md transition active:bg-black/5 sm:px-3"
+            : "flex min-h-11 items-center gap-1 rounded-full border border-[var(--line)] bg-white/50 px-1.5 py-1 text-[var(--ink)] shadow-[var(--glass-inset)] backdrop-blur-md transition active:bg-black/5 sm:gap-1.5 sm:px-3"
+        }
         aria-expanded={open}
         aria-haspopup="dialog"
         title={`当前时区：${label}（点击切换）`}
         onClick={() => setOpen((v) => !v)}
       >
-        <span className="relative inline-flex h-8 w-8 shrink-0 text-[var(--ink)] sm:h-9 sm:w-9">
+        <span
+          className={
+            fill
+              ? "relative inline-flex aspect-square h-[min(4.5rem,70%)] w-auto shrink-0 text-[var(--ink)]"
+              : "relative inline-flex h-8 w-8 shrink-0 text-[var(--ink)] sm:h-9 sm:w-9"
+          }
+        >
           <AnalogClockFace
             now={now}
             timeZone={timeZone}
             className="h-full w-full"
           />
         </span>
-        <span className="hidden tabular-nums text-sm font-semibold tracking-wide min-[480px]:inline">
+        <span
+          className={
+            fill
+              ? "min-w-0 truncate tabular-nums text-sm font-semibold tracking-wide"
+              : "hidden tabular-nums text-sm font-semibold tracking-wide min-[480px]:inline"
+          }
+        >
           {clockText}
         </span>
-        <span className="hidden max-w-[5.5rem] truncate text-xs text-[var(--muted)] sm:inline">
+        <span
+          className={
+            fill
+              ? "hidden min-w-0 max-w-[7rem] truncate text-xs text-[var(--muted)] min-[360px]:inline"
+              : "hidden max-w-[5.5rem] truncate text-xs text-[var(--muted)] sm:inline"
+          }
+        >
           {label}
         </span>
       </button>
 
       <p
-        className="hidden max-w-[16rem] text-right text-[10px] leading-snug text-[var(--brand-strong)] sm:block sm:max-w-none sm:text-xs"
+        className={
+          fill
+            ? "hidden px-1 text-right text-[10px] leading-snug text-[var(--brand-strong)] min-[480px]:block"
+            : "hidden max-w-[16rem] text-right text-[10px] leading-snug text-[var(--brand-strong)] sm:block sm:max-w-none sm:text-xs"
+        }
         title={PROVERB}
       >
         {PROVERB}

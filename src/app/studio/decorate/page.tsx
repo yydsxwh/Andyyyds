@@ -2,12 +2,16 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { DecoratePanel } from "@/components/decorate-panel";
 import { DecorateSubnav } from "@/components/decorate-subnav";
+import { HomeWidgetLayoutEditor } from "@/components/home-widget-layout-editor";
 import { SiteThemePanel } from "@/components/site-theme-panel";
 import { StudioNav } from "@/components/studio-nav";
 import { TiltParallaxToggle } from "@/components/tilt-parallax-provider";
 import { getSession } from "@andyyyds/shared/auth";
 import { isAdmin } from "@andyyyds/shared/roles";
-import { getDecorateConfig } from "@andyyyds/shared/site-settings";
+import {
+  getDecorateConfig,
+  getPortalConfig,
+} from "@andyyyds/shared/site-settings";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +20,16 @@ export default async function StudioDecoratePage() {
   if (!session) redirect("/login");
   if (!isAdmin(session.role)) redirect("/studio");
 
-  const decorate = await getDecorateConfig();
+  const [decorate, portal] = await Promise.all([
+    getDecorateConfig(),
+    getPortalConfig(),
+  ]);
+  const homeCards = portal.nav.filter(
+    (item) =>
+      item.enabled !== false &&
+      item.key !== "home" &&
+      item.key !== "games",
+  );
 
   return (
     <div className="container space-y-8 py-8 sm:py-12">
@@ -57,6 +70,21 @@ export default async function StudioDecoratePage() {
       </div>
 
       <SiteThemePanel initial={decorate} />
+
+      <details open className="surface rounded-[28px] p-5 sm:p-6">
+        <summary className="cursor-pointer list-none touch-manipulation text-lg font-semibold">
+          首页卡片与时钟：拖动 / 改大小
+          <span className="mt-1 block text-sm font-normal text-[var(--muted)]">
+            自由摆放门户入口卡片和时钟。启用并保存后，前台首页按此位置与尺寸显示；未启用时保持原来的栅格和顶栏时钟。
+          </span>
+        </summary>
+        <div className="mt-6">
+          <HomeWidgetLayoutEditor
+            initial={decorate.homeWidgetLayout}
+            navItems={homeCards}
+          />
+        </div>
+      </details>
 
       {/* 本机体验开关：不写 decorateJson，避免全站访客被微信权限打扰 */}
       <TiltParallaxToggle />

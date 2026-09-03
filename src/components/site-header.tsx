@@ -242,8 +242,10 @@ export async function SiteHeader() {
             </>
           )}
         </div>
-        {/* 时钟不进菜单行：贴在顶栏右上、头像下方，避免把「站长管理」挤成半截 */}
-        <SiteHomeClock className="absolute right-3 top-full z-30 mt-1.5 sm:right-4" />
+        {/* 自由布局启用后时钟改走首页画布，避免顶栏与画布各画一只 */}
+        {decorate.homeWidgetLayout?.enabled ? null : (
+          <SiteHomeClock className="absolute right-3 top-full z-30 mt-1.5 sm:right-4" />
+        )}
       </div>
     </header>
   );

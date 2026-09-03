@@ -1,5 +1,10 @@
 import { DEFAULT_SITE_HERO_URL } from "@andyyyds/shared/cover-images";
 import {
+  DEFAULT_HOME_WIDGET_LAYOUT,
+  normalizeHomeWidgetLayout,
+  type HomeWidgetLayoutConfig,
+} from "@andyyyds/shared/home-widget-layout";
+import {
   DEFAULT_BACKGROUND_ID,
   DEFAULT_FONT_SIZES,
   DEFAULT_LAYOUT_DENSITY,
@@ -18,6 +23,8 @@ import {
   normalizeTypography,
   type TypographyConfig,
 } from "@andyyyds/shared/site-typography";
+
+export type { HomeWidgetBox, HomeWidgetLayoutConfig } from "@andyyyds/shared/home-widget-layout";
 
 export type DecorateBanner = {
   id: string;
@@ -75,6 +82,8 @@ export type DecorateConfig = {
   fontSizes: FontSizesConfig;
   /** 各文本角色的字体 / 特效 / 动画；缺省兼容旧 decorateJson */
   typography: TypographyConfig;
+  /** 首页时钟与门户卡片的自由位置/尺寸；未启用时保持顶栏时钟 + 栅格 */
+  homeWidgetLayout: HomeWidgetLayoutConfig;
 };
 
 export const DEFAULT_LOGO_URL = "/brand/logo.png";
@@ -122,6 +131,7 @@ export const DEFAULT_DECORATE: DecorateConfig = {
   layoutDensity: DEFAULT_LAYOUT_DENSITY,
   fontSizes: { ...DEFAULT_FONT_SIZES },
   typography: structuredClone(DEFAULT_TYPOGRAPHY),
+  homeWidgetLayout: structuredClone(DEFAULT_HOME_WIDGET_LAYOUT),
 };
 
 function newId() {
@@ -251,6 +261,7 @@ export function parseDecorate(raw: string | null | undefined): DecorateConfig {
         DEFAULT_HERO_SECONDARY_CTA,
       ),
       ...theme,
+      homeWidgetLayout: normalizeHomeWidgetLayout(parsed.homeWidgetLayout),
     };
   } catch {
     return structuredClone(DEFAULT_DECORATE);
