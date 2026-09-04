@@ -17,7 +17,8 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 HOST = "47.242.157.181"
 USER = "admin"
-LOCAL_PROJECT = Path(r"E:\source\repos\Andyyyds")
+# 以本仓库根目录为准，Windows / Cloud Agent 都能打到当前工程
+LOCAL_PROJECT = Path(__file__).resolve().parents[1]
 REMOTE_DIR = "/var/www/yyds-course-platform"
 REMOTE_TAR = "/tmp/yyds-safe-deploy.tar.gz"
 REMOTE_STAGE = "/tmp/yyds-safe-deploy-stage"
@@ -311,7 +312,7 @@ def main() -> int:
         "curl -s -o /dev/null -w 'local:%{http_code}\\n' http://127.0.0.1:3000/; "
         "curl -s -o /dev/null -w 'site:%{http_code}\\n' -m 15 https://www.yydsxwh.com/; "
         f"grep -n '横屏全屏\\|learn-landscape-fs\\|learn-fs-enter' "
-        f"{REMOTE_DIR}/src/components/learn-player.tsx "
+        f"{REMOTE_DIR}/packages/courses/components/learn-player.tsx "
         f"{REMOTE_DIR}/src/app/globals.css | head -20",
     )
     print("DEPLOY_OK", flush=True)
