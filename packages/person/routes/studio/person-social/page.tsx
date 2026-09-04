@@ -18,7 +18,7 @@ export default async function StudioPersonSocialPage() {
       <div>
         <h1 className="text-2xl font-semibold">个人IP投稿</h1>
         <p className="mt-2 text-sm text-[var(--muted)]">
-          同步自己的抖音、B站、小红书投稿，展示在前台「个人介绍」。用法和公众号宣传类似。
+          同步自己的抖音、B站、小红书、微信视频号投稿和合集，展示在前台「个人介绍」。用法和公众号宣传类似。
         </p>
       </div>
       <StudioPersonSocialPanel />

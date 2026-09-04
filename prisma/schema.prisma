@@ -472,7 +472,7 @@ model SiteSettings {
   /// 大学论坛全站配置（JSON）：成员发帖/评论/互动/私信开关 + 顶部公告栏
   forumJson String @default("")
 
-  /// 个人IP外平台主页（JSON）：B站/抖音/小红书主页，用于同步投稿到「个人介绍」
+  /// 个人IP外平台主页（JSON）：B站/抖音/小红书/视频号主页，用于同步投稿到「个人介绍」
   personSocialJson String @default("")
 
   /// 高德 Web 服务 Key：论坛/约搭搜国内店名与反查地址；空则回退 OSM
@@ -771,12 +771,12 @@ model CouponRedemption {
   @@unique([couponId, userId])
 }
 
-/// 个人IP从 B站 / 抖音 / 小红书同步来的投稿（展示在「个人介绍」）
+/// 个人IP从 B站 / 抖音 / 小红书 / 视频号同步来的投稿（展示在「个人介绍」）
 model PersonSocialPost {
   id          String    @id @default(cuid())
-  /// BILIBILI | DOUYIN | XIAOHONGSHU
+  /// BILIBILI | DOUYIN | XIAOHONGSHU | WECHAT_CHANNELS
   platform    String
-  /// 平台侧稳定 id：bvid / aweme_id / 笔记 id
+  /// 平台侧稳定 id：bvid / aweme_id / 笔记 id / 视频号 exportId
   externalId  String
   title       String    @default("")
   digest      String    @default("")
@@ -790,6 +790,7 @@ model PersonSocialPost {
   sortOrder   Int       @default(0)
   isPinned    Boolean   @default(false)
   isFeatured  Boolean   @default(false)
+  albumItems  PersonSocialAlbumItem[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -797,6 +798,39 @@ model PersonSocialPost {
   @@index([isDeleted, isPinned, sortOrder])
   @@index([publishedAt])
   @@index([platform])
+}
+
+/// 个人IP合集（B站合集/系列、各平台粘贴的合集链接），对标公司介绍的公众号专辑
+model PersonSocialAlbum {
+  id         String   @id @default(cuid())
+  platform   String
+  externalId String
+  title      String   @default("")
+  coverUrl   String   @default("")
+  sourceUrl  String   @default("")
+  syncedAt   DateTime @default(now())
+  items      PersonSocialAlbumItem[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([platform, externalId])
+  @@index([platform])
+}
+
+model PersonSocialAlbumItem {
+  id           String            @id @default(cuid())
+  albumId      String
+  sortOrder    Int               @default(0)
+  title        String            @default("")
+  coverUrl     String            @default("")
+  sourceUrl    String            @default("")
+  sourceUrlKey String            @default("")
+  postLocalId  String?
+  album        PersonSocialAlbum @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  post         PersonSocialPost? @relation(fields: [postLocalId], references: [id], onDelete: SetNull)
+
+  @@index([albumId, sortOrder])
+  @@index([sourceUrlKey])
 }
 
 /// 公众号已发表图文（freepublish 同步到本站「公司宣传」）

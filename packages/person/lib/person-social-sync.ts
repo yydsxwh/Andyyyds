@@ -1,15 +1,20 @@
 /**
- * 把 B站 / 抖音 / 小红书主页或作品链接同步进 PersonSocialPost。
- * B 站用公开投稿接口；抖音/小红书没有对等官方列表，先解析公开主页，不行再走 RSSHub，
+ * 把 B站 / 抖音 / 小红书 / 视频号主页或作品链接同步进 PersonSocialPost。
+ * B 站用公开投稿接口；其它平台没有对等官方列表，先解析公开主页，不行再走 RSSHub，
  * 单条作品链接始终可导入（像公众号补一篇）。
  */
 
 import { createHash } from "crypto";
 import { prisma } from "@andyyyds/shared/db";
 import {
+  rematchAllPersonSocialAlbums,
+  syncBilibiliAlbumsFromHome,
+} from "@andyyyds/person/lib/person-social-album";
+import {
   detectPersonSocialPlatform,
   parseBilibiliMid,
   parseDouyinUserId,
+  parseWechatChannelsUserId,
   parseXiaohongshuUserId,
   PERSON_SOCIAL_POST_ORDER_BY,
   splitPersonSocialUrls,
@@ -294,6 +299,17 @@ function externalIdFromUrl(platform: PersonSocialPlatform, url: string): string 
       const queryId = parsed.searchParams.get("noteId");
       if (queryId) return queryId;
     }
+    if (platform === "WECHAT_CHANNELS") {
+      const exportId =
+        parsed.searchParams.get("exportId") ||
+        parsed.searchParams.get("feedId") ||
+        parsed.searchParams.get("objectNonceId") ||
+        parsed.searchParams.get("id") ||
+        "";
+      if (exportId) return exportId;
+      const sph = path.match(/\/sph\/([A-Za-z0-9_-]+)/i);
+      if (sph?.[1]) return sph[1];
+    }
   } catch {
     // fall through
   }
@@ -474,6 +490,106 @@ async function syncXiaohongshu(
   };
 }
 
+function collectWechatChannelFeeds(node: unknown): PersonSocialDraft[] {
+  const drafts: PersonSocialDraft[] = [];
+  const seen = new Set<string>();
+  walkUnknownStrings(node, (key, value, parent) => {
+    if (
+      key !== "exportId" &&
+      key !== "objectNonceId" &&
+      key !== "feedId" &&
+      key !== "objectId"
+    ) {
+      return;
+    }
+    const id = String(value || "").trim();
+    if (!id || seen.has(id)) return;
+    const title = String(
+      parent.description || parent.desc || parent.nickname || parent.title || "",
+    ).trim();
+    if (!title && key === "objectId") return;
+    seen.add(id);
+    const media = parent.media as { cover_url?: string } | undefined;
+    const cover = String(
+      parent.coverUrl ||
+        parent.cover_url ||
+        parent.thumbUrl ||
+        media?.cover_url ||
+        "",
+    );
+    const sourceUrl = String(
+      parent.shareUrl ||
+        parent.share_url ||
+        parent.url ||
+        `https://channels.weixin.qq.com/web/pages/feed?feedId=${encodeURIComponent(id)}`,
+    );
+    drafts.push({
+      platform: "WECHAT_CHANNELS",
+      externalId: id.slice(0, 80),
+      title: (title || `视频号作品 ${id.slice(0, 8)}`).slice(0, 200),
+      digest: String(parent.description || parent.desc || "").trim().slice(0, 500),
+      coverUrl: httpsUrl(cover),
+      sourceUrl: sourceUrl.slice(0, 800),
+      contentKind: "video",
+      publishedAt: parent.createTime
+        ? new Date(Number(parent.createTime) * 1000)
+        : parent.createtime
+          ? new Date(Number(parent.createtime) * 1000)
+          : null,
+    });
+  });
+  return drafts;
+}
+
+async function syncWechatChannels(
+  accounts: PersonSocialAccounts,
+): Promise<{ upserted: number; message: string }> {
+  const raw = accounts.wechatChannels.trim();
+  if (!raw) return { upserted: 0, message: "未填写视频号主页" };
+  const userId = parseWechatChannelsUserId(raw);
+  const profileUrl = raw.startsWith("http")
+    ? raw
+    : userId
+      ? `https://channels.weixin.qq.com/${userId}`
+      : "";
+  if (profileUrl) {
+    try {
+      const page = await fetchPersonSocialText(profileUrl, { mobile: true });
+      const state =
+        extractScriptJson(page.text, "__INITIAL_STATE__") ||
+        extractScriptJson(page.text, "__NEXT_DATA__") ||
+        extractScriptJson(page.text, "RENDER_DATA");
+      const fromPage = collectWechatChannelFeeds(state);
+      if (fromPage.length) {
+        const count = await upsertDrafts(fromPage);
+        return {
+          upserted: count,
+          message: `视频号主页解析 ${fromPage.length} 条，入库 ${count}`,
+        };
+      }
+    } catch {
+      // 公开页常要微信内打开，下面走 RSSHub / 链接导入
+    }
+  }
+  if (userId) {
+    const rss = await fetchRssHubFallback(
+      accounts.rsshubBaseUrl,
+      `/wechat/sns/${encodeURIComponent(userId)}`,
+      "WECHAT_CHANNELS",
+      "video",
+    );
+    if (rss.length) {
+      const count = await upsertDrafts(rss);
+      return { upserted: count, message: `视频号经 RSS 同步 ${count} 条` };
+    }
+  }
+  return {
+    upserted: 0,
+    message:
+      "视频号没有公开列表接口，主页常要微信内打开。请把作品分享链接贴到「粘贴作品链接导入」。",
+  };
+}
+
 async function ingestDouyinUrl(url: string): Promise<PersonSocialDraft> {
   const page = await fetchPersonSocialText(url, { mobile: true });
   const idMatch =
@@ -568,6 +684,28 @@ async function ingestBilibiliUrl(url: string): Promise<PersonSocialDraft> {
   };
 }
 
+async function ingestWechatChannelsUrl(url: string): Promise<PersonSocialDraft> {
+  const page = await fetchPersonSocialText(url, { mobile: true });
+  const fromPage = collectWechatChannelFeeds(
+    extractScriptJson(page.text, "__INITIAL_STATE__") ||
+      extractScriptJson(page.text, "__NEXT_DATA__"),
+  );
+  if (fromPage[0]) {
+    return { ...fromPage[0], sourceUrl: page.url.slice(0, 800) };
+  }
+  const og = parseOgOrThrow(await fetchOgFromResolved(page.url, page.text));
+  return {
+    platform: "WECHAT_CHANNELS",
+    externalId: externalIdFromUrl("WECHAT_CHANNELS", page.url),
+    title: og.title || "视频号作品",
+    digest: og.description,
+    coverUrl: httpsUrl(og.image),
+    sourceUrl: page.url.slice(0, 800),
+    contentKind: "video",
+    publishedAt: null,
+  };
+}
+
 async function ingestXiaohongshuUrl(url: string): Promise<PersonSocialDraft> {
   const page = await fetchPersonSocialText(url, { mobile: true });
   const noteId =
@@ -601,7 +739,7 @@ function parseOgOrThrow(og: { title: string; description: string; image: string;
 
 export async function ingestPersonSocialUrls(raw: string) {
   const urls = splitPersonSocialUrls(raw).slice(0, MAX_IMPORT_URLS);
-  if (!urls.length) throw new Error("请粘贴抖音、B站或小红书作品链接");
+  if (!urls.length) throw new Error("请粘贴抖音、B站、小红书或视频号作品链接");
   let upserted = 0;
   const errors: string[] = [];
   for (const url of urls) {
@@ -616,11 +754,20 @@ export async function ingestPersonSocialUrls(raw: string) {
           ? await ingestBilibiliUrl(url)
           : platform === "DOUYIN"
             ? await ingestDouyinUrl(url)
-            : await ingestXiaohongshuUrl(url);
+            : platform === "WECHAT_CHANNELS"
+              ? await ingestWechatChannelsUrl(url)
+              : await ingestXiaohongshuUrl(url);
       upserted += await upsertDrafts([draft]);
     } catch (error) {
       const msg = error instanceof Error ? error.message : "导入失败";
       errors.push(`${url.slice(0, 36)}… ${msg}`);
+    }
+  }
+  if (upserted) {
+    try {
+      await rematchAllPersonSocialAlbums();
+    } catch {
+      // 对齐合集失败不影响已导入投稿
     }
   }
   return { upserted, attempted: urls.length, errors };
@@ -694,6 +841,13 @@ export async function syncPersonSocialPosts(accounts?: PersonSocialAccounts) {
   await run("B站", () => syncBilibili(config));
   await run("抖音", () => syncDouyin(config));
   await run("小红书", () => syncXiaohongshu(config));
+  await run("视频号", () => syncWechatChannels(config));
+  await run("B站合集", () => syncBilibiliAlbumsFromHome(config));
+  try {
+    await rematchAllPersonSocialAlbums();
+  } catch {
+    // 合集对齐失败不阻断投稿同步
+  }
   if (!parts.length) {
     return { upserted: 0, message: "请先填写至少一个平台主页再同步。" };
   }

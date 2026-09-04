@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { PaginationBar } from "@/components/pagination-bar";
 import {
   PERSON_SOCIAL_KIND_LABEL,
@@ -5,6 +6,14 @@ import {
   type PersonSocialContentKind,
   type PersonSocialPlatform,
 } from "@andyyyds/person/lib/person-social";
+
+export type PersonSocialAlbumCard = {
+  id: string;
+  platform: string;
+  title: string;
+  coverUrl: string;
+  itemCount: number;
+};
 
 export type PersonSocialCard = {
   id: string;
@@ -30,25 +39,82 @@ const PLATFORM_BADGE: Record<string, string> = {
   BILIBILI: "bg-sky-100 text-sky-800",
   DOUYIN: "bg-zinc-800 text-white",
   XIAOHONGSHU: "bg-[#ff2442] text-white",
+  WECHAT_CHANNELS: "bg-emerald-700 text-white",
 };
 
-/** 个人介绍页：同步自 B站 / 抖音 / 小红书的投稿网格 */
+/** 个人介绍页：合集 + 同步自 B站 / 抖音 / 小红书 / 视频号的投稿网格 */
 export function PersonSocialFeed({
+  albums,
   posts,
   pagination,
 }: {
+  albums?: PersonSocialAlbumCard[];
   posts: PersonSocialCard[];
   pagination?: PersonSocialPagination | null;
 }) {
-  if (!posts.length && !(pagination && pagination.totalCount > 0)) return null;
+  const albumList = albums || [];
+  if (
+    !albumList.length &&
+    !posts.length &&
+    !(pagination && pagination.totalCount > 0)
+  ) {
+    return null;
+  }
   const paging = pagination;
 
   return (
-    <section id="posts" className="mt-10 space-y-4 border-t border-[var(--line)] pt-10 sm:mt-12 sm:pt-12">
+    <div className="mt-10 space-y-10 border-t border-[var(--line)] pt-10 sm:mt-12 sm:space-y-12 sm:pt-12">
+      {albumList.length ? (
+        <section id="albums">
+          <div className="mb-4">
+            <h2 className="text-2xl font-semibold sm:text-3xl">合集</h2>
+            <p className="mt-1 text-base text-[var(--muted)]">
+              同步自 B站、抖音、小红书、视频号
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+            {albumList.map((album) => (
+              <Link
+                key={album.id}
+                href={`/about/person/albums/${album.id}`}
+                className="surface overflow-hidden rounded-[20px] transition touch-manipulation hover:-translate-y-0.5 active:-translate-y-0.5"
+              >
+                {album.coverUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={album.coverUrl}
+                    alt=""
+                    referrerPolicy="no-referrer"
+                    className="aspect-[16/10] w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex aspect-[16/10] items-center justify-center bg-[var(--bg-deep)] text-sm text-[var(--muted)]">
+                    合集
+                  </div>
+                )}
+                <div className="p-3 sm:p-3.5">
+                  <div className="line-clamp-2 text-base font-medium leading-snug sm:text-lg">
+                    {album.title || "未命名合集"}
+                  </div>
+                  <div className="mt-1 text-sm text-[var(--muted)]">
+                    {PERSON_SOCIAL_PLATFORM_LABEL[
+                      album.platform as PersonSocialPlatform
+                    ] || album.platform}{" "}
+                    · {album.itemCount} 条
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {posts.length || (paging && paging.totalCount > 0) ? (
+      <section id="posts" className="space-y-4">
       <div>
         <h2 className="text-2xl font-semibold sm:text-3xl">最新投稿</h2>
         <p className="mt-1 text-base text-[var(--muted)]">
-          同步自 B站、抖音、小红书
+          同步自 B站、抖音、小红书、视频号
           {paging && paging.totalCount > 0 ? ` · 共 ${paging.totalCount} 条` : ""}
         </p>
       </div>
@@ -63,7 +129,7 @@ export function PersonSocialFeed({
                 href={post.sourceUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="surface overflow-hidden rounded-[20px] transition hover:-translate-y-0.5"
+                className="surface overflow-hidden rounded-[20px] transition touch-manipulation hover:-translate-y-0.5 active:-translate-y-0.5"
               >
                 <div className="relative aspect-[16/10] w-full bg-[var(--bg-deep)]">
                   {post.coverUrl ? (
@@ -125,5 +191,7 @@ export function PersonSocialFeed({
         />
       ) : null}
     </section>
+      ) : null}
+    </div>
   );
 }

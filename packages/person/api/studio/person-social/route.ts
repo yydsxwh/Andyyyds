@@ -1,7 +1,7 @@
 /**
  * 站长：个人 IP 外平台投稿同步与列表
  * GET  — 主页配置 + 本地投稿
- * POST — save_accounts | sync | ingest_urls | update | delete | reorder
+ * POST — save_accounts | sync | ingest_urls | add/refresh/rename/delete_album | update | delete | reorder
  */
 
 import { NextResponse } from "next/server";
@@ -9,6 +9,13 @@ import { z } from "zod";
 import { prisma } from "@andyyyds/shared/db";
 import { requireAdmin, studioErrorResponse } from "@andyyyds/shared/studio";
 import { PERSON_SOCIAL_PLATFORM_LABEL } from "@andyyyds/person/lib/person-social";
+import {
+  addPersonSocialAlbumFromUrl,
+  deletePersonSocialAlbum,
+  listPersonSocialAlbums,
+  refreshPersonSocialAlbum,
+  renamePersonSocialAlbum,
+} from "@andyyyds/person/lib/person-social-album";
 import {
   getPersonSocialAccounts,
   savePersonSocialAccounts,
@@ -68,9 +75,27 @@ const postSchema = z.discriminatedUnion("action", [
     bilibili: z.string().max(400).optional(),
     douyin: z.string().max(400).optional(),
     xiaohongshu: z.string().max(400).optional(),
+    wechatChannels: z.string().max(400).optional(),
     rsshubBaseUrl: z.string().max(400).optional(),
   }),
   z.object({ action: z.literal("sync") }),
+  z.object({
+    action: z.literal("add_album"),
+    sourceUrl: z.string().min(8).max(1000),
+  }),
+  z.object({
+    action: z.literal("refresh_album"),
+    id: z.string().min(1).max(40),
+  }),
+  z.object({
+    action: z.literal("rename_album"),
+    id: z.string().min(1).max(40),
+    title: z.string().min(1).max(80),
+  }),
+  z.object({
+    action: z.literal("delete_album"),
+    id: z.string().min(1).max(40),
+  }),
   z.object({
     action: z.literal("ingest_urls"),
     urls: z.string().min(8).max(8000),
@@ -96,14 +121,28 @@ const postSchema = z.discriminatedUnion("action", [
 export async function GET() {
   try {
     await requireAdmin();
-    const [accounts, posts, postTotal] = await Promise.all([
+    const [accounts, posts, postTotal, albums] = await Promise.all([
       getPersonSocialAccounts(),
       listPersonSocialPosts(500),
       prisma.personSocialPost.count({ where: { isDeleted: false } }),
+      listPersonSocialAlbums(),
     ]);
     return NextResponse.json({
       accounts,
       postTotal,
+      albums: albums.map((row) => ({
+        id: row.id,
+        platform: row.platform,
+        platformLabel:
+          PERSON_SOCIAL_PLATFORM_LABEL[
+            row.platform as keyof typeof PERSON_SOCIAL_PLATFORM_LABEL
+          ] || row.platform,
+        title: row.title,
+        coverUrl: row.coverUrl,
+        sourceUrl: row.sourceUrl,
+        itemCount: row._count.items,
+        syncedAt: row.syncedAt,
+      })),
       syncRunning: Boolean(globalThis.__yydsPersonSocialSyncRunning),
       syncLastMessage: globalThis.__yydsPersonSocialSyncLastMessage || "",
       posts: posts.map((row) => ({
@@ -143,9 +182,38 @@ export async function POST(request: Request) {
         bilibili: body.bilibili ?? current.bilibili,
         douyin: body.douyin ?? current.douyin,
         xiaohongshu: body.xiaohongshu ?? current.xiaohongshu,
+        wechatChannels: body.wechatChannels ?? current.wechatChannels,
         rsshubBaseUrl: body.rsshubBaseUrl ?? current.rsshubBaseUrl,
       });
       return NextResponse.json({ ok: true, accounts: saved, message: "主页已保存" });
+    }
+
+    if (body.action === "add_album") {
+      const album = await addPersonSocialAlbumFromUrl(body.sourceUrl);
+      return NextResponse.json({
+        ok: true,
+        album,
+        message: `合集「${album.title || "未命名"}」已同步 ${album._count.items} 条`,
+      });
+    }
+
+    if (body.action === "refresh_album") {
+      const album = await refreshPersonSocialAlbum(body.id);
+      return NextResponse.json({
+        ok: true,
+        album,
+        message: `合集已刷新，当前 ${album._count.items} 条`,
+      });
+    }
+
+    if (body.action === "rename_album") {
+      await renamePersonSocialAlbum(body.id, body.title);
+      return NextResponse.json({ ok: true, message: "合集名称已保存" });
+    }
+
+    if (body.action === "delete_album") {
+      await deletePersonSocialAlbum(body.id);
+      return NextResponse.json({ ok: true, message: "合集已移除" });
     }
 
     if (body.action === "sync") {
