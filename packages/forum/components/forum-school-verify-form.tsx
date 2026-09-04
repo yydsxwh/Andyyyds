@@ -15,7 +15,10 @@ import {
   type ForumDegreeLevel,
 } from "@andyyyds/forum/lib/forum-school";
 import { FORUM_UNIVERSITY_REGION_LABEL } from "@andyyyds/forum/lib/forum-university";
-import { classifyForumFile, uploadForumMediaFile } from "@andyyyds/forum/lib/forum-browser-upload";
+import {
+  classifyForumFile,
+  uploadForumMediaFile,
+} from "@andyyyds/forum/lib/forum-browser-upload";
 
 export type ForumVerifyUniversityOption = {
   id: string;
@@ -36,6 +39,8 @@ export type ForumVerifySlotView = {
   grade?: string;
   major?: string;
   proofUrl?: string;
+  /** 已签发的 inline 预览链；没有则回退 proofUrl */
+  proofPreview?: string;
   reviewNote?: string;
 };
 
@@ -78,7 +83,9 @@ export function ForumSchoolVerifyForm({
   const [grade, setGrade] = useState(currentSlot?.grade || "");
   const [major, setMajor] = useState(currentSlot?.major || "");
   const [proofUrl, setProofUrl] = useState(currentSlot?.proofUrl || "");
-  const [proofPreview, setProofPreview] = useState(currentSlot?.proofUrl || "");
+  const [proofPreview, setProofPreview] = useState(
+    currentSlot?.proofPreview || currentSlot?.proofUrl || "",
+  );
   const [error, setError] = useState("");
   const [hint, setHint] = useState("");
   const [busy, setBusy] = useState(false);
@@ -117,7 +124,7 @@ export function ForumSchoolVerifyForm({
       setGrade(slot.grade || "");
       setMajor(slot.major || "");
       setProofUrl(slot.proofUrl || "");
-      setProofPreview(slot.proofUrl || "");
+      setProofPreview(slot.proofPreview || slot.proofUrl || "");
     }
     setError("");
     setHint("");
@@ -133,6 +140,7 @@ export function ForumSchoolVerifyForm({
     setError("");
     try {
       const uploaded = await uploadForumMediaFile(file);
+      // 入库用 canonical URL；预览用签名链，避免私有 OSS 在 <img> 里 403
       setProofUrl(uploaded.url);
       setProofPreview(uploaded.previewUrl || uploaded.url);
     } catch (err) {
@@ -310,7 +318,7 @@ export function ForumSchoolVerifyForm({
       <div className="block text-sm">
         <span className="text-[var(--muted)]">学生证 / 学生卡照片</span>
         <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
-          拍清晰的学生证或一卡通正面，站长核对姓名、学号和学校。微信里可直接拍照或从相册选。
+          拍清晰的学生证或一卡通正面，站长核对姓名、学号和学校。微信里可直接拍照或从相册选。站点启用 OSS 时文件进 Bucket；后台「查看图片」在页内预览，不会直接下载。
         </p>
         {proofPreview ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -320,7 +328,7 @@ export function ForumSchoolVerifyForm({
             className="mt-2 max-h-40 w-full rounded-2xl border border-[var(--line)] object-contain"
           />
         ) : null}
-        <label className="btn btn-secondary mt-2 inline-flex min-h-11 cursor-pointer items-center justify-center px-5">
+        <label className="btn btn-secondary mt-2 inline-flex min-h-11 cursor-pointer items-center justify-center px-5 touch-manipulation">
           {busy ? "上传中…" : proofUrl ? "重新上传" : "上传照片"}
           <input
             type="file"

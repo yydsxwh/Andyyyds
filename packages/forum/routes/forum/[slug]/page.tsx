@@ -75,25 +75,32 @@ export default async function ForumUniversityPage({
   );
   const verifySlots =
     session && campusSpace
-      ? (
-          await prisma.forumSchoolVerification.findMany({
-            where: { userId: session.id },
-            include: { university: { select: { name: true, slug: true } } },
-          })
-        ).map((row) => ({
-          degreeLevel: row.degreeLevel,
-          universityId: row.universityId,
-          universityName: row.university.name,
-          universitySlug: row.university.slug,
-          status: row.status,
-          realName: row.realName,
-          studentId: row.studentId,
-          campusEmail: row.campusEmail,
-          grade: row.grade,
-          major: row.major,
-          proofUrl: row.proofUrl,
-          reviewNote: row.reviewNote,
-        }))
+      ? await Promise.all(
+          (
+            await prisma.forumSchoolVerification.findMany({
+              where: { userId: session.id },
+              include: { university: { select: { name: true, slug: true } } },
+            })
+          ).map(async (row) => ({
+            degreeLevel: row.degreeLevel,
+            universityId: row.universityId,
+            universityName: row.university.name,
+            universitySlug: row.university.slug,
+            status: row.status,
+            realName: row.realName,
+            studentId: row.studentId,
+            campusEmail: row.campusEmail,
+            grade: row.grade,
+            major: row.major,
+            proofUrl: row.proofUrl,
+            proofPreview: row.proofUrl
+              ? await resolveStoredAccessUrl(row.proofUrl, {
+                  contentDisposition: "inline",
+                })
+              : "",
+            reviewNote: row.reviewNote,
+          })),
+        )
       : [];
   const zoneKey = query.zone?.trim() || "";
   const keyword = query.q?.trim().slice(0, 40) || "";

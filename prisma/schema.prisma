@@ -1011,7 +1011,8 @@ model ForumPost {
   @@index([authorId, status, updatedAt])
 }
 
-/// 高校实名认证：每人最多一所本科 + 一所研究生；通过后可看「仅本校可见」帖
+/// 高校实名认证：每人最多一所本科 + 一所研究生；通过后可看「仅本校可见」帖。
+/// 学生证照片存 proofUrl（OSS 或本地 uploads）；预览须签发 inline。
 model ForumSchoolVerification {
   id           String          @id @default(cuid())
   userId       String
@@ -1027,6 +1028,7 @@ model ForumSchoolVerification {
   grade        String          @default("")
   /// 专业，如 计算机科学与技术
   major        String          @default("")
+  /// 学生证/学生卡照片：入库为 canonical URL，预览须签发 inline，下载才用 attachment
   proofUrl     String          @default("")
   /// PENDING | VERIFIED | REJECTED
   status       String          @default("PENDING")

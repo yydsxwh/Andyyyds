@@ -9,6 +9,13 @@ import {
   type ForumVerifyStatus,
 } from "@andyyyds/forum/lib/forum-school";
 
+function proofApiPath(
+  id: string,
+  mode: "preview" | "download" | "meta",
+) {
+  return `/api/studio/forum/verifications/${id}/proof?mode=${mode}`;
+}
+
 export type StudioForumVerification = {
   id: string;
   degreeLevel: string;
@@ -140,13 +147,6 @@ export function StudioForumVerifyPanel({
       )}
     </section>
   );
-}
-
-function proofApiPath(
-  id: string,
-  mode: "preview" | "download" | "meta",
-) {
-  return `/api/studio/forum/verifications/${id}/proof?mode=${mode}`;
 }
 
 type ProofMeta = {
