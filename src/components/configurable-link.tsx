@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { CSSProperties } from "react";
 
 /**
  * 站长可配跳转外壳：有 href 才可点；无链接时原样渲染子节点（兼容旧配置）。
@@ -18,6 +19,7 @@ type Props = {
   /** true 时新标签打开；false/未传则同页（外链仍用 <a>） */
   openInNewTab?: boolean;
   className?: string;
+  style?: CSSProperties;
   children: React.ReactNode;
   ariaLabel?: string;
   /** 悬浮提示（如站长双语英文） */
@@ -28,6 +30,7 @@ export function ConfigurableLink({
   href,
   openInNewTab = false,
   className,
+  style,
   children,
   ariaLabel,
   title,
@@ -37,7 +40,7 @@ export function ConfigurableLink({
     // 无链接时仍挂上 className，避免主图圆角/surface 等外壳样式丢失
     if (className) {
       return (
-        <div className={className} title={title}>
+        <div className={className} style={style} title={title}>
           {children}
         </div>
       );
@@ -52,6 +55,7 @@ export function ConfigurableLink({
         target="_blank"
         rel="noopener noreferrer"
         className={className}
+        style={style}
         aria-label={ariaLabel}
         title={title}
       >
@@ -65,6 +69,7 @@ export function ConfigurableLink({
       <a
         href={trimmed}
         className={className}
+        style={style}
         aria-label={ariaLabel}
         title={title}
       >
@@ -77,6 +82,7 @@ export function ConfigurableLink({
     <Link
       href={trimmed}
       className={className}
+      style={style}
       aria-label={ariaLabel}
       title={title}
     >

@@ -1,11 +1,11 @@
 "use client";
 
 /**
- * 首页时钟：装扮决定样式；站长可拖到任意位置，松手写入 decorateJson。
- * 访客只看摆好的位置，避免每人把钟拖乱。
+ * 首页时钟：装扮决定样式。
+ * 未启用自由画布时，站长可按视口百分比拖位置；启用后时钟铺在画布盒子里，由画布负责拖放缩放。
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { usePathname } from "next/navigation";
 import {
   HomeClockFace,
@@ -72,12 +72,28 @@ function clampBox(left: number, top: number, width: number, height: number) {
 type Props = {
   config?: HomeClockConfig | null;
   canDrag?: boolean;
+  className?: string;
+  style?: CSSProperties;
+  /** 装扮画布预览不在「/」，仍要渲染真实时钟 */
+  forceVisible?: boolean;
+  /** 铺满装扮指定的盒子，而不是视口固定定位那套 */
+  fill?: boolean;
 };
 
-export function SiteHomeClock({ config, canDrag = false }: Props) {
+export function SiteHomeClock({
+  config,
+  canDrag = false,
+  className = "",
+  style,
+  forceVisible = false,
+  fill = false,
+}: Props) {
   const pathname = usePathname();
   const isHome = pathname === "/";
+  const visible = forceVisible || isHome;
   const clock = normalizeHomeClock(config);
+  // 画布缩放由外层把手负责，避免和视口拖动抢指针
+  const allowViewportDrag = canDrag && !fill;
   const [timeZone, setTimeZone] = useState(DEFAULT_MEETUP_TIMEZONE);
   const [now, setNow] = useState(() => new Date());
   const [open, setOpen] = useState(false);
@@ -115,10 +131,10 @@ export function SiteHomeClock({ config, canDrag = false }: Props) {
   }, [clock.xPercent, clock.yPercent]);
 
   useEffect(() => {
-    if (!isHome) return;
+    if (!visible) return;
     const id = window.setInterval(() => setNow(new Date()), 1000);
     return () => window.clearInterval(id);
-  }, [isHome]);
+  }, [visible]);
 
   useEffect(() => {
     if (!open) return;
@@ -138,11 +154,13 @@ export function SiteHomeClock({ config, canDrag = false }: Props) {
     [],
   );
 
-  if (!isHome) return null;
+  if (!visible) return null;
 
   const label = meetupTimeZoneLabel(timeZone);
   const clockText = formatClock(now, timeZone);
   const customPlace = placed != null;
+  const frameClass =
+    HOME_CLOCK_FRAME_CLASS[clock.style] || HOME_CLOCK_FRAME_CLASS.imperial;
 
   function pickZone(tz: string) {
     const next = normalizeMeetupTimeZone(tz);
@@ -178,7 +196,7 @@ export function SiteHomeClock({ config, canDrag = false }: Props) {
   }
 
   function onPointerDown(event: React.PointerEvent<HTMLButtonElement>) {
-    if (!canDrag || event.button !== 0) return;
+    if (!allowViewportDrag || event.button !== 0) return;
     const box = rootRef.current?.getBoundingClientRect();
     if (!box) return;
     dragRef.current = {
@@ -241,24 +259,30 @@ export function SiteHomeClock({ config, canDrag = false }: Props) {
   const placeStyle = customPlace
     ? { left: `${placed.x}%`, top: `${placed.y}%` }
     : { right: "0.75rem", top: "4.55rem" };
+  const rootStyle = fill ? style : placeStyle;
+  const rootClassName = fill
+    ? `relative flex h-full min-h-11 w-full max-w-none flex-col items-stretch gap-0.5 ${className}`
+    : `fixed z-[35] flex max-w-[min(100%,20rem)] select-none flex-col items-end gap-0.5 sm:max-w-none ${
+        dragging ? "cursor-grabbing" : ""
+      } ${className}`;
 
   return (
-    <div
-      ref={rootRef}
-      className={`fixed z-[35] flex max-w-[min(100%,20rem)] select-none flex-col items-end gap-0.5 sm:max-w-none ${
-        dragging ? "cursor-grabbing" : ""
-      }`}
-      style={placeStyle}
-    >
+    <div ref={rootRef} className={rootClassName} style={rootStyle}>
       <button
         type="button"
-        className={`flex min-h-11 items-center gap-1 rounded-full border px-1.5 py-1 backdrop-blur-md transition sm:gap-1.5 sm:px-3 ${
-          HOME_CLOCK_FRAME_CLASS[clock.style] || HOME_CLOCK_FRAME_CLASS.imperial
-        } ${canDrag ? "touch-none cursor-grab active:cursor-grabbing" : "active:opacity-90"}`}
+        className={
+          fill
+            ? `flex h-full min-h-11 w-full items-center justify-center gap-1.5 rounded-[28px] border px-2 py-1 backdrop-blur-md transition sm:px-3 ${frameClass}`
+            : `flex min-h-11 items-center gap-1 rounded-full border px-1.5 py-1 backdrop-blur-md transition sm:gap-1.5 sm:px-3 ${frameClass} ${
+                allowViewportDrag
+                  ? "touch-none cursor-grab active:cursor-grabbing"
+                  : "active:opacity-90"
+              }`
+        }
         aria-expanded={open}
         aria-haspopup="dialog"
         title={
-          canDrag
+          allowViewportDrag
             ? `按住拖动摆位置 · 当前时区：${label}`
             : `当前时区：${label}（点击切换）`
         }
@@ -268,7 +292,13 @@ export function SiteHomeClock({ config, canDrag = false }: Props) {
         onPointerCancel={onPointerUp}
         onClick={onClockClick}
       >
-        <span className="relative inline-flex h-8 w-8 shrink-0 sm:h-9 sm:w-9">
+        <span
+          className={
+            fill
+              ? "relative inline-flex aspect-square h-[min(4.5rem,70%)] w-auto shrink-0"
+              : "relative inline-flex h-8 w-8 shrink-0 sm:h-9 sm:w-9"
+          }
+        >
           <HomeClockFace
             now={now}
             timeZone={timeZone}
@@ -277,25 +307,41 @@ export function SiteHomeClock({ config, canDrag = false }: Props) {
           />
         </span>
         {clock.showDigital ? (
-          <span className="hidden tabular-nums text-sm font-semibold tracking-wide min-[480px]:inline">
+          <span
+            className={
+              fill
+                ? "min-w-0 truncate tabular-nums text-sm font-semibold tracking-wide"
+                : "hidden tabular-nums text-sm font-semibold tracking-wide min-[480px]:inline"
+            }
+          >
             {clockText}
           </span>
         ) : null}
-        <span className="hidden max-w-[5.5rem] truncate text-xs opacity-80 sm:inline">
+        <span
+          className={
+            fill
+              ? "hidden min-w-0 max-w-[7rem] truncate text-xs opacity-80 min-[360px]:inline"
+              : "hidden max-w-[5.5rem] truncate text-xs opacity-80 sm:inline"
+          }
+        >
           {label}
         </span>
       </button>
 
       {clock.showProverb ? (
         <p
-          className="hidden max-w-[16rem] text-right text-[10px] leading-snug opacity-90 sm:block sm:max-w-none sm:text-xs"
+          className={
+            fill
+              ? "hidden px-1 text-right text-[10px] leading-snug opacity-90 min-[480px]:block"
+              : "hidden max-w-[16rem] text-right text-[10px] leading-snug opacity-90 sm:block sm:max-w-none sm:text-xs"
+          }
           title={PROVERB}
         >
           {PROVERB}
         </p>
       ) : null}
 
-      {canDrag ? (
+      {allowViewportDrag ? (
         <p className="hidden text-[10px] leading-4 text-[var(--muted)] sm:block">
           {saveHint || "按住时钟拖动，松手保存位置"}
         </p>

@@ -17,7 +17,7 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 HOST = "47.242.157.181"
 USER = "admin"
-LOCAL_PROJECT = Path(r"E:\source\repos\Andyyyds")
+LOCAL_PROJECT = Path(os.environ.get("YYDS_LOCAL_PROJECT") or Path(__file__).resolve().parents[1])
 REMOTE_DIR = "/var/www/yyds-course-platform"
 REMOTE_TAR = "/tmp/yyds-safe-deploy.tar.gz"
 REMOTE_STAGE = "/tmp/yyds-safe-deploy-stage"
@@ -84,7 +84,7 @@ def make_tarball() -> Path:
 def connect(retries: int = 8) -> paramiko.SSHClient:
     last: Exception | None = None
     key = paramiko.Ed25519Key.from_private_key_file(
-        os.path.expanduser(r"~\.ssh\yyds_aliyun")
+        str(Path.home() / ".ssh" / "yyds_aliyun")
     )
     for i in range(retries):
         try:
@@ -132,7 +132,7 @@ def run(client: paramiko.SSHClient, cmd: str, timeout: int = 1200) -> str:
 def upload_tarball(client: paramiko.SSHClient, tarball: Path) -> paramiko.SSHClient:
     """优先 paramiko SFTP（带 keepalive）；失败再试系统 scp。校验远端体积。"""
     local_size = tarball.stat().st_size
-    key_path = os.path.expanduser(r"~\.ssh\yyds_aliyun")
+    key_path = str(Path.home() / ".ssh" / "yyds_aliyun")
     remote_spec = f"{USER}@{HOST}:{REMOTE_TAR}"
 
     for attempt in range(1, 8):

@@ -1,5 +1,10 @@
 import { DEFAULT_SITE_HERO_URL } from "@andyyyds/shared/cover-images";
 import {
+  DEFAULT_HOME_WIDGET_LAYOUT,
+  normalizeHomeWidgetLayout,
+  type HomeWidgetLayoutConfig,
+} from "@andyyyds/shared/home-widget-layout";
+import {
   DEFAULT_BACKGROUND_ID,
   DEFAULT_FONT_SIZES,
   DEFAULT_LAYOUT_DENSITY,
@@ -23,6 +28,8 @@ import {
   normalizeHomeClock,
   type HomeClockConfig,
 } from "@andyyyds/shared/home-clock";
+
+export type { HomeWidgetBox, HomeWidgetLayoutConfig } from "@andyyyds/shared/home-widget-layout";
 
 export type DecorateBanner = {
   id: string;
@@ -82,6 +89,8 @@ export type DecorateConfig = {
   typography: TypographyConfig;
   /** 首页时钟样式与摆放；未配置时用右上默认角 */
   homeClock: HomeClockConfig;
+  /** 首页时钟与门户卡片的自由位置/尺寸；未启用时保持顶栏时钟 + 栅格 */
+  homeWidgetLayout: HomeWidgetLayoutConfig;
 };
 
 export const DEFAULT_LOGO_URL = "/brand/logo.png";
@@ -130,6 +139,7 @@ export const DEFAULT_DECORATE: DecorateConfig = {
   fontSizes: { ...DEFAULT_FONT_SIZES },
   typography: structuredClone(DEFAULT_TYPOGRAPHY),
   homeClock: { ...DEFAULT_HOME_CLOCK },
+  homeWidgetLayout: structuredClone(DEFAULT_HOME_WIDGET_LAYOUT),
 };
 
 function newId() {
@@ -260,6 +270,7 @@ export function parseDecorate(raw: string | null | undefined): DecorateConfig {
       ),
       ...theme,
       homeClock: normalizeHomeClock(parsed.homeClock),
+      homeWidgetLayout: normalizeHomeWidgetLayout(parsed.homeWidgetLayout),
     };
   } catch {
     return structuredClone(DEFAULT_DECORATE);

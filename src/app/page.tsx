@@ -10,6 +10,10 @@ import {
   type MeetupCardData,
 } from "@andyyyds/meetup/components/meetup-card";
 import {
+  HomeWidgetsSection,
+  isHomeWidgetLayoutEnabled,
+} from "@/components/home-widgets-canvas";
+import {
   PageModulesView,
   shouldUseDiyLayout,
 } from "@/components/page-modules-view";
@@ -422,6 +426,7 @@ function ClassicHomeByOrder({
 }) {
   // 按 CMS 顺序渲染，并跳过 visible===false 的区块（隐藏后仍保留后台位次）
   const sectionIds: HomeSectionId[] = visibleHomeSectionIds(order);
+  const widgetLayoutOn = isHomeWidgetLayoutEnabled(decorate.homeWidgetLayout);
   return (
     <div>
       {/* 合规隐藏社交找人；产品/约搭咨询私信入口不在首页，不受影响 */}
@@ -443,7 +448,16 @@ function ClassicHomeByOrder({
           case "banners":
             return <BannersSection key="banners" decorate={decorate} />;
           case "portal":
-            return <PortalEntranceSection key="portal" modules={modules} />;
+            return isHomeWidgetLayoutEnabled(decorate.homeWidgetLayout) ? (
+              <HomeWidgetsSection
+                key="portal"
+                modules={modules}
+                layout={decorate.homeWidgetLayout}
+                clockConfig={decorate.homeClock}
+              />
+            ) : (
+              <PortalEntranceSection key="portal" modules={modules} />
+            );
           case "courses":
             return (
               <HotCoursesSection
@@ -470,6 +484,14 @@ function ClassicHomeByOrder({
           }
         }
       })}
+      {/* CMS 关掉了门户区块时，启用的自由布局仍要落地，否则时钟从顶栏撤走后会消失 */}
+      {widgetLayoutOn && !sectionIds.includes("portal") ? (
+        <HomeWidgetsSection
+          modules={modules}
+          layout={decorate.homeWidgetLayout}
+          clockConfig={decorate.homeClock}
+        />
+      ) : null}
     </div>
   );
 }
@@ -670,6 +692,14 @@ export default async function HomePage() {
         : "",
   };
 
+  const modules = portal.nav.filter(
+    // 游戏中心并进软件产品顶栏分区，首页入口卡片不再单独占一格
+    (item) =>
+      item.enabled !== false &&
+      item.key !== "home" &&
+      item.key !== "games",
+  );
+
   // 仅「已设为默认」且含模块的首页 DIY 才接管；否则用系统经典首页（介绍文案等）
   const diyHome = getDefaultTemplate(pageTemplates, "home");
   if (shouldUseDiyLayout(diyHome)) {
@@ -686,6 +716,13 @@ export default async function HomePage() {
         ) : null}
         {!hideSocialChat ? (
           <HomeUserChatSearch loggedIn={loggedIn} />
+        ) : null}
+        {isHomeWidgetLayoutEnabled(decorate.homeWidgetLayout) ? (
+          <HomeWidgetsSection
+            modules={modules}
+            layout={decorate.homeWidgetLayout}
+            clockConfig={decorate.homeClock}
+          />
         ) : null}
         <PageModulesView
           template={diyHome!}
@@ -708,14 +745,6 @@ export default async function HomePage() {
       </div>
     );
   }
-
-  const modules = portal.nav.filter(
-    // 游戏中心并进软件产品顶栏分区，首页入口卡片不再单独占一格
-    (item) =>
-      item.enabled !== false &&
-      item.key !== "home" &&
-      item.key !== "games",
-  );
 
   return (
     <ClassicHomeByOrder

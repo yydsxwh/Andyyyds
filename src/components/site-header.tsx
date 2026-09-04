@@ -245,10 +245,13 @@ export async function SiteHeader() {
         </div>
       </div>
     </header>
-    <SiteHomeClock
-      config={decorate.homeClock}
-      canDrag={Boolean(session && canManageDecorate(session))}
-    />
+    {/* 自由布局启用后时钟改走首页画布，避免顶栏与画布各画一只 */}
+    {decorate.homeWidgetLayout?.enabled ? null : (
+      <SiteHomeClock
+        config={decorate.homeClock}
+        canDrag={Boolean(session && canManageDecorate(session))}
+      />
+    )}
     </>
   );
 }

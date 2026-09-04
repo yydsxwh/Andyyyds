@@ -6,6 +6,7 @@ import {
   parseDecorate,
   stringifyDecorate,
 } from "@andyyyds/shared/decorate";
+import { normalizeHomeWidgetLayout } from "@andyyyds/shared/home-widget-layout";
 import {
   DEFAULT_BACKGROUND_ID,
   DEFAULT_LAYOUT_DENSITY,
@@ -91,6 +92,23 @@ const patchSchema = z.object({
       showProverb: z.boolean().optional(),
     })
     .optional(),
+  homeWidgetLayout: z
+    .object({
+      enabled: z.boolean().optional(),
+      canvasMinHeightPx: z.number().optional(),
+      items: z
+        .record(
+          z.string(),
+          z.object({
+            xPct: z.number(),
+            yPx: z.number(),
+            wPct: z.number(),
+            hPx: z.number(),
+          }),
+        )
+        .optional(),
+    })
+    .optional(),
 });
 
 export async function GET() {
@@ -159,6 +177,10 @@ export async function PATCH(req: Request) {
       ...current.homeClock,
       ...(body.homeClock || {}),
     });
+    // 局部 PATCH 不传此字段时保留库中摆放，避免主题/门面保存把布局冲掉
+    const homeWidgetLayout = normalizeHomeWidgetLayout(
+      body.homeWidgetLayout ?? current.homeWidgetLayout,
+    );
 
     const next = {
       logoUrl: (body.logoUrl ?? current.logoUrl).trim() || DEFAULT_DECORATE.logoUrl,
@@ -201,6 +223,7 @@ export async function PATCH(req: Request) {
       fontSizes,
       typography,
       homeClock,
+      homeWidgetLayout,
     };
 
     const row = await prisma.siteSettings.update({
