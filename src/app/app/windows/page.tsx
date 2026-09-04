@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { existsSync, statSync } from "node:fs";
 import path from "node:path";
+import { resolveAppInstallerAvailability } from "@andyyyds/shared/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -28,11 +29,16 @@ function assetMeta(fileName: string) {
  * 优先推荐 NSIS 安装包（可选路径 + 桌面/开始菜单快捷方式）；
  * 便携 ZIP/EXE 作备选（浏览器拦截更少时可下 ZIP）。
  */
-export default function WindowsAppDownloadPage() {
+export default async function WindowsAppDownloadPage() {
   const setup = assetMeta("yyds-windows-setup.exe");
   const zip = assetMeta("yyds-windows.zip");
   const exe = assetMeta("yyds-windows.exe");
-  const ready = setup.ready || zip.ready || exe.ready;
+  const published = await resolveAppInstallerAvailability();
+  // OSS 有包时即使本地 public/app 被部署清空，仍给出下载按钮
+  const ready = published.windows || setup.ready || zip.ready || exe.ready;
+  const showSetup = setup.ready || published.windows;
+  const showZip = zip.ready || published.windows;
+  const showExe = exe.ready || published.windows;
 
   return (
     <div className="container py-10 sm:py-14">
@@ -58,31 +64,31 @@ export default function WindowsAppDownloadPage() {
 
           {ready ? (
             <div className="mt-8 flex flex-col items-center gap-3">
-              {setup.ready ? (
+              {showSetup ? (
                 <a
                   href={SETUP_PUBLIC_PATH}
                   download="yyds-windows-setup.exe"
                   className="btn btn-primary inline-flex min-h-12 w-full max-w-xs items-center justify-center sm:w-auto sm:px-8"
                 >
-                  下载安装包（推荐 · 约 {setup.sizeLabel}）
+                  下载安装包（推荐{setup.sizeLabel ? ` · 约 ${setup.sizeLabel}` : ""}）
                 </a>
               ) : null}
-              {zip.ready ? (
+              {showZip ? (
                 <a
                   href={ZIP_PUBLIC_PATH}
                   download="yyds-windows.zip"
                   className="btn btn-secondary inline-flex min-h-12 w-full max-w-xs items-center justify-center sm:w-auto sm:px-8"
                 >
-                  下载便携压缩包（约 {zip.sizeLabel}）
+                  下载便携压缩包{zip.sizeLabel ? `（约 ${zip.sizeLabel}）` : ""}
                 </a>
               ) : null}
-              {exe.ready ? (
+              {showExe ? (
                 <a
                   href={EXE_PUBLIC_PATH}
                   download="yyds-windows.exe"
                   className="btn btn-secondary inline-flex min-h-12 w-full max-w-xs items-center justify-center text-sm sm:w-auto sm:px-8"
                 >
-                  直接下载便携版 .exe（约 {exe.sizeLabel}）
+                  直接下载便携版 .exe{exe.sizeLabel ? `（约 ${exe.sizeLabel}）` : ""}
                 </a>
               ) : null}
             </div>

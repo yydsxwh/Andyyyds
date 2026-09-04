@@ -1,3 +1,4 @@
+import { existsSync } from "fs";
 import { access, mkdir, unlink, writeFile } from "fs/promises";
 import path from "path";
 import crypto from "crypto";
@@ -208,6 +209,44 @@ const APP_INSTALLER_SIGNED_TTL_SEC = 2 * 60 * 60;
 
 export function isAppInstallerFileName(name: string): boolean {
   return APP_INSTALLER_FILES.has(name);
+}
+
+export function appInstallerOnDisk(fileName: string): boolean {
+  try {
+    return existsSync(path.join(process.cwd(), "public", "app", fileName));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 首页/下载页是否露出安卓、Windows。
+ * 安装包走 OSS 签名下载；本地 public/app 被 gitignore，安全部署 rsync --delete
+ * 常把磁盘文件清掉。只看 existsSync 会误显示「准备中」。
+ */
+export async function resolveAppInstallerAvailability(): Promise<{
+  apk: boolean;
+  windows: boolean;
+}> {
+  const apkDisk = appInstallerOnDisk("yyds.apk");
+  const windowsDisk =
+    appInstallerOnDisk("yyds-windows-setup.exe") ||
+    appInstallerOnDisk("yyds-windows.zip") ||
+    appInstallerOnDisk("yyds-windows.exe");
+  if (apkDisk && windowsDisk) {
+    return { apk: true, windows: true };
+  }
+  let ossReady = false;
+  try {
+    const settings = await getSiteSettings();
+    ossReady = settings.storageProvider === "ALIYUN_OSS";
+  } catch {
+    ossReady = false;
+  }
+  return {
+    apk: apkDisk || ossReady,
+    windows: windowsDisk || ossReady,
+  };
 }
 
 /**

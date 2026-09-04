@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { BilingualHover } from "@/components/i18n/bilingual-hover";
 import { useLocale } from "@/components/i18n/locale-provider";
 import { translateMessage } from "@andyyyds/shared/i18n/messages";
+import { SITE_PRODUCT_PACKAGES } from "@andyyyds/shared/site-products";
 import { typoRoleClass, typoRoleStyle } from "@andyyyds/shared/site-typography";
 
 export type HeaderNavLink = {
@@ -34,20 +35,19 @@ type Props = {
   variant?: "desktop" | "mobile";
 };
 
-/** 门户默认入口：游戏中心挂在软件产品下，不占顶栏一位 */
+/** 门户默认入口：六个产品全列出；游戏中心挂在软件产品下 */
 const FALLBACK_MOBILE_HREFS = [
   { href: "/", key: "nav.home" },
-  { href: "/about/company", key: "nav.company" },
-  { href: "/about/person", key: "nav.person" },
-  { href: "/courses", key: "nav.courses" },
-  { href: "/meetup", key: "nav.meetup" },
+  ...SITE_PRODUCT_PACKAGES.map((item) => ({
+    href: item.href,
+    key: item.navKey,
+  })),
   { href: "/shop", key: "nav.shop" },
   {
     href: "/products",
     key: "nav.products",
     children: [{ href: "/games", key: "nav.games" }],
   },
-  { href: "/forum", key: "nav.forum" },
 ] as const;
 
 function DesktopDropdown({

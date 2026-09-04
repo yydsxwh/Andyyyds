@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { existsSync } from "node:fs";
-import path from "node:path";
+import { resolveAppInstallerAvailability } from "@andyyyds/shared/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -13,20 +12,13 @@ export const metadata: Metadata = {
 
 const APK_PUBLIC_PATH = "/app/yyds.apk";
 
-function assetReady(fileName: string) {
-  return existsSync(path.join(process.cwd(), "public", "app", fileName));
-}
-
 /**
  * Android APK 下载页：壳应用通过 WebView 加载线上站点，
  * 登录 / 支付 / 上传 / 点播与网页版一致。
  */
-export default function AppDownloadPage() {
-  const apkOnDisk = assetReady("yyds.apk");
-  const winOnDisk =
-    assetReady("yyds-windows-setup.exe") ||
-    assetReady("yyds-windows.zip") ||
-    assetReady("yyds-windows.exe");
+export default async function AppDownloadPage() {
+  const { apk: apkOnDisk, windows: winOnDisk } =
+    await resolveAppInstallerAvailability();
 
   return (
     <div className="container py-10 sm:py-14">

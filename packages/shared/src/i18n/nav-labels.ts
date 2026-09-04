@@ -9,6 +9,8 @@ const LABEL_TO_KEY: Record<string, string> = {
   软件产品: "nav.products",
   大学论坛: "nav.forum",
   论坛: "nav.forum",
+  识图转LaTeX: "nav.mathcode",
+  "识图转 LaTeX": "nav.mathcode",
   游戏中心: "nav.games",
   个人中心: "nav.account",
   创作者中心: "nav.studio",
@@ -31,6 +33,7 @@ const HREF_TO_KEY: Record<string, string> = {
   "/shop": "nav.shop",
   "/products": "nav.products",
   "/forum": "nav.forum",
+  "/products/mathcode": "nav.mathcode",
   "/games": "nav.games",
   "/account": "nav.account",
   "/studio": "nav.studio",
@@ -49,6 +52,7 @@ const PORTAL_KEY_TO_MESSAGE: Record<string, string> = {
   shop: "nav.shop",
   products: "nav.products",
   forum: "nav.forum",
+  mathcode: "nav.mathcode",
   games: "nav.games",
 };
 

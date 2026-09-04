@@ -5,8 +5,7 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { existsSync } from "node:fs";
-import path from "node:path";
+import { resolveAppInstallerAvailability } from "@andyyyds/shared/storage";
 
 type ClientSlot = {
   id: string;
@@ -16,21 +15,10 @@ type ClientSlot = {
   available: boolean;
 };
 
-function appAssetReady(fileName: string) {
-  try {
-    return existsSync(path.join(process.cwd(), "public", "app", fileName));
-  } catch {
-    return false;
-  }
-}
-
-function buildSlots(): ClientSlot[] {
-  const apkOk = appAssetReady("yyds.apk");
-  // zip 或 exe 任一即可开放入口（推荐 zip，减少浏览器拦截）
-  const winOk =
-    appAssetReady("yyds-windows-setup.exe") ||
-    appAssetReady("yyds-windows.zip") ||
-    appAssetReady("yyds-windows.exe");
+async function buildSlots(): Promise<ClientSlot[]> {
+  // 不看本地磁盘：安装包在 OSS，部署清 public/app 时仍应可下
+  const { apk: apkOk, windows: winOk } =
+    await resolveAppInstallerAvailability();
   return [
     {
       id: "android",
@@ -67,8 +55,8 @@ function buildSlots(): ClientSlot[] {
   ];
 }
 
-export function ClientDownloadsPanel() {
-  const slots = buildSlots();
+export async function ClientDownloadsPanel() {
+  const slots = await buildSlots();
 
   return (
     <aside

@@ -53,6 +53,14 @@ def should_exclude(path: Path) -> bool:
     # 本地临时诊断脚本不必上线
     if parts[0] == "scripts" and path.name.startswith("_"):
         return True
+    # 安装包走 OSS，且体积上百 MB；打进每次部署包会拖垮上传，
+    # 解包失败时 rsync --delete 还会把线上残留清成空目录
+    if rel.startswith("public/app/") and path.suffix.lower() in {
+        ".apk",
+        ".exe",
+        ".zip",
+    }:
+        return True
     return False
 
 
@@ -256,6 +264,7 @@ def main() -> int:
     )
     run(
         client,
+        # exclude 的文件 rsync --delete 不会删；比 P 规则稳，避免再把安装包冲掉
         f"rsync -a --delete "
         f"--exclude '.env' "
         f"--exclude 'node_modules' "
@@ -264,6 +273,9 @@ def main() -> int:
         f"--exclude '.deploy_backup' "
         f"--exclude '*.db' "
         f"--exclude '*.db-journal' "
+        f"--exclude 'public/app/*.apk' "
+        f"--exclude 'public/app/*.exe' "
+        f"--exclude 'public/app/*.zip' "
         f"{REMOTE_STAGE}/ {REMOTE_DIR}/",
     )
 
