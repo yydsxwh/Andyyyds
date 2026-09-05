@@ -7,7 +7,9 @@
  *   - 图片 / PDF：浏览器渲染后走 /api/mathcode/ocr
  *   - Markdown / txt / csv / html / tex：走 /api/mathcode/convert
  *   - Word / WPS / PPT / 表格 / OpenDocument：服务端拆成文字块和内嵌图，再分别 convert / ocr
+ *   - 选择文件、拖拽、Ctrl+V / 长按粘贴（截图、PDF 等）都可以进同一条队列
  * 输出：每一轮上传在右侧新开一框，完整 XeLaTeX，可送进 Overleaf / VS Code。
+ * 本轮微调提示词只附加到识别指令，不替换保真规则。
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -20,10 +22,16 @@ import {
 } from "@andyyyds/mathcode/lib/mathcode-doc";
 import { openTexInOverleaf, openTexInVsCode } from "@andyyyds/mathcode/lib/mathcode-open";
 import {
+  filesFromClipboardItems,
+  filesFromDataTransfer,
+  normalizePastedFiles,
+} from "@andyyyds/mathcode/lib/mathcode-clipboard";
+import {
   MATHCODE_ACCEPT,
   classifyMathcodeFile,
   maxBytesForKind,
 } from "@andyyyds/mathcode/lib/mathcode-filetypes";
+import { MATHCODE_USER_HINT_MAX_CHARS } from "@andyyyds/mathcode/lib/mathcode";
 
 type ItemStatus = "pending" | "processing" | "done" | "error";
 
@@ -55,6 +63,7 @@ const ACCEPT = MATHCODE_ACCEPT;
 /** PDF 页面渲染分辨率倍数；越高识别越清晰，但也更慢/更大 */
 const PDF_RENDER_SCALE = 2;
 const WATERMARK_STORAGE_KEY = "yyds-mathcode-watermark-v1";
+const HINT_STORAGE_KEY = "yyds-mathcode-prompt-hint-v1";
 const WATERMARK_IMAGE_ACCEPT = "image/png,image/jpeg,image/webp,image/gif";
 
 const WATERMARK_POSITIONS: { id: WatermarkPosition; label: string }[] = [
@@ -223,12 +232,13 @@ async function renderPdfToItems(file: File): Promise<Item[]> {
   return items;
 }
 
-async function ocrOne(item: Item): Promise<string> {
+async function ocrOne(item: Item, userHint: string): Promise<string> {
   const form = new FormData();
   form.append(
     "file",
     new File([item.blob], `${item.label}.png`, { type: item.mime }),
   );
+  if (userHint) form.append("userHint", userHint);
   const res = await fetch("/api/mathcode/ocr", {
     method: "POST",
     body: form,
@@ -243,13 +253,13 @@ async function ocrOne(item: Item): Promise<string> {
   return (data.latex || "").trim();
 }
 
-async function convertOne(item: Item): Promise<string> {
+async function convertOne(item: Item, userHint: string): Promise<string> {
   const text = (item.sourceText || "").trim();
   if (!text) return "";
   const res = await fetch("/api/mathcode/convert", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text, filename: item.label }),
+    body: JSON.stringify({ text, filename: item.label, userHint }),
   });
   const data = (await res.json().catch(() => ({}))) as {
     latex?: string;
@@ -329,15 +339,29 @@ export function MathcodeTool() {
   const [wmHydrated, setWmHydrated] = useState(false);
   const [wmImageFile, setWmImageFile] = useState<File | null>(null);
   const [wmImagePreview, setWmImagePreview] = useState("");
+  const [userHint, setUserHint] = useState("");
+  const [hintHydrated, setHintHydrated] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const wmImageInputRef = useRef<HTMLInputElement>(null);
+  const dropZoneRef = useRef<HTMLDivElement>(null);
+  const pasteCatcherRef = useRef<HTMLDivElement>(null);
   const latestBoxRef = useRef<HTMLDivElement>(null);
   const processingRef = useRef(false);
   const queuedFilesRef = useRef<File[]>([]);
+  const userHintRef = useRef("");
 
   useEffect(() => {
     setWm(loadStoredWatermark());
     setWmHydrated(true);
+    try {
+      const stored = localStorage.getItem(HINT_STORAGE_KEY);
+      if (stored) {
+        setUserHint(stored.slice(0, MATHCODE_USER_HINT_MAX_CHARS));
+      }
+    } catch {
+      // 隐私模式读不了 localStorage 时忽略
+    }
+    setHintHydrated(true);
   }, []);
 
   useEffect(() => {
@@ -348,6 +372,16 @@ export function MathcodeTool() {
       // 隐私模式写不了 localStorage 时忽略，当场设置仍然生效
     }
   }, [wm, wmHydrated]);
+
+  useEffect(() => {
+    userHintRef.current = userHint;
+    if (!hintHydrated) return;
+    try {
+      localStorage.setItem(HINT_STORAGE_KEY, userHint);
+    } catch {
+      // 写不了就只在本页有效
+    }
+  }, [userHint, hintHydrated]);
 
   useEffect(() => {
     return () => {
@@ -374,7 +408,7 @@ export function MathcodeTool() {
     });
   }, []);
 
-  const runQueue = useCallback(async (queue: Item[]) => {
+  const runQueue = useCallback(async (queue: Item[], hint: string) => {
     // 并发上限：视觉模型对每分钟请求数敏感，逐张处理更稳
     for (const it of queue) {
       setItems((prev) =>
@@ -382,7 +416,9 @@ export function MathcodeTool() {
       );
       try {
         const latex =
-          it.source === "text" ? await convertOne(it) : await ocrOne(it);
+          it.source === "text"
+            ? await convertOne(it, hint)
+            : await ocrOne(it, hint);
         setItems((prev) =>
           prev.map((p) =>
             p.id === it.id ? { ...p, status: "done", latex } : p,
@@ -508,8 +544,9 @@ export function MathcodeTool() {
             },
           ]);
           setStatus("已加入队列，正在转换…右侧会新开一框");
-          await runQueue(newItems);
-          setStatus("本轮完成。可继续上传，右侧会再开新框显示最新代码。");
+          // 本轮用开始时的提示词，避免识别中途改框导致同一批指令不一致
+          await runQueue(newItems, userHintRef.current.trim());
+          setStatus("本轮完成。可继续上传或粘贴，右侧会再开新框显示最新代码。");
         }
       } finally {
         processingRef.current = false;
@@ -528,7 +565,8 @@ export function MathcodeTool() {
           o.itemIds.includes(id) ? { ...o, edited: null } : o,
         ),
       );
-      await runQueue([target]);
+      // 重试用当前框里的提示词，方便改一句再跑
+      await runQueue([target], userHintRef.current.trim());
     },
     [items, runQueue],
   );
@@ -647,15 +685,77 @@ export function MathcodeTool() {
     [items, wm],
   );
 
-  const handleDrop = useCallback(
-    (e: React.DragEvent<HTMLDivElement>) => {
-      e.preventDefault();
-      if (e.dataTransfer?.files?.length) {
-        void acceptFiles(e.dataTransfer.files);
-      }
+  const ingestPastedFiles = useCallback(
+    async (raw: File[]) => {
+      if (raw.length === 0) return false;
+      const files = await normalizePastedFiles(raw);
+      if (files.length === 0) return false;
+      void acceptFiles(files);
+      return true;
     },
     [acceptFiles],
   );
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      const files = filesFromDataTransfer(e.dataTransfer);
+      if (files.length) void ingestPastedFiles(files);
+    },
+    [ingestPastedFiles],
+  );
+
+  const handlePasteEvent = useCallback(
+    (e: React.ClipboardEvent | ClipboardEvent) => {
+      const files = filesFromDataTransfer(e.clipboardData);
+      if (files.length === 0) return;
+      // 有文件就按上传处理；纯文字仍留给提示词框 / 输出框
+      e.preventDefault();
+      if (pasteCatcherRef.current) pasteCatcherRef.current.innerHTML = "";
+      void ingestPastedFiles(files);
+    },
+    [ingestPastedFiles],
+  );
+
+  useEffect(() => {
+    const onWindowPaste = (e: ClipboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      // 提示词 / 输出框里粘贴纯文字不要抢走；有文件（截图、PDF）则仍当上传
+      const files = filesFromDataTransfer(e.clipboardData);
+      if (files.length === 0) return;
+      if (
+        target &&
+        (target.tagName === "TEXTAREA" || target.tagName === "INPUT") &&
+        files.every((f) => f.type.startsWith("text/"))
+      ) {
+        return;
+      }
+      e.preventDefault();
+      void ingestPastedFiles(files);
+    };
+    window.addEventListener("paste", onWindowPaste);
+    return () => window.removeEventListener("paste", onWindowPaste);
+  }, [ingestPastedFiles]);
+
+  const handlePasteButton = useCallback(async () => {
+    if (typeof navigator !== "undefined" && navigator.clipboard?.read) {
+      try {
+        const items = await navigator.clipboard.read();
+        const files = await filesFromClipboardItems(items);
+        if (await ingestPastedFiles(files)) {
+          setStatus("已从剪贴板读入文件，正在加入队列…");
+          return;
+        }
+      } catch {
+        // 微信 / HTTP / 未授权时走页面粘贴
+      }
+    }
+    dropZoneRef.current?.focus();
+    pasteCatcherRef.current?.focus();
+    setStatus(
+      "请在本页按 Ctrl+V（电脑）或点下方粘贴区后长按粘贴（手机/微信）。截图、PDF 和其他文件都可以。",
+    );
+  }, [ingestPastedFiles]);
 
   const handleWmImagePicked = useCallback(
     (file: File | null) => {
@@ -939,32 +1039,82 @@ export function MathcodeTool() {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
       <section className="surface rounded-[28px] p-5 sm:p-6">
+        <label className="mb-5 block">
+          <span className="text-sm font-medium text-[var(--ink)]">
+            本轮微调提示词（可选）
+          </span>
+          <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
+            上传或粘贴前写在这里，会附加到这一轮识别指令里，不替换「有什么写什么」的保真规则。
+            例如：保留原题编号、化学式用 ce、只要公式不要题干。
+          </p>
+          <textarea
+            value={userHint}
+            maxLength={MATHCODE_USER_HINT_MAX_CHARS}
+            onChange={(e) =>
+              setUserHint(e.target.value.slice(0, MATHCODE_USER_HINT_MAX_CHARS))
+            }
+            rows={4}
+            className="field mt-2 min-h-24 w-full resize-y rounded-xl px-3 py-2 text-sm leading-6 outline-none focus:border-[var(--brand)]"
+            placeholder="这一轮想怎么微调？可留空。"
+          />
+          <span className="mt-1 block text-right text-[10px] text-[var(--muted)]">
+            {userHint.length}/{MATHCODE_USER_HINT_MAX_CHARS}
+          </span>
+        </label>
+
         <div
-          className="flex min-h-[160px] flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-[var(--brand)]/40 bg-[var(--brand)]/5 p-6 text-center transition hover:border-[var(--brand)]/70"
+          ref={dropZoneRef}
+          tabIndex={0}
+          className="flex min-h-[160px] flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-[var(--brand)]/40 bg-[var(--brand)]/5 p-6 text-center outline-none transition hover:border-[var(--brand)]/70 focus:border-[var(--brand)]"
           onDragOver={(e) => e.preventDefault()}
           onDrop={handleDrop}
+          onPaste={handlePasteEvent}
         >
           <p className="text-sm font-medium text-[var(--ink)]">
-            拖拽截图、PDF、Word / WPS、PPT、表格或 Markdown 到这里
+            拖拽、选择或粘贴截图、PDF、Word / WPS、PPT、表格或 Markdown
           </p>
           <p className="text-xs text-[var(--muted)]">
-            图片 / PDF 按页识别；Word、WPS、PPT、Excel、Markdown 抽正文再转 LaTeX。
-            旧版 .doc / .ppt / .xls 请先另存为 docx / pptx / xlsx，或导出 PDF。
+            电脑用 Ctrl+V；手机/微信先点下方粘贴区再长按粘贴。图片和 PDF 都可以。
+            图片 / PDF 按页识别；办公文档抽正文再转 LaTeX。
             每上传一轮，右侧都会新开一框。
           </p>
-          <label className="btn btn-primary cursor-pointer">
-            选择文件
-            <input
-              ref={inputRef}
-              type="file"
-              multiple
-              accept={ACCEPT}
-              className="hidden"
-              onChange={(e) => {
-                if (e.target.files) void acceptFiles(e.target.files);
-              }}
-            />
-          </label>
+          <div className="flex w-full max-w-md flex-col gap-2 sm:flex-row sm:justify-center">
+            <label className="btn btn-primary min-h-11 cursor-pointer px-4">
+              选择文件
+              <input
+                ref={inputRef}
+                type="file"
+                multiple
+                accept={ACCEPT}
+                className="hidden"
+                onChange={(e) => {
+                  if (e.target.files) void acceptFiles(e.target.files);
+                }}
+              />
+            </label>
+            <button
+              type="button"
+              className="btn btn-secondary min-h-11 px-4"
+              onClick={() => void handlePasteButton()}
+            >
+              从剪贴板粘贴
+            </button>
+          </div>
+          <div
+            ref={pasteCatcherRef}
+            role="textbox"
+            aria-label="粘贴截图或文件"
+            tabIndex={0}
+            contentEditable
+            suppressContentEditableWarning
+            data-placeholder="点这里后 Ctrl+V 或长按粘贴"
+            className="min-h-11 w-full max-w-md rounded-xl border border-dashed border-[var(--brand)]/30 bg-white/70 px-3 py-2 text-left text-sm text-[var(--muted)] outline-none empty:before:pointer-events-none empty:before:content-[attr(data-placeholder)] focus:border-[var(--brand)]"
+            onPaste={handlePasteEvent}
+            onInput={(e) => {
+              // 只收文件，误贴的文字立刻清掉，避免当正文提交
+              e.currentTarget.innerHTML = "";
+            }}
+          />
         </div>
 
         {(status || error) && (
@@ -983,7 +1133,7 @@ export function MathcodeTool() {
         <ul className="mt-5 space-y-3">
           {items.length === 0 ? (
             <li className="text-xs text-[var(--muted)]">
-              还没有内容。转换过程只用于生成 LaTeX，不会把文件入库。
+              还没有内容。可选文件、拖进来，或粘贴截图 / PDF。转换过程只用于生成 LaTeX，不会把文件入库。
             </li>
           ) : (
             items.map((it) => (
