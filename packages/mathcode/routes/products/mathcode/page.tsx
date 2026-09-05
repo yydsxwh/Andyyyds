@@ -38,7 +38,7 @@ export default async function MathcodePage() {
           <p className="mt-3 text-sm leading-7 text-[var(--muted)] sm:text-base">
             支持公式截图、PDF、Word、WPS、PPT、Excel 表格和 Markdown。
             可以选文件、拖拽，也可以 Ctrl+V / 长按粘贴（截图、PDF 等）。
-            每次识别前可写一栏微调提示词。只复刻原文有的文字、公式和色块，不编点评、不编公众号、不补没拍到的内容。
+            每次识别前可写一栏微调提示词，并可设定选择题、填空题、计算题、证明题之间空几行、半页或一页。只复刻原文有的文字、公式和色块，不编点评、不编公众号、不补没拍到的内容。
             输出完整 XeLaTeX + ctex 源码，可在本页直接预览排版并下载 PDF，也可用下方按钮送进 Overleaf 或 VS Code。
           </p>
           <div className="mt-4 flex flex-wrap gap-2">

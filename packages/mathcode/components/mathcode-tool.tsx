@@ -32,6 +32,13 @@ import {
   maxBytesForKind,
 } from "@andyyyds/mathcode/lib/mathcode-filetypes";
 import { MATHCODE_USER_HINT_MAX_CHARS } from "@andyyyds/mathcode/lib/mathcode-hint";
+import {
+  buildSpacingPrompt,
+  DEFAULT_QUESTION_SPACING,
+  normalizeQuestionSpacing,
+  type MathcodeQuestionSpacing,
+} from "@andyyyds/mathcode/lib/mathcode-spacing";
+import { MathcodeSpacingPanel } from "@andyyyds/mathcode/components/mathcode-spacing-panel";
 import { MathcodeBillingBar } from "@andyyyds/mathcode/components/mathcode-billing-bar";
 import { MathcodePdfPreview } from "@andyyyds/mathcode/components/mathcode-pdf-preview";
 import {
@@ -80,6 +87,7 @@ const ACCEPT = MATHCODE_ACCEPT;
 const PDF_RENDER_SCALE = 2;
 const WATERMARK_STORAGE_KEY = "yyds-mathcode-watermark-v1";
 const HINT_STORAGE_KEY = "yyds-mathcode-prompt-hint-v1";
+const SPACING_STORAGE_KEY = "yyds-mathcode-question-gap-v1";
 const WATERMARK_IMAGE_ACCEPT = "image/png,image/jpeg,image/webp,image/gif";
 
 const WATERMARK_POSITIONS: { id: WatermarkPosition; label: string }[] = [
@@ -127,6 +135,17 @@ function loadStoredWatermark(): MathcodeWatermark {
   }
 }
 
+function loadStoredSpacing(): MathcodeQuestionSpacing {
+  if (typeof window === "undefined") return { ...DEFAULT_QUESTION_SPACING };
+  try {
+    const raw = localStorage.getItem(SPACING_STORAGE_KEY);
+    if (!raw) return { ...DEFAULT_QUESTION_SPACING };
+    return normalizeQuestionSpacing(JSON.parse(raw));
+  } catch {
+    return { ...DEFAULT_QUESTION_SPACING };
+  }
+}
+
 function uid(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -152,10 +171,11 @@ function texForOutput(
   output: LatexOutput,
   items: Item[],
   wm: MathcodeWatermark,
+  spacing: MathcodeQuestionSpacing,
 ): string {
   if (output.edited != null) return output.edited;
   const body = joinItemBodies(items, output.itemIds);
-  return body.trim() ? wrapAsLatexDocument(body, wm) : "";
+  return body.trim() ? wrapAsLatexDocument(body, wm, spacing) : "";
 }
 
 /**
@@ -357,6 +377,10 @@ export function MathcodeTool() {
   const [wmImagePreview, setWmImagePreview] = useState("");
   const [userHint, setUserHint] = useState("");
   const [hintHydrated, setHintHydrated] = useState(false);
+  const [spacing, setSpacing] = useState<MathcodeQuestionSpacing>(
+    DEFAULT_QUESTION_SPACING,
+  );
+  const [spacingHydrated, setSpacingHydrated] = useState(false);
   const [access, setAccess] = useState<MathcodeAccessState>(emptyMathcodeAccess);
   const [accessLoading, setAccessLoading] = useState(true);
   const [payIntent, setPayIntent] = useState<MathcodePayIntent | null>(null);
@@ -375,10 +399,16 @@ export function MathcodeTool() {
   const processingRef = useRef(false);
   const queuedFilesRef = useRef<File[]>([]);
   const userHintRef = useRef("");
+  const spacingRef = useRef(spacing);
+  const wmRef = useRef(wm);
+  spacingRef.current = spacing;
+  wmRef.current = wm;
 
   useEffect(() => {
     setWm(loadStoredWatermark());
     setWmHydrated(true);
+    setSpacing(loadStoredSpacing());
+    setSpacingHydrated(true);
     try {
       const stored = localStorage.getItem(HINT_STORAGE_KEY);
       if (stored) {
@@ -478,6 +508,15 @@ export function MathcodeTool() {
   }, [userHint, hintHydrated]);
 
   useEffect(() => {
+    if (!spacingHydrated) return;
+    try {
+      localStorage.setItem(SPACING_STORAGE_KEY, JSON.stringify(spacing));
+    } catch {
+      // 隐私模式写不了就只在本页有效
+    }
+  }, [spacing, spacingHydrated]);
+
+  useEffect(() => {
     return () => {
       if (wmImagePreview.startsWith("blob:")) URL.revokeObjectURL(wmImagePreview);
     };
@@ -494,12 +533,38 @@ export function MathcodeTool() {
       setOutputs((list) =>
         list.map((o) =>
           o.edited
-            ? { ...o, edited: wrapAsLatexDocument(extractLatexBody(o.edited), next) }
+            ? {
+                ...o,
+                edited: wrapAsLatexDocument(
+                  extractLatexBody(o.edited),
+                  next,
+                  spacingRef.current,
+                ),
+              }
             : o,
         ),
       );
       return next;
     });
+  }, []);
+
+  const patchSpacing = useCallback((next: MathcodeQuestionSpacing) => {
+    const normalized = normalizeQuestionSpacing(next);
+    setSpacing(normalized);
+    setOutputs((list) =>
+      list.map((o) =>
+        o.edited
+          ? {
+              ...o,
+              edited: wrapAsLatexDocument(
+                extractLatexBody(o.edited),
+                wmRef.current,
+                normalized,
+              ),
+            }
+          : o,
+      ),
+    );
   }, []);
 
   const closePayDialog = useCallback((paid: boolean) => {
@@ -585,10 +650,14 @@ export function MathcodeTool() {
         prev.map((p) => (p.id === it.id ? { ...p, status: "processing" } : p)),
       );
       try {
+        const runHint = [hint, buildSpacingPrompt(spacingRef.current)]
+          .map((part) => part.trim())
+          .filter(Boolean)
+          .join("\n");
         const latex =
           it.source === "text"
-            ? await convertOne(it, hint)
-            : await ocrOne(it, hint);
+            ? await convertOne(it, runHint)
+            : await ocrOne(it, runHint);
         setItems((prev) =>
           prev.map((p) =>
             p.id === it.id ? { ...p, status: "done", latex } : p,
@@ -775,7 +844,7 @@ export function MathcodeTool() {
 
   const copyOutput = useCallback(
     async (output: LatexOutput, fragment: boolean) => {
-      const full = texForOutput(output, items, wm);
+      const full = texForOutput(output, items, wm, spacing);
       const payload = fragment ? extractLatexBody(full) : full;
       if (!payload.trim()) {
         setCopyHint("请先等这一轮识别完成，再复制");
@@ -805,7 +874,7 @@ export function MathcodeTool() {
 
   const downloadOutput = useCallback(
     (output: LatexOutput, fragment: boolean) => {
-      const full = texForOutput(output, items, wm);
+      const full = texForOutput(output, items, wm, spacing);
       const payload = fragment ? extractLatexBody(full) : full;
       if (!payload.trim()) return;
       const stamp = Date.now();
@@ -825,7 +894,7 @@ export function MathcodeTool() {
 
   const openOutputOverleaf = useCallback(
     (output: LatexOutput) => {
-      const tex = texForOutput(output, items, wm);
+      const tex = texForOutput(output, items, wm, spacing);
       if (!tex.trim()) {
         setCopyHint("请先等这一轮识别完成，再打开 Overleaf");
         return;
@@ -842,7 +911,7 @@ export function MathcodeTool() {
 
   const openOutputVsCode = useCallback(
     async (output: LatexOutput) => {
-      const tex = texForOutput(output, items, wm);
+      const tex = texForOutput(output, items, wm, spacing);
       if (!tex.trim()) {
         setCopyHint("请先等这一轮识别完成，再打开 VS Code");
         return;
@@ -1254,6 +1323,8 @@ export function MathcodeTool() {
           </span>
         </label>
 
+        <MathcodeSpacingPanel spacing={spacing} onChange={patchSpacing} />
+
         <div
           ref={dropZoneRef}
           tabIndex={0}
@@ -1420,7 +1491,7 @@ export function MathcodeTool() {
               <button
                 type="button"
                 className="btn btn-primary min-h-11 px-4 text-sm"
-                disabled={!texForOutput(outputs[outputs.length - 1], items, wm).trim()}
+                disabled={!texForOutput(outputs[outputs.length - 1], items, wm, spacing).trim()}
                 onClick={() => openOutputOverleaf(outputs[outputs.length - 1])}
               >
                 打开 Overleaf
@@ -1428,7 +1499,7 @@ export function MathcodeTool() {
               <button
                 type="button"
                 className="btn btn-secondary min-h-11 px-4 text-sm"
-                disabled={!texForOutput(outputs[outputs.length - 1], items, wm).trim()}
+                disabled={!texForOutput(outputs[outputs.length - 1], items, wm, spacing).trim()}
                 onClick={() => void openOutputVsCode(outputs[outputs.length - 1])}
               >
                 打开 VS Code
@@ -1452,7 +1523,7 @@ export function MathcodeTool() {
         ) : (
           <div className="mt-4 space-y-4">
             {outputCards.map((output) => {
-              const tex = texForOutput(output, items, wm);
+              const tex = texForOutput(output, items, wm, spacing);
               const busy = output.itemIds.some((id) => {
                 const it = items.find((i) => i.id === id);
                 return it?.status === "pending" || it?.status === "processing";

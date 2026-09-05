@@ -3,6 +3,12 @@
  * 不要在此文件 import 数据库 / 站点设置。
  */
 
+import {
+  applyQuestionGaps,
+  normalizeQuestionSpacing,
+  type MathcodeQuestionSpacing,
+} from "./mathcode-spacing";
+
 /** 剥外壳、修断行命令、把 $$ 换成标准行间公式 \[\] */
 export function sanitizeLatexBody(text: string): string {
   let s = text.replace(/\r\n/g, "\n").trim();
@@ -226,9 +232,10 @@ export function buildWatermarkPreamble(wm: MathcodeWatermark | undefined): strin
 export function wrapAsLatexDocument(
   body: string,
   wm?: MathcodeWatermark,
+  spacing?: MathcodeQuestionSpacing,
 ): string {
   const today = new Date().toISOString().slice(0, 10);
-  const inner = sanitizeLatexBody(body);
+  const inner = applyQuestionGaps(sanitizeLatexBody(body), normalizeQuestionSpacing(spacing));
   const watermarkBlock = buildWatermarkPreamble(wm);
   return [
     "% !TEX program = xelatex",
