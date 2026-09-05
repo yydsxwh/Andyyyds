@@ -10,6 +10,7 @@ import {
 
 type Props = {
   access: MathcodeAccessState;
+  loading?: boolean;
   onBuyMembership: () => void;
 };
 
@@ -20,7 +21,14 @@ function memberUntilLabel(iso: string | null): string {
   return `${date.getMonth() + 1}月${date.getDate()}日到期`;
 }
 
-export function MathcodeBillingBar({ access, onBuyMembership }: Props) {
+export function MathcodeBillingBar({ access, loading, onBuyMembership }: Props) {
+  if (loading) {
+    return (
+      <section className="surface rounded-[28px] p-5 sm:p-6">
+        <p className="text-sm text-[var(--muted)]">正在读取转换额度…</p>
+      </section>
+    );
+  }
   if (access.unlimited) {
     return (
       <section className="surface rounded-[28px] p-5 sm:p-6">

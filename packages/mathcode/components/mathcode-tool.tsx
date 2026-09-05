@@ -353,6 +353,7 @@ export function MathcodeTool() {
   const [userHint, setUserHint] = useState("");
   const [hintHydrated, setHintHydrated] = useState(false);
   const [access, setAccess] = useState<MathcodeAccessState>(emptyMathcodeAccess);
+  const [accessLoading, setAccessLoading] = useState(true);
   const [payIntent, setPayIntent] = useState<MathcodePayIntent | null>(null);
   const payWaiterRef = useRef<{
     resolve: (paid: boolean) => void;
@@ -379,14 +380,23 @@ export function MathcodeTool() {
     }
     setHintHydrated(true);
     void fetchMathcodeAccess()
-      .then(setAccess)
+      .then((next) => {
+        setAccess(next);
+        setAccessLoading(false);
+      })
       .catch(() => {
         // 额度条读失败不挡工具，转换时还会再校验
+        setAccessLoading(false);
       });
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       if (params.get("payOrder") || params.get("paid") === "1") {
-        void fetchMathcodeAccess().then(setAccess).catch(() => undefined);
+        void fetchMathcodeAccess()
+          .then((next) => {
+            setAccess(next);
+            setAccessLoading(false);
+          })
+          .catch(() => undefined);
         params.delete("payOrder");
         params.delete("paid");
         params.delete("wechat_oauth");
@@ -903,6 +913,7 @@ export function MathcodeTool() {
     <div className="grid gap-6">
       <MathcodeBillingBar
         access={access}
+        loading={accessLoading}
         onBuyMembership={() => void requestPay({ kind: "membership" })}
       />
       {payIntent ? (

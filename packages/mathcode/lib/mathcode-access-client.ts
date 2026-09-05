@@ -45,7 +45,10 @@ export function emptyMathcodeAccess(): MathcodeAccessState {
 }
 
 export async function fetchMathcodeAccess(): Promise<MathcodeAccessState> {
-  const res = await fetch("/api/mathcode/access", { cache: "no-store" });
+  const res = await fetch("/api/mathcode/access", {
+    cache: "no-store",
+    credentials: "same-origin",
+  });
   const data = (await res.json().catch(() => ({}))) as Partial<MathcodeAccessState> & {
     error?: string;
   };
@@ -73,6 +76,7 @@ export type MathcodeGateResult =
 export async function checkMathcodePages(pageCount: number): Promise<MathcodeGateResult> {
   const res = await fetch("/api/mathcode/access", {
     method: "POST",
+    credentials: "same-origin",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ pageCount }),
   });
@@ -109,6 +113,7 @@ export async function createMathcodeCheckout(
 ): Promise<{ orderId: string; amount: number }> {
   const res = await fetch("/api/mathcode/checkout", {
     method: "POST",
+    credentials: "same-origin",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ kind, pageCount }),
   });
