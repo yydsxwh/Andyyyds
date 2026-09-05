@@ -10,6 +10,7 @@
  *   - 选择文件、拖拽、Ctrl+V / 长按粘贴（截图、PDF 等）都可以进同一条队列
  * 输出：每一轮上传在右侧新开一框，完整 XeLaTeX；本页可预览 / 下载 PDF，也可送进 Overleaf / VS Code。
  * 本轮微调提示词只附加到识别指令，不替换保真规则。
+ * 题间留白按题型写进导出的 .tex，改开关不必重跑识别。
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
