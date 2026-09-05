@@ -21,18 +21,28 @@ export type MathcodePayIntent =
 type Props = {
   intent: MathcodePayIntent;
   channels: MathcodePayChannels;
+  /** 授权回来后接着付同一笔，不再重新下单 */
+  resumeOrder?: { orderId: string; amount: number } | null;
   onPaid: () => void;
   onClose: () => void;
 };
 
-export function MathcodePayDialog({ intent, channels, onPaid, onClose }: Props) {
+export function MathcodePayDialog({
+  intent,
+  channels,
+  resumeOrder,
+  onPaid,
+  onClose,
+}: Props) {
   const [phase, setPhase] = useState<"pick" | "pay">(
-    intent.kind === "choose" ? "pick" : "pay",
+    resumeOrder || intent.kind !== "choose" ? "pay" : "pick",
   );
   const [picked, setPicked] = useState<Exclude<MathcodePayIntent, { kind: "choose" }>>(
     intent.kind === "choose" ? { kind: "pages", pageCount: intent.pageCount } : intent,
   );
-  const [order, setOrder] = useState<{ orderId: string; amount: number } | null>(null);
+  const [order, setOrder] = useState<{ orderId: string; amount: number } | null>(
+    resumeOrder ?? null,
+  );
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -41,6 +51,10 @@ export function MathcodePayDialog({ intent, channels, onPaid, onClose }: Props) 
 
   useEffect(() => {
     if (phase !== "pay") return;
+    if (resumeOrder?.orderId) {
+      setOrder(resumeOrder);
+      return;
+    }
     let cancelled = false;
     setLoading(true);
     setError("");
@@ -62,7 +76,7 @@ export function MathcodePayDialog({ intent, channels, onPaid, onClose }: Props) 
     return () => {
       cancelled = true;
     };
-  }, [phase, picked]);
+  }, [phase, picked, resumeOrder]);
 
   return (
     <div
@@ -75,12 +89,18 @@ export function MathcodePayDialog({ intent, channels, onPaid, onClose }: Props) 
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 id="mathcode-pay-title" className="text-lg font-semibold text-[var(--ink)]">
-              {picked.kind === "membership" ? "开通 MathCode 会员" : "按页支付后转换"}
+              {resumeOrder
+                ? "完成微信支付"
+                : picked.kind === "membership"
+                  ? "开通 MathCode 会员"
+                  : "按页支付后转换"}
             </h2>
             <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
-              {picked.kind === "membership"
-                ? `¥30 / 30 天，含 ${MATHCODE_MEMBERSHIP_PAGES} 页。额度用完须再开通，获得新的 150 页。`
-                : `未开会员按 ${formatPrice(MATHCODE_GUEST_CENTS_PER_PAGE)} / 页，先微信支付再识别。`}
+              {resumeOrder
+                ? "授权完成后请再点一次「微信支付」，微信才会弹出付款。"
+                : picked.kind === "membership"
+                  ? `¥30 / 30 天，含 ${MATHCODE_MEMBERSHIP_PAGES} 页。额度用完须再开通，获得新的 150 页。`
+                  : `未开会员按 ${formatPrice(MATHCODE_GUEST_CENTS_PER_PAGE)} / 页，先微信支付再识别。`}
             </p>
           </div>
           <button

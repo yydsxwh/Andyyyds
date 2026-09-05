@@ -2,7 +2,7 @@
 
 /**
  * 识图页内嵌微信支付。不跳到 /checkout，避免内存里的上传队列被清掉。
- * 微信内优先 JSAPI；没有 openid 时不跳授权页，改扫码/长按，保证还留在本页。
+ * 微信内：没有 openid 就走网页授权（回本页 payOrder），有参数后必须等用户再点一次才调起。
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -11,17 +11,13 @@ import { formatPrice } from "@andyyyds/shared/utils";
 import {
   isMobileBrowser,
   isWeChatBrowser,
+  preferWechatTradeType,
   type WechatPayTradeType,
 } from "@andyyyds/shared/wechat-env";
-
-type JsapiPayParams = {
-  appId: string;
-  timeStamp: string;
-  nonceStr: string;
-  package: string;
-  signType: string;
-  paySign: string;
-};
+import {
+  invokeWeixinJsapiPay,
+  type WechatJsapiBrowserParams,
+} from "@andyyyds/shared/wechat-jsapi-client";
 
 type Channels = {
   mode: string;
@@ -37,65 +33,50 @@ type Props = {
   onPaid: () => void;
 };
 
-declare global {
-  interface Window {
-    WeixinJSBridge?: {
-      invoke: (
-        api: string,
-        params: Record<string, string>,
-        cb: (res: { err_msg?: string }) => void,
-      ) => void;
-    };
+const PAY_RESUME_KEY = "yyds-mathcode-pay-resume";
+
+export function rememberMathcodePayResume(orderId: string, amount: number) {
+  try {
+    sessionStorage.setItem(PAY_RESUME_KEY, JSON.stringify({ orderId, amount }));
+  } catch {
+    // 隐私模式写不了就只靠 URL 上的 payOrder
   }
 }
 
-function invokeWeixinPay(payParams: JsapiPayParams): Promise<"ok" | "cancel" | "fail"> {
-  return new Promise((resolve) => {
-    const run = () => {
-      if (!window.WeixinJSBridge) {
-        resolve("fail");
-        return;
-      }
-      window.WeixinJSBridge.invoke(
-        "getBrandWCPayRequest",
-        {
-          appId: payParams.appId,
-          timeStamp: payParams.timeStamp,
-          nonceStr: payParams.nonceStr,
-          package: payParams.package,
-          signType: payParams.signType,
-          paySign: payParams.paySign,
-        },
-        (res) => {
-          const msg = res.err_msg || "";
-          if (msg === "get_brand_wcpay_request:ok") resolve("ok");
-          else if (msg === "get_brand_wcpay_request:cancel") resolve("cancel");
-          else resolve("fail");
-        },
-      );
-    };
-    if (typeof window !== "undefined" && window.WeixinJSBridge) {
-      run();
-    } else if (typeof document !== "undefined") {
-      document.addEventListener("WeixinJSBridgeReady", run, false);
-      setTimeout(() => {
-        if (window.WeixinJSBridge) run();
-      }, 800);
-    } else {
-      resolve("fail");
-    }
-  });
+export function readMathcodePayResume(): { orderId: string; amount: number } | null {
+  try {
+    const raw = sessionStorage.getItem(PAY_RESUME_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { orderId?: string; amount?: number };
+    if (!parsed.orderId) return null;
+    return { orderId: parsed.orderId, amount: Number(parsed.amount) || 0 };
+  } catch {
+    return null;
+  }
+}
+
+export function clearMathcodePayResume() {
+  try {
+    sessionStorage.removeItem(PAY_RESUME_KEY);
+  } catch {
+    // ignore
+  }
 }
 
 export function MathcodeWechatPay({ orderId, amount, channels, onPaid }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [qrDataUrl, setQrDataUrl] = useState("");
-  const [statusText, setStatusText] = useState("请使用微信支付");
+  const [statusText, setStatusText] = useState("请点击微信支付");
   const [inWeChat, setInWeChat] = useState(false);
   const [onMobile, setOnMobile] = useState(false);
   const [tradeHint, setTradeHint] = useState("");
   const [showQrFallback, setShowQrFallback] = useState(false);
+  const [pendingJsapi, setPendingJsapi] = useState<WechatJsapiBrowserParams | null>(
+    null,
+  );
+  const pendingJsapiRef = useRef<WechatJsapiBrowserParams | null>(null);
+  const pendingH5Ref = useRef("");
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startedRef = useRef(false);
   const onPaidRef = useRef(onPaid);
@@ -110,6 +91,7 @@ export function MathcodeWechatPay({ orderId, amount, channels, onPaid }: Props) 
 
   const finishPaid = useCallback(() => {
     stopPolling();
+    clearMathcodePayResume();
     setStatusText("支付成功");
     onPaidRef.current();
   }, [stopPolling]);
@@ -152,31 +134,67 @@ export function MathcodeWechatPay({ orderId, amount, channels, onPaid }: Props) 
     startPolling();
   }
 
-  async function startWechatPay(options?: { forceNative?: boolean }) {
+  async function startWechatPay(options?: {
+    forceNative?: boolean;
+    fromClick?: boolean;
+  }) {
+    const fromClick = Boolean(options?.fromClick);
     setLoading(true);
     setError("");
     setTradeHint("");
     if (!options?.forceNative) setQrDataUrl("");
 
-    const wechat = isWeChatBrowser();
+    if (fromClick && !options?.forceNative && pendingJsapiRef.current) {
+      setStatusText("请在微信中完成支付");
+      setLoading(false);
+      startPolling();
+      const result = await invokeWeixinJsapiPay(pendingJsapiRef.current);
+      if (result === "ok") {
+        setStatusText("支付成功，正在确认…");
+        void pollStatus();
+      } else if (result === "cancel") {
+        setStatusText("已取消支付，可重新点击微信支付");
+      } else {
+        setError("调起微信支付失败，请再点一次或改用扫码支付");
+        setStatusText("调起失败");
+        setShowQrFallback(true);
+      }
+      return;
+    }
+
+    if (fromClick && !options?.forceNative && pendingH5Ref.current) {
+      setStatusText("正在跳转微信支付…");
+      setLoading(false);
+      startPolling();
+      window.location.href = pendingH5Ref.current;
+      return;
+    }
+
     const tradeType: WechatPayTradeType = options?.forceNative
       ? "native"
-      : wechat
-        ? "jsapi"
-        : "native";
+      : preferWechatTradeType();
+    const allowNativeFallback = Boolean(options?.forceNative);
 
     setStatusText(
-      tradeType === "jsapi" ? "正在调起微信支付…" : "正在生成微信支付二维码…",
+      tradeType === "jsapi"
+        ? fromClick
+          ? "正在调起微信支付…"
+          : "正在准备微信支付…"
+        : tradeType === "h5"
+          ? "正在准备跳转微信支付…"
+          : "正在生成微信支付二维码…",
     );
+
+    rememberMathcodePayResume(orderId, amount);
 
     const res = await fetch(`/api/orders/${orderId}/pay`, {
       method: "POST",
+      credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         channel: "WECHAT",
         tradeType,
-        // 识图必须留在本页：授权/H5 失败时落到扫码
-        allowNativeFallback: true,
+        allowNativeFallback,
       }),
     });
     const data = await res.json();
@@ -187,25 +205,31 @@ export function MathcodeWechatPay({ orderId, amount, channels, onPaid }: Props) 
       return;
     }
 
-    // 没有 openid 时不要跳走授权，否则上传队列会丢
-    if (data.mode === "wechat_need_oauth" && !options?.forceNative) {
-      setTradeHint("当前微信未绑定，改用长按识别二维码，支付后仍留在本页。");
-      await startWechatPay({ forceNative: true });
+    if (data.mode === "wechat_need_oauth" && data.oauthUrl) {
+      setStatusText("正在授权微信以便直接付款…");
+      window.location.href = data.oauthUrl as string;
       return;
     }
 
     if (data.mode === "wechat_jsapi" && data.payParams) {
-      setStatusText("请在微信中完成支付");
+      const payParams = data.payParams as WechatJsapiBrowserParams;
+      pendingJsapiRef.current = payParams;
+      setPendingJsapi(payParams);
       startPolling();
-      const result = await invokeWeixinPay(data.payParams as JsapiPayParams);
+      if (!fromClick) {
+        setStatusText("请点击「微信支付」完成付款");
+        setTradeHint("微信内必须再点一次按钮才会弹出付款。");
+        return;
+      }
+      setStatusText("请在微信中完成支付");
+      const result = await invokeWeixinJsapiPay(payParams);
       if (result === "ok") {
         setStatusText("支付成功，正在确认…");
         void pollStatus();
       } else if (result === "cancel") {
         setStatusText("已取消支付，可重新点击微信支付");
-        setError("");
       } else {
-        setError("调起微信支付失败，请改用扫码支付");
+        setError("调起微信支付失败，请再点一次或改用扫码支付");
         setStatusText("调起失败");
         setShowQrFallback(true);
       }
@@ -213,10 +237,12 @@ export function MathcodeWechatPay({ orderId, amount, channels, onPaid }: Props) 
     }
 
     if (data.mode === "wechat_h5" && data.mwebUrl) {
-      // 跳 H5 会离开本页；优先给扫码，并提示可另开微信
-      setShowQrFallback(true);
-      setStatusText("手机浏览器可跳转微信，也可改用扫码留在本页");
-      setTradeHint("跳转支付后请回到本页；若页面被刷新，文件需要重新上传。");
+      pendingH5Ref.current = data.mwebUrl as string;
+      if (!fromClick) {
+        setStatusText("请点击「微信支付」跳转付款");
+        return;
+      }
+      setStatusText("正在跳转微信支付…");
       startPolling();
       window.location.href = data.mwebUrl as string;
       return;
@@ -241,6 +267,7 @@ export function MathcodeWechatPay({ orderId, amount, channels, onPaid }: Props) 
     setStatusText("正在跳转支付宝…");
     const res = await fetch(`/api/orders/${orderId}/pay`, {
       method: "POST",
+      credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ channel: "ALIPAY" }),
     });
@@ -263,6 +290,7 @@ export function MathcodeWechatPay({ orderId, amount, channels, onPaid }: Props) 
     setError("");
     const res = await fetch(`/api/orders/${orderId}/pay`, {
       method: "POST",
+      credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ channel: "MOCK" }),
     });
@@ -281,7 +309,8 @@ export function MathcodeWechatPay({ orderId, amount, channels, onPaid }: Props) 
     if (!startedRef.current && (channels.wechat || channels.mockOnly)) {
       startedRef.current = true;
       if (channels.mockOnly) return;
-      void startWechatPay();
+      // 只预取参数 / 必要时去授权，不在这里 invoke
+      void startWechatPay({ fromClick: false });
     }
     return () => stopPolling();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -314,7 +343,7 @@ export function MathcodeWechatPay({ orderId, amount, channels, onPaid }: Props) 
             type="button"
             className="btn btn-primary min-h-11 flex-1"
             disabled={loading}
-            onClick={() => void startWechatPay()}
+            onClick={() => void startWechatPay({ fromClick: true })}
           >
             微信支付
           </button>
@@ -338,6 +367,13 @@ export function MathcodeWechatPay({ orderId, amount, channels, onPaid }: Props) 
         {tradeHint ? (
           <p className="mt-1 text-xs text-[var(--muted)]">{tradeHint}</p>
         ) : null}
+        {inWeChat ? (
+          <p className="mt-2 text-xs text-[var(--muted)]">
+            {pendingJsapi
+              ? "请再点一次「微信支付」，才会弹出付款。"
+              : "点「微信支付」后如需授权，授权回来再点一次即可付款。"}
+          </p>
+        ) : null}
         {qrDataUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -349,7 +385,11 @@ export function MathcodeWechatPay({ orderId, amount, channels, onPaid }: Props) 
           />
         ) : (
           <div className="mx-auto mt-4 flex min-h-[88px] w-full items-center justify-center rounded-2xl border border-dashed border-[var(--line)] px-3 text-sm text-[var(--muted)]">
-            {loading ? "正在调起支付…" : inWeChat || onMobile ? "点击微信支付即可付款" : "点击微信支付生成二维码"}
+            {loading
+              ? "正在准备支付…"
+              : inWeChat || onMobile
+                ? "点击微信支付即可付款"
+                : "点击微信支付生成二维码"}
           </div>
         )}
         {(inWeChat || onMobile) && showQrFallback ? (
@@ -357,7 +397,9 @@ export function MathcodeWechatPay({ orderId, amount, channels, onPaid }: Props) 
             type="button"
             className="btn btn-secondary mt-4 w-full min-h-11 text-sm"
             disabled={loading}
-            onClick={() => void startWechatPay({ forceNative: true })}
+            onClick={() =>
+              void startWechatPay({ forceNative: true, fromClick: true })
+            }
           >
             改用扫码支付
           </button>

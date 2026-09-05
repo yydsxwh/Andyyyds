@@ -39,6 +39,10 @@ import {
   type MathcodePayIntent,
 } from "@andyyyds/mathcode/components/mathcode-pay-dialog";
 import {
+  clearMathcodePayResume,
+  readMathcodePayResume,
+} from "@andyyyds/mathcode/components/mathcode-wechat-pay";
+import {
   checkMathcodePages,
   emptyMathcodeAccess,
   fetchMathcodeAccess,
@@ -356,6 +360,10 @@ export function MathcodeTool() {
   const [access, setAccess] = useState<MathcodeAccessState>(emptyMathcodeAccess);
   const [accessLoading, setAccessLoading] = useState(true);
   const [payIntent, setPayIntent] = useState<MathcodePayIntent | null>(null);
+  const [resumePayOrder, setResumePayOrder] = useState<{
+    orderId: string;
+    amount: number;
+  } | null>(null);
   const payWaiterRef = useRef<{
     resolve: (paid: boolean) => void;
   } | null>(null);
@@ -391,13 +399,55 @@ export function MathcodeTool() {
       });
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
-      if (params.get("payOrder") || params.get("paid") === "1") {
+      const payOrder = params.get("payOrder");
+      const oauth = params.get("wechat_oauth");
+      const stored = readMathcodePayResume();
+      const resumeId = payOrder || stored?.orderId || "";
+      if (resumeId) {
+        void fetch(`/api/orders/${resumeId}`, {
+          cache: "no-store",
+          credentials: "same-origin",
+        })
+          .then(async (res) => {
+            const data = (await res.json()) as {
+              id?: string;
+              status?: string;
+              amount?: number;
+            };
+            if (!res.ok || !data.id) return;
+            if (data.status === "PAID") {
+              clearMathcodePayResume();
+              void fetchMathcodeAccess()
+                .then((next) => {
+                  setAccess(next);
+                  setAccessLoading(false);
+                })
+                .catch(() => undefined);
+              return;
+            }
+            setResumePayOrder({
+              orderId: data.id,
+              amount: Number(data.amount) || stored?.amount || 0,
+            });
+            setPayIntent({ kind: "membership" });
+          })
+          .catch(() => undefined);
+      } else if (params.get("paid") === "1") {
         void fetchMathcodeAccess()
           .then((next) => {
             setAccess(next);
             setAccessLoading(false);
           })
           .catch(() => undefined);
+      }
+      if (oauth === "error" || oauth === "denied") {
+        setError(
+          oauth === "denied"
+            ? "未完成微信授权，无法直接支付。请再点微信支付。"
+            : decodeURIComponent(params.get("msg") || "微信授权失败，请再试"),
+        );
+      }
+      if (payOrder || params.get("paid") === "1" || oauth) {
         params.delete("payOrder");
         params.delete("paid");
         params.delete("wechat_oauth");
@@ -456,6 +506,8 @@ export function MathcodeTool() {
     const waiter = payWaiterRef.current;
     payWaiterRef.current = null;
     setPayIntent(null);
+    setResumePayOrder(null);
+    if (paid) clearMathcodePayResume();
     waiter?.resolve(paid);
   }, []);
 
@@ -920,6 +972,7 @@ export function MathcodeTool() {
       {payIntent ? (
         <MathcodePayDialog
           intent={payIntent}
+          resumeOrder={resumePayOrder}
           channels={access.channels}
           onPaid={() => {
             void refreshAccess();
