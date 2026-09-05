@@ -39,7 +39,7 @@ export default async function MathcodePage() {
             支持公式截图、PDF、Word、WPS、PPT、Excel 表格和 Markdown。
             可以选文件、拖拽，也可以 Ctrl+V / 长按粘贴（截图、PDF 等）。
             每次识别前可写一栏微调提示词。只复刻原文有的文字、公式和色块，不编点评、不编公众号、不补没拍到的内容。
-            输出完整 XeLaTeX + ctex 源码，可用下方按钮直接送进 Overleaf 或 VS Code。
+            输出完整 XeLaTeX + ctex 源码，可在本页直接预览排版并下载 PDF，也可用下方按钮送进 Overleaf 或 VS Code。
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             <a
@@ -56,7 +56,7 @@ export default async function MathcodePage() {
           </div>
           <p className="mt-2 text-xs text-[var(--muted)]">
             这是编辑器入口。VS Code 会优先打开电脑客户端，没有再打开网页版。
-            识别完成后，结果框里的同名按钮会把<strong>当前生成的 .tex</strong>送进去。
+            识别完成后，结果框里可预览、下载 PDF；同名按钮会把<strong>当前生成的 .tex</strong>送进编辑器。
             Windows 客户端侧栏也有「转 LaTeX」，与本页同一套工具，无需另装独立软件。
           </p>
           <p className="mt-2 text-xs">

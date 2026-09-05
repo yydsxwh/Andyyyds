@@ -34,7 +34,7 @@ export function MathcodeBillingBar({ access, loading, onBuyMembership }: Props) 
       <section className="surface rounded-[28px] p-5 sm:p-6">
         <p className="text-sm font-medium text-[var(--brand)]">站长免费 · 不限次数</p>
         <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
-          你正在用站长账号，识别和转换不扣页、不收费。
+          你正在用站长账号，识别、转换和本页 PDF 预览都不扣页、不收费。
         </p>
       </section>
     );

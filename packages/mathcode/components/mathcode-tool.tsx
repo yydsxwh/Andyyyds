@@ -8,7 +8,7 @@
  *   - Markdown / txt / csv / html / tex：走 /api/mathcode/convert
  *   - Word / WPS / PPT / 表格 / OpenDocument：服务端拆成文字块和内嵌图，再分别 convert / ocr
  *   - 选择文件、拖拽、Ctrl+V / 长按粘贴（截图、PDF 等）都可以进同一条队列
- * 输出：每一轮上传在右侧新开一框，完整 XeLaTeX，可送进 Overleaf / VS Code。
+ * 输出：每一轮上传在右侧新开一框，完整 XeLaTeX；本页可预览 / 下载 PDF，也可送进 Overleaf / VS Code。
  * 本轮微调提示词只附加到识别指令，不替换保真规则。
  */
 
@@ -33,6 +33,7 @@ import {
 } from "@andyyyds/mathcode/lib/mathcode-filetypes";
 import { MATHCODE_USER_HINT_MAX_CHARS } from "@andyyyds/mathcode/lib/mathcode-hint";
 import { MathcodeBillingBar } from "@andyyyds/mathcode/components/mathcode-billing-bar";
+import { MathcodePdfPreview } from "@andyyyds/mathcode/components/mathcode-pdf-preview";
 import {
   MathcodePayDialog,
   type MathcodePayIntent,
@@ -1358,7 +1359,7 @@ export function MathcodeTool() {
               LaTeX 输出
             </h2>
             <p className="text-xs text-[var(--muted)]">
-              每上传一次都会在这里新开一框，最新一次在最上面。可用 Overleaf / VS Code 直接打开当前源码。
+              每上传一次都会在这里新开一框，最新一次在最上面。可在本页预览并下载 PDF，也可用 Overleaf / VS Code 打开源码。
             </p>
           </div>
           {outputs.length > 0 ? (
@@ -1393,7 +1394,7 @@ export function MathcodeTool() {
 
         {outputCards.length === 0 ? (
           <p className="mt-4 text-xs text-[var(--muted)]">
-            识别完成后，完整可编译的 main.tex 会出现在这里。可继续上传，每次都会新增一框。
+            识别完成后，完整可编译的 main.tex 会出现在这里，并可在本页预览、下载 PDF。可继续上传，每次都会新增一框。
           </p>
         ) : (
           <div className="mt-4 space-y-4">
@@ -1498,6 +1499,15 @@ export function MathcodeTool() {
                         : "这一轮的完整 main.tex 会显示在这里。"
                     }
                   />
+                  <MathcodePdfPreview
+                    tex={tex}
+                    auto={isLatest && !busy}
+                    disabled={busy || !tex.trim()}
+                    watermarkFile={wm.imageEnabled ? wmImageFile : null}
+                    watermarkFileName={wm.imageFileName}
+                    watermarkMissing={wm.imageEnabled && !wmImageFile}
+                    downloadName={pdfDownloadName(output.title)}
+                  />
                 </div>
               );
             })}
@@ -1506,11 +1516,12 @@ export function MathcodeTool() {
 
         <details className="mt-4 text-xs leading-6 text-[var(--muted)]">
           <summary className="cursor-pointer text-[var(--ink)]">
-            Overleaf 编译步骤（本次必须 XeLaTeX）
+            还想用 Overleaf / VS Code 时（必须 XeLaTeX）
           </summary>
           <ol className="ml-5 mt-2 list-decimal space-y-1">
             <li>
-              点「打开 Overleaf」会把当前 .tex 送进新工程（Compiler = XeLaTeX）。
+              本页「预览 PDF / 下载 PDF」已经按 XeLaTeX 编好，一般不用再开编辑器。
+              若要改源码，点「打开 Overleaf」会把当前 .tex 送进新工程（Compiler = XeLaTeX）。
               「打开 VS Code」会先唤起电脑上的 VS Code 客户端；没有客户端再打开网页版。同时会下载 main.tex。
             </li>
             <li>
@@ -1546,6 +1557,11 @@ function StatusBadge({ status }: { status: ItemStatus }) {
       {text}
     </span>
   );
+}
+
+function pdfDownloadName(title: string): string {
+  const base = title.replace(/[^\w\u4e00-\u9fff.-]+/g, "_").slice(0, 40);
+  return `${base || "mathcode"}.pdf`;
 }
 
 function downloadText(text: string, filename: string) {

@@ -25,7 +25,7 @@ export const SOFTWARE_PRODUCTS: SoftwareProduct[] = [
     name: "MathCode 公式转 LaTeX",
     tagline: "数理化公式 AI 识别",
     description:
-      "上传教材、试题截图、PDF，或 Word / WPS / PPT / Excel / Markdown，由 AI 转写为可编辑的 LaTeX。未开通会员 0.5 元/页，会员 30 元/月含 150 页。",
+      "上传教材、试题截图、PDF，或 Word / WPS / PPT / Excel / Markdown，由 AI 转写为可编辑的 LaTeX，并在本页预览、下载 PDF。未开通会员 0.5 元/页，会员 30 元/月含 150 页。",
     status: "live",
     href: "/products/mathcode",
     badge: "0.5元/页 · 会员更优惠",
