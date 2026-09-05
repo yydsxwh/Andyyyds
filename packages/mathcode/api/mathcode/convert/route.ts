@@ -34,6 +34,7 @@ export async function POST(req: Request) {
     const body = (await req.json()) as {
       text?: string;
       filename?: string;
+      userHint?: string;
     };
     const text = String(body.text || "").trim();
     const filename = String(body.filename || "document").slice(0, 180);
@@ -65,6 +66,7 @@ export async function POST(req: Request) {
       provider,
       text: text.slice(0, MAX_CHARS),
       sourceLabel: filename,
+      userHint: body.userHint,
     });
     return NextResponse.json({
       latex,

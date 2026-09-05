@@ -76,9 +76,36 @@ const USER_PROMPT = [
   "禁止 wrapfigure、textpos、叠字。只返回正文。",
 ].join("\n");
 
+/** 站长本轮微调提示词上限；过长会挤掉正文识别额度 */
+export const MATHCODE_USER_HINT_MAX_CHARS = 2000;
+
+/**
+ * 只清洗控制符和长度。提示词是附加指令，不能替换保真规则，
+ * 否则用户写一句「帮我补全没拍到的步骤」就会诱导模型编造。
+ */
+export function sanitizeMathcodeUserHint(raw: unknown): string {
+  return String(raw ?? "")
+    .replace(/\r\n/g, "\n")
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "")
+    .trim()
+    .slice(0, MATHCODE_USER_HINT_MAX_CHARS);
+}
+
+function appendUserHint(basePrompt: string, userHint?: string): string {
+  const hint = sanitizeMathcodeUserHint(userHint);
+  if (!hint) return basePrompt;
+  return [
+    basePrompt,
+    "",
+    "站长本轮微调（必须仍服从保真规则：不得翻译、不得省略原文、不得编造画面/源文没有的内容）：",
+    hint,
+  ].join("\n");
+}
+
 export async function callMathcodeOcr(input: {
   provider: MathcodeProvider;
   imageDataUrl: string;
+  userHint?: string;
 }): Promise<string> {
   const { provider, imageDataUrl } = input;
   const url = `${provider.baseUrl}/chat/completions`;
@@ -98,7 +125,7 @@ export async function callMathcodeOcr(input: {
         {
           role: "user",
           content: [
-            { type: "text", text: USER_PROMPT },
+            { type: "text", text: appendUserHint(USER_PROMPT, input.userHint) },
             {
               type: "image_url",
               image_url: { url: imageDataUrl },
@@ -138,6 +165,7 @@ export async function callMathcodeTextConvert(input: {
   provider: MathcodeProvider;
   text: string;
   sourceLabel: string;
+  userHint?: string;
 }): Promise<string> {
   const { provider } = input;
   const source = input.text.trim();
@@ -158,8 +186,13 @@ export async function callMathcodeTextConvert(input: {
         {
           role: "user",
           content: [
-            `请把下面这份文档转成 LaTeX 正文。来源：${input.sourceLabel}`,
-            "只写原文有的内容，禁止编造。禁止 wrapfigure / textpos。只返回正文。",
+            appendUserHint(
+              [
+                `请把下面这份文档转成 LaTeX 正文。来源：${input.sourceLabel}`,
+                "只写原文有的内容，禁止编造。禁止 wrapfigure / textpos。只返回正文。",
+              ].join("\n"),
+              input.userHint,
+            ),
             "",
             source.slice(0, 80_000),
           ].join("\n"),

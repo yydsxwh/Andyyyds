@@ -74,10 +74,12 @@ export async function POST(req: Request) {
 
     const buf = Buffer.from(await file.arrayBuffer());
     const dataUrl = `data:${mime};base64,${buf.toString("base64")}`;
+    const userHint = form.get("userHint");
 
     const latex = await callMathcodeOcr({
       provider,
       imageDataUrl: dataUrl,
+      userHint: typeof userHint === "string" ? userHint : "",
     });
     return NextResponse.json({
       latex,
