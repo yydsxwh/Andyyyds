@@ -5,13 +5,16 @@
  * 前端 PDF 场景在浏览器里逐页渲染成 PNG 后仍然走这个接口，一次识别一张，
  * 好处：接口简单、失败可按页重试、也避开 Node 端 PDF→图片的原生依赖。
  *
- * 权限：仅站长（AI 视觉调用有成本，先内测；未来可放开给注册用户再谈限额）。
+ * 权限：登录用户。站长不限次免费；其余按会员 150 页或 0.5 元/页，成功后扣 1 页。
  */
 
 import { NextResponse } from "next/server";
-import { getSession } from "@andyyyds/shared/auth";
 import { callMathcodeOcr, resolveMathcodeProvider } from "@andyyyds/mathcode/lib/mathcode";
-import { isAdmin } from "@andyyyds/shared/roles";
+import {
+  chargeMathcodePageAfterSuccess,
+  requireMathcodePageCredit,
+  requireMathcodeSession,
+} from "@andyyyds/mathcode/lib/mathcode-gate";
 
 export const runtime = "nodejs";
 /** 视觉识别整页公式可能耗时，放宽到 2 分钟 */
@@ -29,16 +32,11 @@ const ALLOWED_IMAGE_MIME = new Set([
 
 export async function POST(req: Request) {
   try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: "请先登录" }, { status: 401 });
-    }
-    if (!isAdmin(session)) {
-      return NextResponse.json(
-        { error: "MathCode 目前仅站长可用" },
-        { status: 403 },
-      );
-    }
+    const auth = await requireMathcodeSession();
+    if (auth.error || !auth.session) return auth.error;
+    const session = auth.session;
+    const gated = await requireMathcodePageCredit(session);
+    if (gated) return gated;
 
     const form = await req.formData();
     const file = form.get("file");
@@ -81,6 +79,11 @@ export async function POST(req: Request) {
       imageDataUrl: dataUrl,
       userHint: typeof userHint === "string" ? userHint : "",
     });
+    const charged = await chargeMathcodePageAfterSuccess(
+      session,
+      file.name || "ocr",
+    );
+    if (charged) return charged;
     return NextResponse.json({
       latex,
       model: provider.model,

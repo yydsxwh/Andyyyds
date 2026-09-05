@@ -1,17 +1,16 @@
 /**
  * POST /api/mathcode/office
  * 上传 Word / WPS / PPT / 表格 / OpenDocument，拆成文字块 + 内嵌图，
- * 再由前端逐块走 /convert 或 /ocr。站长专用。
+ * 再由前端逐块走 /convert 或 /ocr。只要求登录，拆文档本身不扣页。
  */
 
 import { NextResponse } from "next/server";
-import { getSession } from "@andyyyds/shared/auth";
 import {
   MATHCODE_MAX_OFFICE_BYTES,
   classifyMathcodeFile,
 } from "@andyyyds/mathcode/lib/mathcode-filetypes";
 import { extractOfficeDocument } from "@andyyyds/mathcode/lib/mathcode-office";
-import { isAdmin } from "@andyyyds/shared/roles";
+import { requireMathcodeSession } from "@andyyyds/mathcode/lib/mathcode-gate";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -19,16 +18,8 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: "请先登录" }, { status: 401 });
-    }
-    if (!isAdmin(session)) {
-      return NextResponse.json(
-        { error: "MathCode 目前仅站长可用" },
-        { status: 403 },
-      );
-    }
+    const auth = await requireMathcodeSession();
+    if (auth.error) return auth.error;
 
     const form = await req.formData();
     const file = form.get("file");

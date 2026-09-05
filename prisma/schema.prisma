@@ -75,6 +75,10 @@ model User {
   forumComments        ForumComment[]
   forumActions         ForumAction[]
   forumSchoolVerifications ForumSchoolVerification[]
+  /// 识图转 LaTeX：会员页数 / 散买剩余页（站长不走这套账本）
+  mathcodeWallet       MathcodeWallet?
+  mathcodeUsages       MathcodeUsage[]
+  mathcodeGrants       MathcodeGrant[]
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
 
@@ -1120,4 +1124,42 @@ model ContentTranslation {
   @@unique([entityType, entityId, field, locale])
   @@index([entityType, entityId])
   @@index([locale, stale])
+}
+
+/// 识图转 LaTeX 额度账本。
+/// memberPages 只在 memberUntil 未过期时可用；过期后剩余会员页作废，须再开通才能拿到新的 150 页。
+/// guestPages 是按 0.5 元/页买下的剩余次数，不过期；会员期内不能再散买，但以前买剩的仍可接着用。
+model MathcodeWallet {
+  userId      String    @id
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  memberPages Int       @default(0)
+  memberUntil DateTime?
+  guestPages  Int       @default(0)
+  updatedAt   DateTime  @updatedAt
+}
+
+/// 每次成功识别/转换扣 1 页的流水，便于对账与客服查单。
+model MathcodeUsage {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// MEMBER | GUEST
+  source    String
+  unitLabel String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+/// 支付履约发页记录。orderId 唯一：微信回调重放时不得再加 150 页。
+model MathcodeGrant {
+  orderId   String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// MEMBERSHIP | PAGES
+  kind      String
+  pages     Int
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }

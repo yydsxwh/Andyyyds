@@ -1,16 +1,20 @@
 /**
  * POST /api/mathcode/convert
- * 把 Markdown / 纯文本 / 表格文本转成 LaTeX 正文。站长专用。
+ * 把 Markdown / 纯文本 / 表格文本转成 LaTeX 正文。
+ * 登录用户可用；成功后扣 1 页（已是 .tex 的直通也算一页文档）。
  */
 
 import { NextResponse } from "next/server";
-import { getSession } from "@andyyyds/shared/auth";
 import {
   callMathcodeTextConvert,
   resolveMathcodeProvider,
 } from "@andyyyds/mathcode/lib/mathcode";
 import { looksLikeExistingLatex, passthroughLatex } from "@andyyyds/mathcode/lib/mathcode-doc";
-import { isAdmin } from "@andyyyds/shared/roles";
+import {
+  chargeMathcodePageAfterSuccess,
+  requireMathcodePageCredit,
+  requireMathcodeSession,
+} from "@andyyyds/mathcode/lib/mathcode-gate";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -20,16 +24,11 @@ const MAX_CHARS = 80_000;
 
 export async function POST(req: Request) {
   try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: "请先登录" }, { status: 401 });
-    }
-    if (!isAdmin(session)) {
-      return NextResponse.json(
-        { error: "MathCode 目前仅站长可用" },
-        { status: 403 },
-      );
-    }
+    const auth = await requireMathcodeSession();
+    if (auth.error || !auth.session) return auth.error;
+    const session = auth.session;
+    const gated = await requireMathcodePageCredit(session);
+    if (gated) return gated;
 
     const body = (await req.json()) as {
       text?: string;
@@ -44,6 +43,8 @@ export async function POST(req: Request) {
 
     if (looksLikeExistingLatex(text) || /\.tex$/i.test(filename)) {
       const latex = passthroughLatex(text);
+      const charged = await chargeMathcodePageAfterSuccess(session, filename);
+      if (charged) return charged;
       return NextResponse.json({
         latex,
         passthrough: true,
@@ -68,6 +69,8 @@ export async function POST(req: Request) {
       sourceLabel: filename,
       userHint: body.userHint,
     });
+    const charged = await chargeMathcodePageAfterSuccess(session, filename);
+    if (charged) return charged;
     return NextResponse.json({
       latex,
       model: provider.model,

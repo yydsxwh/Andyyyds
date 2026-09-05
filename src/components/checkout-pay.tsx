@@ -126,6 +126,8 @@ export function CheckoutPay({ orderId, amount, channels, beforePay }: Props) {
         router.push(`/courses/${slug}`);
       } else if (productType === "PRODUCT") {
         router.push(`/orders`);
+      } else if (productType === "MATHCODE") {
+        router.push("/products/mathcode");
       } else {
         router.push(`/learn/${slug}`);
       }

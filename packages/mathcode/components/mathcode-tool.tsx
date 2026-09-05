@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * MathCode 客户端上传工具（仅站长可见）
+ * MathCode 客户端上传工具（登录用户可用，按页计费）
  *
  * 输入：
  *   - 图片 / PDF：浏览器渲染后走 /api/mathcode/ocr
@@ -32,6 +32,17 @@ import {
   maxBytesForKind,
 } from "@andyyyds/mathcode/lib/mathcode-filetypes";
 import { MATHCODE_USER_HINT_MAX_CHARS } from "@andyyyds/mathcode/lib/mathcode-hint";
+import { MathcodeBillingBar } from "@andyyyds/mathcode/components/mathcode-billing-bar";
+import {
+  MathcodePayDialog,
+  type MathcodePayIntent,
+} from "@andyyyds/mathcode/components/mathcode-pay-dialog";
+import {
+  checkMathcodePages,
+  emptyMathcodeAccess,
+  fetchMathcodeAccess,
+  type MathcodeAccessState,
+} from "@andyyyds/mathcode/lib/mathcode-access-client";
 
 type ItemStatus = "pending" | "processing" | "done" | "error";
 
@@ -341,6 +352,11 @@ export function MathcodeTool() {
   const [wmImagePreview, setWmImagePreview] = useState("");
   const [userHint, setUserHint] = useState("");
   const [hintHydrated, setHintHydrated] = useState(false);
+  const [access, setAccess] = useState<MathcodeAccessState>(emptyMathcodeAccess);
+  const [payIntent, setPayIntent] = useState<MathcodePayIntent | null>(null);
+  const payWaiterRef = useRef<{
+    resolve: (paid: boolean) => void;
+  } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const wmImageInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
@@ -362,6 +378,23 @@ export function MathcodeTool() {
       // 隐私模式读不了 localStorage 时忽略
     }
     setHintHydrated(true);
+    void fetchMathcodeAccess()
+      .then(setAccess)
+      .catch(() => {
+        // 额度条读失败不挡工具，转换时还会再校验
+      });
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("payOrder") || params.get("paid") === "1") {
+        void fetchMathcodeAccess().then(setAccess).catch(() => undefined);
+        params.delete("payOrder");
+        params.delete("paid");
+        params.delete("wechat_oauth");
+        params.delete("msg");
+        const next = `${window.location.pathname}${params.toString() ? `?${params}` : ""}`;
+        window.history.replaceState(null, "", next);
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -408,7 +441,81 @@ export function MathcodeTool() {
     });
   }, []);
 
+  const closePayDialog = useCallback((paid: boolean) => {
+    const waiter = payWaiterRef.current;
+    payWaiterRef.current = null;
+    setPayIntent(null);
+    waiter?.resolve(paid);
+  }, []);
+
+  const requestPay = useCallback((intent: MathcodePayIntent) => {
+    return new Promise<boolean>((resolve) => {
+      payWaiterRef.current?.resolve(false);
+      payWaiterRef.current = { resolve };
+      setPayIntent(intent);
+    });
+  }, []);
+
+  const refreshAccess = useCallback(async () => {
+    try {
+      const next = await fetchMathcodeAccess();
+      setAccess(next);
+      return next;
+    } catch {
+      return access;
+    }
+  }, [access]);
+
+  const ensureQuota = useCallback(
+    async (pageCount: number) => {
+      if (access.unlimited) return true;
+      const gate = await checkMathcodePages(pageCount);
+      if (gate.ok) return true;
+      if (gate.code === "NEED_LOGIN") {
+        setError("请先登录后再转换");
+        return false;
+      }
+      const paid = await requestPay(
+        gate.code === "NEED_RENEW"
+          ? { kind: "membership" }
+          : { kind: "choose", pageCount: gate.pagesNeeded || pageCount },
+      );
+      if (!paid) {
+        setError(gate.error);
+        return false;
+      }
+      await refreshAccess();
+      const again = await checkMathcodePages(pageCount);
+      if (!again.ok) {
+        setError(again.error);
+        return false;
+      }
+      return true;
+    },
+    [access.unlimited, refreshAccess, requestPay],
+  );
+
+  const billableCount = useCallback((queue: Item[]) => {
+    return queue.filter(
+      (it) => it.source !== "text" || Boolean((it.sourceText || "").trim()),
+    ).length;
+  }, []);
+
   const runQueue = useCallback(async (queue: Item[], hint: string) => {
+    const needed = billableCount(queue);
+    if (needed > 0) {
+      const allowed = await ensureQuota(needed);
+      if (!allowed) {
+        setItems((prev) =>
+          prev.map((p) =>
+            queue.some((q) => q.id === p.id) && p.status === "pending"
+              ? { ...p, status: "error", error: "未支付或额度不足" }
+              : p,
+          ),
+        );
+        return;
+      }
+    }
     // 并发上限：视觉模型对每分钟请求数敏感，逐张处理更稳
     for (const it of queue) {
       setItems((prev) =>
@@ -431,9 +538,14 @@ export function MathcodeTool() {
             p.id === it.id ? { ...p, status: "error", error: msg } : p,
           ),
         );
+        if (/额度|支付|会员|请先登录/.test(msg)) {
+          setError(msg);
+          break;
+        }
       }
     }
-  }, []);
+    void refreshAccess();
+  }, [billableCount, ensureQuota, refreshAccess]);
 
   const acceptFiles = useCallback(
     async (files: FileList | File[]) => {
@@ -789,6 +901,21 @@ export function MathcodeTool() {
 
   return (
     <div className="grid gap-6">
+      <MathcodeBillingBar
+        access={access}
+        onBuyMembership={() => void requestPay({ kind: "membership" })}
+      />
+      {payIntent ? (
+        <MathcodePayDialog
+          intent={payIntent}
+          channels={access.channels}
+          onPaid={() => {
+            void refreshAccess();
+            closePayDialog(true);
+          }}
+          onClose={() => closePayDialog(false)}
+        />
+      ) : null}
       <section className="surface rounded-[28px] p-5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>

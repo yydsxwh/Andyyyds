@@ -15,6 +15,7 @@ import { prisma } from "@andyyyds/shared/db";
 import { answersComplete } from "@andyyyds/shared/order-form";
 import { fulfillPaidOrder } from "@andyyyds/shared/orders";
 import { getPaymentChannels, getPublicSiteUrl } from "@andyyyds/shared/payments";
+import { paymentReturnPath } from "@andyyyds/shared/product-types";
 import { getOrderFormConfig } from "@andyyyds/shared/site-settings";
 import {
   createH5Payment,
@@ -52,6 +53,34 @@ function isMobileUa(ua: string) {
   return /Android|webOS|iPhone|iPod|iPad|Mobile|BlackBerry|IEMobile|Opera Mini/i.test(
     ua,
   );
+}
+
+function wechatOauthReturnPath(order: {
+  id: string;
+  orderNo: string;
+  course: { productType: string };
+}) {
+  return paymentReturnPath({
+    orderId: order.id,
+    orderNo: order.orderNo,
+    productType: order.course.productType,
+  });
+}
+
+async function wechatH5RedirectUrl(order: {
+  id: string;
+  orderNo: string;
+  course: { productType: string };
+}) {
+  const siteUrl = await getPublicSiteUrl();
+  if (order.course.productType === "MATHCODE") {
+    return `${siteUrl}${paymentReturnPath({
+      orderId: order.id,
+      orderNo: order.orderNo,
+      productType: order.course.productType,
+    })}`;
+  }
+  return `${siteUrl}/checkout/return?out_trade_no=${order.orderNo}`;
 }
 
 export async function POST(
@@ -145,7 +174,7 @@ export async function POST(
           if (oauthReady) {
             return NextResponse.json({
               mode: "wechat_need_oauth",
-              oauthUrl: `/api/auth/wechat?returnUrl=${encodeURIComponent(`/checkout/${order.id}`)}`,
+              oauthUrl: `/api/auth/wechat?returnUrl=${encodeURIComponent(wechatOauthReturnPath(order))}`,
               status: "PENDING",
               orderNo: order.orderNo,
               amount: order.amount,
@@ -244,9 +273,8 @@ export async function POST(
           }
         }
         if (order.codeUrl && order.payChannel === "WECHAT_H5") {
-          const siteUrl = await getPublicSiteUrl();
           const redirectUrl = encodeURIComponent(
-            `${siteUrl}/checkout/return?out_trade_no=${order.orderNo}`,
+            await wechatH5RedirectUrl(order),
           );
           const payUrl = order.codeUrl.includes("redirect_url=")
             ? order.codeUrl
@@ -273,9 +301,8 @@ export async function POST(
             where: { id: order.id },
             data: { payChannel: "WECHAT_H5", codeUrl: mwebUrl },
           });
-          const siteUrl = await getPublicSiteUrl();
           const redirectUrl = encodeURIComponent(
-            `${siteUrl}/checkout/return?out_trade_no=${order.orderNo}`,
+            await wechatH5RedirectUrl(order),
           );
           const payUrl = `${mwebUrl}${mwebUrl.includes("?") ? "&" : "?"}redirect_url=${redirectUrl}`;
           return NextResponse.json({

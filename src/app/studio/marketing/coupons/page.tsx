@@ -9,6 +9,7 @@ import { StudioNav } from "@/components/studio-nav";
 import { getSession } from "@andyyyds/shared/auth";
 import { prisma } from "@andyyyds/shared/db";
 import { ensureMeetupProductCourse } from "@andyyyds/meetup/lib/meetup-product";
+import { MATHCODE_PRODUCT_TYPE } from "@andyyyds/shared/product-types";
 import { canManageCoupons, canViewAllStudioData } from "@andyyyds/shared/roles";
 
 export const dynamic = "force-dynamic";
@@ -55,7 +56,10 @@ export default async function StudioCouponsPage() {
       take: 200,
     }),
     prisma.course.findMany({
-      where: seeAll ? undefined : { teacherId: session.id },
+      where: {
+        ...(seeAll ? {} : { teacherId: session.id }),
+        productType: { not: MATHCODE_PRODUCT_TYPE },
+      },
       orderBy: { updatedAt: "desc" },
       select: {
         id: true,
