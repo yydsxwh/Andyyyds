@@ -11,6 +11,7 @@
 
 import { getSiteSettings } from "@andyyyds/shared/site-settings";
 import { sanitizeLatexBody } from "@andyyyds/mathcode/lib/mathcode-doc";
+import { sanitizeMathcodeUserHint } from "@andyyyds/mathcode/lib/mathcode-hint";
 
 export type MathcodeProvider = {
   apiKey: string;
@@ -75,21 +76,6 @@ const USER_PROMPT = [
   "忽略屏幕角落的延迟/丢包/时钟等软件浮层。",
   "禁止 wrapfigure、textpos、叠字。只返回正文。",
 ].join("\n");
-
-/** 站长本轮微调提示词上限；过长会挤掉正文识别额度 */
-export const MATHCODE_USER_HINT_MAX_CHARS = 2000;
-
-/**
- * 只清洗控制符和长度。提示词是附加指令，不能替换保真规则，
- * 否则用户写一句「帮我补全没拍到的步骤」就会诱导模型编造。
- */
-export function sanitizeMathcodeUserHint(raw: unknown): string {
-  return String(raw ?? "")
-    .replace(/\r\n/g, "\n")
-    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "")
-    .trim()
-    .slice(0, MATHCODE_USER_HINT_MAX_CHARS);
-}
 
 function appendUserHint(basePrompt: string, userHint?: string): string {
   const hint = sanitizeMathcodeUserHint(userHint);
@@ -221,3 +207,7 @@ function stripCodeFences(text: string): string {
 }
 
 export { wrapAsLatexDocument } from "@andyyyds/mathcode/lib/mathcode-doc";
+export {
+  MATHCODE_USER_HINT_MAX_CHARS,
+  sanitizeMathcodeUserHint,
+} from "@andyyyds/mathcode/lib/mathcode-hint";

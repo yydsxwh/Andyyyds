@@ -31,7 +31,7 @@ import {
   classifyMathcodeFile,
   maxBytesForKind,
 } from "@andyyyds/mathcode/lib/mathcode-filetypes";
-import { MATHCODE_USER_HINT_MAX_CHARS } from "@andyyyds/mathcode/lib/mathcode";
+import { MATHCODE_USER_HINT_MAX_CHARS } from "@andyyyds/mathcode/lib/mathcode-hint";
 
 type ItemStatus = "pending" | "processing" | "done" | "error";
 
