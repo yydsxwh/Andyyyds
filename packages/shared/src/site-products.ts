@@ -1,6 +1,6 @@
 /**
- * 面向用户的六个产品包（与 packages/<名> / @andyyyds/<名> 一一对应）。
- * 顶栏/汉堡菜单兜底、客户端侧栏等应完整露出这六项。
+ * 面向用户的产品包（与 packages/<名> / @andyyyds/<名> 一一对应）。
+ * 顶栏/汉堡菜单兜底、客户端侧栏等应完整露出这些项。
  */
 
 export type SiteProductPackage = {
@@ -48,5 +48,11 @@ export const SITE_PRODUCT_PACKAGES: readonly SiteProductPackage[] = [
     label: "识图转 LaTeX",
     href: "/products/mathcode",
     navKey: "nav.mathcode",
+  },
+  {
+    id: "docs",
+    label: "网页文档",
+    href: "/products/docs",
+    navKey: "nav.docs",
   },
 ] as const;

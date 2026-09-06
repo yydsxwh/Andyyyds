@@ -21,6 +21,16 @@ export type SoftwareProduct = {
 
 export const SOFTWARE_PRODUCTS: SoftwareProduct[] = [
   {
+    id: "docs",
+    name: "网页文档",
+    tagline: "在浏览器里写文档",
+    description:
+      "标题、正文、加粗、多级标题、项目符号、可自定义的多级编号、插图和简单表格。手机微信同样能用。",
+    status: "live",
+    href: "/products/docs",
+    badge: "网页编辑",
+  },
+  {
     id: "mathcode",
     name: "MathCode 公式转 LaTeX",
     tagline: "数理化公式 AI 识别",

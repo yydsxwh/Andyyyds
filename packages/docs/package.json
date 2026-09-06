@@ -1,0 +1,12 @@
+{
+  "name": "@andyyyds/docs",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Andyyyds 网页文档：标题、正文、富文本、多级编号",
+  "exports": {
+    "./*": "./*"
+  },
+  "dependencies": {
+    "@andyyyds/shared": "*"
+  }
+}

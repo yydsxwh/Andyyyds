@@ -79,6 +79,8 @@ model User {
   mathcodeWallet       MathcodeWallet?
   mathcodeUsages       MathcodeUsage[]
   mathcodeGrants       MathcodeGrant[]
+  /// 网页文档：登录用户的云端稿
+  docsDocuments        DocsDocument[]
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
 
@@ -1149,6 +1151,20 @@ model MathcodeUsage {
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
+}
+
+/// 网页文档。content / listScheme 存 JSON，改编号规则只改 listScheme，不必重写正文。
+model DocsDocument {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title      String
+  content    String
+  listScheme String   @default("{}")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId, updatedAt])
 }
 
 /// 支付履约发页记录。orderId 唯一：微信回调重放时不得再加 150 页。

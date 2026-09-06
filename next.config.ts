@@ -10,6 +10,7 @@ const nextConfig: NextConfig = {
     "@andyyyds/meetup",
     "@andyyyds/courses",
     "@andyyyds/mathcode",
+    "@andyyyds/docs",
   ],
   experimental: {
     serverActions: {
