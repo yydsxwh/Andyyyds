@@ -50,6 +50,7 @@ import {
   uploadDocsImage,
 } from "@andyyyds/docs/lib/docs-client";
 import { loadLocalDocument, saveLocalDocument } from "@andyyyds/docs/lib/docs-local";
+import { isDocsSaveHotkey } from "@andyyyds/docs/lib/docs-save";
 import { DocsPagePanel } from "@andyyyds/docs/components/docs-page-panel";
 import { DocsPrintPreview } from "@andyyyds/docs/components/docs-print-preview";
 import { DocsSchemePanel } from "@andyyyds/docs/components/docs-scheme-panel";
@@ -107,10 +108,12 @@ export function DocsEditor({ initial, loggedIn }: Props) {
   const titleRef = useRef(title);
   const schemeRef = useRef(scheme);
   const chromeRef = useRef(pageChrome);
+  const saveStateRef = useRef(saveState);
   const [, setToolbarTick] = useState(0);
   titleRef.current = title;
   schemeRef.current = scheme;
   chromeRef.current = pageChrome;
+  saveStateRef.current = saveState;
 
   const schemeCss = useMemo(() => buildListSchemeCss(scheme), [scheme]);
 
@@ -231,6 +234,11 @@ export function DocsEditor({ initial, loggedIn }: Props) {
     }
   }, [docId, editor, loggedIn]);
 
+  const saveNow = useCallback(() => {
+    if (saveStateRef.current === "saving") return;
+    void persist();
+  }, [persist]);
+
   useEffect(() => {
     if (saveState !== "dirty") return;
     const timer = window.setTimeout(() => {
@@ -238,6 +246,17 @@ export function DocsEditor({ initial, loggedIn }: Props) {
     }, AUTOSAVE_MS);
     return () => window.clearTimeout(timer);
   }, [persist, saveState, title, scheme, pageChrome]);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (!isDocsSaveHotkey(event)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      saveNow();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [saveNow]);
 
   const markDirtyScheme = (next: DocsListScheme) => {
     setScheme(normalizeListScheme(next));
@@ -379,6 +398,17 @@ export function DocsEditor({ initial, loggedIn }: Props) {
           全部文档
         </Link>
         <span className="text-xs text-[var(--muted)]">{saveLabel}</span>
+        <button
+          type="button"
+          className={`btn min-h-11 px-3 text-sm ${
+            saveState === "dirty" || saveState === "error" ? "btn-primary" : "btn-secondary"
+          }`}
+          disabled={saveState === "saving"}
+          title="保存（Ctrl+S）"
+          onClick={saveNow}
+        >
+          {saveState === "saving" ? "保存中…" : "保存"}
+        </button>
         {docId === DOCS_LOCAL_ID && loggedIn ? (
           <button
             type="button"
