@@ -198,8 +198,9 @@ export function HomeWidgetLayoutEditor({
       setFeedback({ kind: "error", text: result.error || "保存失败" });
       return;
     }
-    const saved = (result.data.decorate as DecorateConfig | undefined)
-      ?.homeWidgetLayout;
+    const saved = (
+      result.data.decorate as { homeWidgetLayout?: HomeWidgetLayoutConfig } | undefined
+    )?.homeWidgetLayout;
     if (saved) {
       setEnabled(saved.enabled);
       setItems(mergeHomeWidgetBoxes(saved.items, navKeys));
