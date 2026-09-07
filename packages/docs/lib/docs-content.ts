@@ -3,6 +3,11 @@
  */
 
 import {
+  DEFAULT_DOCS_PAGE_CHROME,
+  normalizePageChrome,
+  type DocsPageChrome,
+} from "@andyyyds/docs/lib/docs-page";
+import {
   DEFAULT_DOCS_LIST_SCHEME,
   normalizeListScheme,
   type DocsListScheme,
@@ -45,6 +50,7 @@ export type DocsDocumentPayload = {
   title: string;
   content: DocsJsonNode;
   listScheme: DocsListScheme;
+  pageChrome: DocsPageChrome;
   updatedAt: string;
   createdAt?: string;
 };
@@ -214,6 +220,7 @@ export function parseStoredDocument(raw: {
   title: string;
   content: string;
   listScheme: string;
+  pageChrome?: string | null;
   updatedAt: Date | string;
   createdAt?: Date | string;
 }): DocsDocumentPayload {
@@ -229,11 +236,18 @@ export function parseStoredDocument(raw: {
   } catch {
     scheme = DEFAULT_DOCS_LIST_SCHEME;
   }
+  let chrome: unknown = DEFAULT_DOCS_PAGE_CHROME;
+  try {
+    chrome = JSON.parse(raw.pageChrome || "{}");
+  } catch {
+    chrome = DEFAULT_DOCS_PAGE_CHROME;
+  }
   return {
     id: raw.id,
     title: clampDocsTitle(raw.title),
     content: sanitizeDocsContent(parsed),
     listScheme: normalizeListScheme(scheme),
+    pageChrome: normalizePageChrome(chrome),
     updatedAt: new Date(raw.updatedAt).toISOString(),
     createdAt: raw.createdAt ? new Date(raw.createdAt).toISOString() : undefined,
   };

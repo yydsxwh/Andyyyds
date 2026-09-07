@@ -1161,6 +1161,8 @@ model DocsDocument {
   title      String
   content    String
   listScheme String   @default("{}")
+  /// 页眉 / 页脚 / 页码位置，JSON
+  pageChrome String   @default("{}")
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 

@@ -25,7 +25,7 @@ export const SOFTWARE_PRODUCTS: SoftwareProduct[] = [
     name: "网页文档",
     tagline: "在浏览器里写文档",
     description:
-      "标题、正文、加粗、多级标题、项目符号、可自定义的多级编号、插图和简单表格。手机微信同样能用。",
+      "标题、正文、加粗、多级标题、项目符号、可自定义的多级编号、插图和简单表格。可打开/另存 Word 与 HTML，设置页眉页脚页码并打印。手机微信同样能用。",
     status: "live",
     href: "/products/docs",
     badge: "网页编辑",

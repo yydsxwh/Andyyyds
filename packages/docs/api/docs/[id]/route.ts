@@ -6,6 +6,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@andyyyds/shared/auth";
 import { DOCS_LOCAL_ID, sanitizeDocsContent } from "@andyyyds/docs/lib/docs-content";
+import { normalizePageChrome } from "@andyyyds/docs/lib/docs-page";
 import { normalizeListScheme } from "@andyyyds/docs/lib/docs-scheme";
 import {
   deleteDocsDocument,
@@ -55,6 +56,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
     title?: string;
     content?: unknown;
     listScheme?: unknown;
+    pageChrome?: unknown;
   } = {};
   try {
     body = (await req.json()) as typeof body;
@@ -67,6 +69,8 @@ export async function PATCH(req: Request, ctx: Ctx) {
       content: body.content === undefined ? undefined : sanitizeDocsContent(body.content),
       listScheme:
         body.listScheme === undefined ? undefined : normalizeListScheme(body.listScheme),
+      pageChrome:
+        body.pageChrome === undefined ? undefined : normalizePageChrome(body.pageChrome),
     });
     return NextResponse.json(doc);
   } catch (error) {

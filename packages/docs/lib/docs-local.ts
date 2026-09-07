@@ -13,6 +13,11 @@ import {
   type DocsJsonNode,
 } from "@andyyyds/docs/lib/docs-content";
 import {
+  DEFAULT_DOCS_PAGE_CHROME,
+  normalizePageChrome,
+  type DocsPageChrome,
+} from "@andyyyds/docs/lib/docs-page";
+import {
   DEFAULT_DOCS_LIST_SCHEME,
   normalizeListScheme,
   type DocsListScheme,
@@ -25,6 +30,7 @@ export function emptyLocalDocument(): DocsDocumentPayload {
     title: defaultDocsTitle(),
     content: emptyDocsContent(),
     listScheme: DEFAULT_DOCS_LIST_SCHEME,
+    pageChrome: DEFAULT_DOCS_PAGE_CHROME,
     updatedAt: now,
     createdAt: now,
   };
@@ -40,6 +46,7 @@ export function loadLocalDocument(): DocsDocumentPayload {
       title: clampDocsTitle(parsed.title),
       content: sanitizeDocsContent(parsed.content),
       listScheme: normalizeListScheme(parsed.listScheme),
+      pageChrome: normalizePageChrome(parsed.pageChrome),
       updatedAt: parsed.updatedAt || new Date().toISOString(),
       createdAt: parsed.createdAt,
     };
@@ -52,6 +59,7 @@ export function saveLocalDocument(input: {
   title: string;
   content: DocsJsonNode;
   listScheme: DocsListScheme;
+  pageChrome: DocsPageChrome;
 }): DocsDocumentPayload {
   const now = new Date().toISOString();
   const doc: DocsDocumentPayload = {
@@ -59,6 +67,7 @@ export function saveLocalDocument(input: {
     title: clampDocsTitle(input.title),
     content: sanitizeDocsContent(input.content),
     listScheme: normalizeListScheme(input.listScheme),
+    pageChrome: normalizePageChrome(input.pageChrome),
     updatedAt: now,
   };
   localStorage.setItem(DOCS_LOCAL_STORAGE_KEY, JSON.stringify(doc));

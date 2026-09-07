@@ -23,6 +23,19 @@ import {
   type DocsDocumentPayload,
   type DocsJsonNode,
 } from "@andyyyds/docs/lib/docs-content";
+import { downloadBlob, downloadTextFile } from "@andyyyds/docs/lib/docs-download";
+import {
+  docsContentToPlainText,
+  importPlainOrMarkup,
+  titleFromFileName,
+} from "@andyyyds/docs/lib/docs-html";
+import {
+  DEFAULT_DOCS_PAGE_CHROME,
+  normalizePageChrome,
+  safeDownloadName,
+  type DocsPageChrome,
+} from "@andyyyds/docs/lib/docs-page";
+import { wrapStandaloneHtml } from "@andyyyds/docs/lib/docs-standalone-html";
 import {
   buildListSchemeCss,
   normalizeListScheme,
@@ -31,10 +44,14 @@ import {
 import {
   createDocsDocumentRequest,
   deleteDocsDocumentRequest,
+  exportDocsDocxRequest,
+  importDocsFile,
   saveDocsDocumentRequest,
   uploadDocsImage,
 } from "@andyyyds/docs/lib/docs-client";
 import { loadLocalDocument, saveLocalDocument } from "@andyyyds/docs/lib/docs-local";
+import { DocsPagePanel } from "@andyyyds/docs/components/docs-page-panel";
+import { DocsPrintPreview } from "@andyyyds/docs/components/docs-print-preview";
 import { DocsSchemePanel } from "@andyyyds/docs/components/docs-scheme-panel";
 import "./docs-editor.css";
 
@@ -74,17 +91,26 @@ function collectImageFiles(data: DataTransfer | null): File[] {
 export function DocsEditor({ initial, loggedIn }: Props) {
   const [title, setTitle] = useState(initial.title);
   const [scheme, setScheme] = useState(() => normalizeListScheme(initial.listScheme));
+  const [pageChrome, setPageChrome] = useState(() =>
+    normalizePageChrome(initial.pageChrome || DEFAULT_DOCS_PAGE_CHROME),
+  );
   const [schemeOpen, setSchemeOpen] = useState(false);
+  const [pageOpen, setPageOpen] = useState(false);
+  const [printOpen, setPrintOpen] = useState(false);
+  const [saveAsOpen, setSaveAsOpen] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [saveError, setSaveError] = useState("");
   const [docId, setDocId] = useState(initial.id);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const openFileRef = useRef<HTMLInputElement>(null);
   const editorRef = useRef<Editor | null>(null);
   const titleRef = useRef(title);
   const schemeRef = useRef(scheme);
+  const chromeRef = useRef(pageChrome);
   const [, setToolbarTick] = useState(0);
   titleRef.current = title;
   schemeRef.current = scheme;
+  chromeRef.current = pageChrome;
 
   const schemeCss = useMemo(() => buildListSchemeCss(scheme), [scheme]);
 
@@ -171,6 +197,7 @@ export function DocsEditor({ initial, loggedIn }: Props) {
     }
     setTitle(source.title);
     setScheme(normalizeListScheme(source.listScheme));
+    setPageChrome(normalizePageChrome(source.pageChrome || DEFAULT_DOCS_PAGE_CHROME));
     setDocId(source.id);
     setSaveState("idle");
   }, [editor, initial]);
@@ -186,6 +213,7 @@ export function DocsEditor({ initial, loggedIn }: Props) {
           title: titleRef.current,
           content,
           listScheme: schemeRef.current,
+          pageChrome: chromeRef.current,
         });
         setSaveState("saved");
         return;
@@ -194,6 +222,7 @@ export function DocsEditor({ initial, loggedIn }: Props) {
         title: titleRef.current,
         content,
         listScheme: schemeRef.current,
+        pageChrome: chromeRef.current,
       });
       setSaveState("saved");
     } catch (error) {
@@ -208,11 +237,80 @@ export function DocsEditor({ initial, loggedIn }: Props) {
       void persist();
     }, AUTOSAVE_MS);
     return () => window.clearTimeout(timer);
-  }, [persist, saveState, title, scheme]);
+  }, [persist, saveState, title, scheme, pageChrome]);
 
   const markDirtyScheme = (next: DocsListScheme) => {
     setScheme(normalizeListScheme(next));
     setSaveState("dirty");
+  };
+
+  const markDirtyChrome = (next: DocsPageChrome) => {
+    setPageChrome(normalizePageChrome(next));
+    setSaveState("dirty");
+  };
+
+  const currentContent = (): DocsJsonNode =>
+    (editor?.getJSON() as DocsJsonNode) || { type: "doc", content: [{ type: "paragraph" }] };
+
+  const applyImported = (nextTitle: string, nextContent: DocsJsonNode) => {
+    if (!editor) return;
+    editor.commands.setContent(nextContent, false);
+    setTitle(nextTitle.slice(0, DOCS_TITLE_MAX_CHARS));
+    setSaveState("dirty");
+  };
+
+  const onOpenFile = async (file: File | undefined) => {
+    if (!file) return;
+    const name = file.name.toLowerCase();
+    try {
+      if (/\.(docx|wps)$/i.test(name)) {
+        const imported = await importDocsFile(file);
+        applyImported(imported.title, imported.content);
+        return;
+      }
+      if (/\.doc$/i.test(name)) {
+        throw new Error("旧版 .doc 打不开，请另存为 .docx");
+      }
+      const text = await file.text();
+      const kind = /\.html?$/i.test(name) ? "html" : /\.md$/i.test(name) ? "md" : "txt";
+      applyImported(titleFromFileName(file.name), importPlainOrMarkup(text, kind));
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "打开文件失败");
+    }
+  };
+
+  const saveAsHtml = () => {
+    const html = wrapStandaloneHtml({
+      title: titleRef.current,
+      content: currentContent(),
+      listScheme: schemeRef.current,
+      pageChrome: chromeRef.current,
+    });
+    downloadTextFile(html, safeDownloadName(titleRef.current, "html"), "text/html");
+    setSaveAsOpen(false);
+  };
+
+  const saveAsTxt = () => {
+    downloadTextFile(
+      docsContentToPlainText(currentContent()),
+      safeDownloadName(titleRef.current, "txt"),
+      "text/plain",
+    );
+    setSaveAsOpen(false);
+  };
+
+  const saveAsDocx = async () => {
+    try {
+      const blob = await exportDocsDocxRequest({
+        title: titleRef.current,
+        content: currentContent(),
+        pageChrome: chromeRef.current,
+      });
+      downloadBlob(blob, safeDownloadName(titleRef.current, "docx"));
+      setSaveAsOpen(false);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "另存为 Word 失败");
+    }
   };
 
   const run = (fn: (current: Editor) => void) => {
@@ -240,6 +338,7 @@ export function DocsEditor({ initial, loggedIn }: Props) {
         title: titleRef.current,
         content: editor.getJSON() as DocsJsonNode,
         listScheme: schemeRef.current,
+        pageChrome: chromeRef.current,
       });
       window.location.href = `/products/docs/${created.id}`;
     } catch (error) {
@@ -306,6 +405,66 @@ export function DocsEditor({ initial, loggedIn }: Props) {
             删除
           </button>
         ) : null}
+        <button
+          type="button"
+          className="btn btn-secondary min-h-11 px-3 text-sm"
+          onClick={() => openFileRef.current?.click()}
+        >
+          打开文件
+        </button>
+        <div className="relative">
+          <button
+            type="button"
+            className={`btn min-h-11 px-3 text-sm ${saveAsOpen ? "btn-primary" : "btn-secondary"}`}
+            aria-expanded={saveAsOpen}
+            onClick={() => setSaveAsOpen((open) => !open)}
+          >
+            另存为
+          </button>
+          {saveAsOpen ? (
+            <div className="absolute left-0 z-30 mt-1 min-w-[10rem] rounded-2xl border border-[var(--line)] bg-white p-2 shadow-lg">
+              <button
+                type="button"
+                className="btn btn-secondary min-h-11 w-full justify-start px-3 text-sm"
+                onClick={saveAsHtml}
+              >
+                HTML
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary mt-1 min-h-11 w-full justify-start px-3 text-sm"
+                onClick={() => void saveAsDocx()}
+              >
+                Word（.docx）
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary mt-1 min-h-11 w-full justify-start px-3 text-sm"
+                onClick={saveAsTxt}
+              >
+                纯文本
+              </button>
+            </div>
+          ) : null}
+        </div>
+        <button
+          type="button"
+          className="btn btn-secondary min-h-11 px-3 text-sm"
+          onClick={() => setPrintOpen(true)}
+        >
+          打印预览
+        </button>
+        <input
+          ref={openFileRef}
+          type="file"
+          accept=".docx,.wps,.doc,.html,.htm,.txt,.md"
+          className="sr-only"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = "";
+            void onOpenFile(file);
+          }}
+        />
       </div>
 
       <label className="block border-b border-[var(--line)] px-3 py-3 sm:px-5">
@@ -412,6 +571,14 @@ export function DocsEditor({ initial, loggedIn }: Props) {
         >
           编号样式
         </button>
+        <button
+          type="button"
+          className={`btn min-h-11 px-3 text-sm ${pageOpen ? "btn-primary" : "btn-secondary"}`}
+          aria-pressed={pageOpen}
+          onClick={() => setPageOpen((open) => !open)}
+        >
+          页眉页脚
+        </button>
         {inTable ? (
           <>
             <button
@@ -467,6 +634,9 @@ export function DocsEditor({ initial, loggedIn }: Props) {
       {schemeOpen ? (
         <DocsSchemePanel scheme={scheme} onChange={markDirtyScheme} />
       ) : null}
+      {pageOpen ? (
+        <DocsPagePanel chrome={pageChrome} onChange={markDirtyChrome} />
+      ) : null}
 
       {saveError ? (
         <p className="px-4 py-2 text-sm text-[var(--fire)]">{saveError}</p>
@@ -474,6 +644,15 @@ export function DocsEditor({ initial, loggedIn }: Props) {
 
       <style>{schemeCss}</style>
       <EditorContent editor={editor} />
+      {printOpen ? (
+        <DocsPrintPreview
+          title={title}
+          content={currentContent()}
+          listScheme={scheme}
+          pageChrome={pageChrome}
+          onClose={() => setPrintOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

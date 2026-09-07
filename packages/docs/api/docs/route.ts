@@ -6,6 +6,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@andyyyds/shared/auth";
 import { sanitizeDocsContent } from "@andyyyds/docs/lib/docs-content";
+import { normalizePageChrome } from "@andyyyds/docs/lib/docs-page";
 import { normalizeListScheme } from "@andyyyds/docs/lib/docs-scheme";
 import {
   createDocsDocument,
@@ -33,6 +34,7 @@ export async function POST(req: Request) {
     title?: string;
     content?: unknown;
     listScheme?: unknown;
+    pageChrome?: unknown;
   } = {};
   try {
     body = (await req.json()) as typeof body;
@@ -44,6 +46,7 @@ export async function POST(req: Request) {
       title: body.title,
       content: body.content ? sanitizeDocsContent(body.content) : undefined,
       listScheme: body.listScheme ? normalizeListScheme(body.listScheme) : undefined,
+      pageChrome: body.pageChrome ? normalizePageChrome(body.pageChrome) : undefined,
     });
     return NextResponse.json(doc);
   } catch (error) {

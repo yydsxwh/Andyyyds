@@ -9,6 +9,11 @@ import {
   type DocsJsonNode,
 } from "@andyyyds/docs/lib/docs-content";
 import {
+  DEFAULT_DOCS_PAGE_CHROME,
+  normalizePageChrome,
+  type DocsPageChrome,
+} from "@andyyyds/docs/lib/docs-page";
+import {
   DEFAULT_DOCS_LIST_SCHEME,
   normalizeListScheme,
   type DocsListScheme,
@@ -54,6 +59,7 @@ export async function createDocsDocument(
     title?: string;
     content?: DocsJsonNode;
     listScheme?: DocsListScheme;
+    pageChrome?: DocsPageChrome;
   },
 ): Promise<DocsDocumentPayload> {
   const count = await prisma.docsDocument.count({ where: { userId } });
@@ -68,6 +74,9 @@ export async function createDocsDocument(
       listScheme: JSON.stringify(
         normalizeListScheme(input?.listScheme || DEFAULT_DOCS_LIST_SCHEME),
       ),
+      pageChrome: JSON.stringify(
+        normalizePageChrome(input?.pageChrome || DEFAULT_DOCS_PAGE_CHROME),
+      ),
     },
   });
   return parseStoredDocument(row);
@@ -80,6 +89,7 @@ export async function updateDocsDocument(
     title?: string;
     content?: DocsJsonNode;
     listScheme?: DocsListScheme;
+    pageChrome?: DocsPageChrome;
   },
 ): Promise<DocsDocumentPayload> {
   const existing = await prisma.docsDocument.findFirst({
@@ -88,11 +98,19 @@ export async function updateDocsDocument(
   });
   if (!existing) throw new DocsNotFoundError();
 
-  const data: { title?: string; content?: string; listScheme?: string } = {};
+  const data: {
+    title?: string;
+    content?: string;
+    listScheme?: string;
+    pageChrome?: string;
+  } = {};
   if (input.title !== undefined) data.title = clampDocsTitle(input.title);
   if (input.content !== undefined) data.content = serializeDocsContent(input.content);
   if (input.listScheme !== undefined) {
     data.listScheme = JSON.stringify(normalizeListScheme(input.listScheme));
+  }
+  if (input.pageChrome !== undefined) {
+    data.pageChrome = JSON.stringify(normalizePageChrome(input.pageChrome));
   }
 
   const row = await prisma.docsDocument.update({
