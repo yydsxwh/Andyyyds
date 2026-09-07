@@ -9,6 +9,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@andyyyds/shared/db";
 import { MEETUP_PRODUCT_TYPE } from "@andyyyds/meetup/lib/meetup";
+import { isHiddenShellProductType, MATHCODE_PRODUCT_TYPE } from "@andyyyds/shared/product-types";
 import { PRODUCT_PLAZA_ORDER_BY } from "@andyyyds/shared/product-display-order";
 import { requireAdmin, studioErrorResponse } from "@andyyyds/shared/studio";
 
@@ -34,7 +35,7 @@ export async function GET() {
   try {
     await requireAdmin();
     const products = await prisma.course.findMany({
-      where: { productType: { not: MEETUP_PRODUCT_TYPE } },
+      where: { productType: { notIn: [MEETUP_PRODUCT_TYPE, MATHCODE_PRODUCT_TYPE] } },
       include: {
         teacher: { select: { id: true, name: true } },
         category: { select: { id: true, name: true } },
@@ -90,7 +91,7 @@ export async function PATCH(req: Request) {
         const typeById = new Map(rows.map((r) => [r.id, r.productType]));
         for (let i = 0; i < body.orderedIds.length; i += 1) {
           const id = body.orderedIds[i]!;
-          if (typeById.get(id) === MEETUP_PRODUCT_TYPE) continue;
+          if (isHiddenShellProductType(typeById.get(id) || "")) continue;
           await tx.course.update({
             where: { id },
             data: { sortOrder: i },
@@ -104,7 +105,7 @@ export async function PATCH(req: Request) {
             where: { id: item.id },
             select: { productType: true },
           });
-          if (!existing || existing.productType === MEETUP_PRODUCT_TYPE) {
+          if (!existing || isHiddenShellProductType(existing.productType)) {
             continue;
           }
           const data: {

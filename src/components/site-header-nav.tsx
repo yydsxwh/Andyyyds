@@ -35,7 +35,7 @@ type Props = {
   variant?: "desktop" | "mobile";
 };
 
-/** 门户默认入口：六个产品全列出；游戏中心挂在软件产品下 */
+/** 门户默认入口：产品包全列出；游戏中心挂在软件产品下 */
 const FALLBACK_MOBILE_HREFS = [
   { href: "/", key: "nav.home" },
   ...SITE_PRODUCT_PACKAGES.map((item) => ({

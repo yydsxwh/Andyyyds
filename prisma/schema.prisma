@@ -75,6 +75,12 @@ model User {
   forumComments        ForumComment[]
   forumActions         ForumAction[]
   forumSchoolVerifications ForumSchoolVerification[]
+  /// 识图转 LaTeX：会员页数 / 散买剩余页（站长不走这套账本）
+  mathcodeWallet       MathcodeWallet?
+  mathcodeUsages       MathcodeUsage[]
+  mathcodeGrants       MathcodeGrant[]
+  /// 网页文档：登录用户的云端稿
+  docsDocuments        DocsDocument[]
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
 
@@ -472,7 +478,7 @@ model SiteSettings {
   /// 大学论坛全站配置（JSON）：成员发帖/评论/互动/私信开关 + 顶部公告栏
   forumJson String @default("")
 
-  /// 个人IP外平台主页（JSON）：B站/抖音/小红书主页，用于同步投稿到「个人介绍」
+  /// 个人IP外平台主页（JSON）：B站/抖音/小红书/视频号主页，用于同步投稿到「个人介绍」
   personSocialJson String @default("")
 
   /// 高德 Web 服务 Key：论坛/约搭搜国内店名与反查地址；空则回退 OSM
@@ -771,12 +777,12 @@ model CouponRedemption {
   @@unique([couponId, userId])
 }
 
-/// 个人IP从 B站 / 抖音 / 小红书同步来的投稿（展示在「个人介绍」）
+/// 个人IP从 B站 / 抖音 / 小红书 / 视频号同步来的投稿（展示在「个人介绍」）
 model PersonSocialPost {
   id          String    @id @default(cuid())
-  /// BILIBILI | DOUYIN | XIAOHONGSHU
+  /// BILIBILI | DOUYIN | XIAOHONGSHU | WECHAT_CHANNELS
   platform    String
-  /// 平台侧稳定 id：bvid / aweme_id / 笔记 id
+  /// 平台侧稳定 id：bvid / aweme_id / 笔记 id / 视频号 exportId
   externalId  String
   title       String    @default("")
   digest      String    @default("")
@@ -790,6 +796,7 @@ model PersonSocialPost {
   sortOrder   Int       @default(0)
   isPinned    Boolean   @default(false)
   isFeatured  Boolean   @default(false)
+  albumItems  PersonSocialAlbumItem[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -797,6 +804,39 @@ model PersonSocialPost {
   @@index([isDeleted, isPinned, sortOrder])
   @@index([publishedAt])
   @@index([platform])
+}
+
+/// 个人IP合集（B站合集/系列、各平台粘贴的合集链接），对标公司介绍的公众号专辑
+model PersonSocialAlbum {
+  id         String   @id @default(cuid())
+  platform   String
+  externalId String
+  title      String   @default("")
+  coverUrl   String   @default("")
+  sourceUrl  String   @default("")
+  syncedAt   DateTime @default(now())
+  items      PersonSocialAlbumItem[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([platform, externalId])
+  @@index([platform])
+}
+
+model PersonSocialAlbumItem {
+  id           String            @id @default(cuid())
+  albumId      String
+  sortOrder    Int               @default(0)
+  title        String            @default("")
+  coverUrl     String            @default("")
+  sourceUrl    String            @default("")
+  sourceUrlKey String            @default("")
+  postLocalId  String?
+  album        PersonSocialAlbum @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  post         PersonSocialPost? @relation(fields: [postLocalId], references: [id], onDelete: SetNull)
+
+  @@index([albumId, sortOrder])
+  @@index([sourceUrlKey])
 }
 
 /// 公众号已发表图文（freepublish 同步到本站「公司宣传」）
@@ -1088,4 +1128,58 @@ model ContentTranslation {
   @@unique([entityType, entityId, field, locale])
   @@index([entityType, entityId])
   @@index([locale, stale])
+}
+
+/// 识图转 LaTeX 额度账本。
+/// memberPages 只在 memberUntil 未过期时可用；过期后剩余会员页作废，须再开通才能拿到新的 150 页。
+/// guestPages 是按 0.5 元/页买下的剩余次数，不过期；会员期内不能再散买，但以前买剩的仍可接着用。
+model MathcodeWallet {
+  userId      String    @id
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  memberPages Int       @default(0)
+  memberUntil DateTime?
+  guestPages  Int       @default(0)
+  updatedAt   DateTime  @updatedAt
+}
+
+/// 每次成功识别/转换扣 1 页的流水，便于对账与客服查单。
+model MathcodeUsage {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// MEMBER | GUEST
+  source    String
+  unitLabel String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+/// 网页文档。content / listScheme 存 JSON，改编号规则只改 listScheme，不必重写正文。
+model DocsDocument {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title      String
+  content    String
+  listScheme String   @default("{}")
+  /// 页眉 / 页脚 / 页码位置，JSON
+  pageChrome String   @default("{}")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId, updatedAt])
+}
+
+/// 支付履约发页记录。orderId 唯一：微信回调重放时不得再加 150 页。
+model MathcodeGrant {
+  orderId   String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// MEMBERSHIP | PAGES
+  kind      String
+  pages     Int
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }

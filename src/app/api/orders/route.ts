@@ -16,6 +16,7 @@ import {
 } from "@andyyyds/shared/coupons";
 import { prisma } from "@andyyyds/shared/db";
 import { fromMeetupPeopleDb, MEETUP_PRODUCT_TYPE } from "@andyyyds/meetup/lib/meetup";
+import { isMathcodeProductType } from "@andyyyds/shared/product-types";
 import { sumMeetupPartySize } from "@andyyyds/meetup/lib/meetup-service-contact";
 import {
   stringifyStoredAnswers,
@@ -54,6 +55,13 @@ export async function POST(req: Request) {
     });
     if (!course || course.status !== "PUBLISHED") {
       return NextResponse.json({ error: "商品不存在" }, { status: 404 });
+    }
+    // 识图壳会反复买会员/按页，且数量可超过课程单的 99；必须走专用下单
+    if (isMathcodeProductType(course.productType)) {
+      return NextResponse.json(
+        { error: "请从识图转 LaTeX 页面购买会员或页数" },
+        { status: 400 },
+      );
     }
 
     const isShopProduct = course.productType === SHOP_PRODUCT_TYPE;

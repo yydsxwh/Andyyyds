@@ -25,6 +25,9 @@ export default async function CheckoutReturnPage({
     });
     if (order && order.userId === session.id) {
       if (order.status === "PAID") {
+        if (order.course.productType === "MATHCODE") {
+          redirect("/products/mathcode?paid=1");
+        }
         redirect(`/learn/${order.course.slug}`);
       }
       return (

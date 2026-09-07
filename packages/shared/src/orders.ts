@@ -11,6 +11,7 @@
  */
 
 import { grantProductAccess } from "@andyyyds/courses/lib/course-bundle";
+import { grantMathcodePaidOrder } from "@andyyyds/mathcode/lib/mathcode-billing";
 import { prisma } from "./db";
 import { settlePaidOrderSplit } from "./platform-settlement";
 
@@ -39,6 +40,8 @@ export async function fulfillPaidOrder(input: FulfillInput) {
       userId: existing.userId,
       productId: existing.courseId,
     });
+    // 识图壳：已支付回放也要补发页数（MathcodeGrant 按 orderId 幂等）
+    await grantMathcodePaidOrder(prisma, existing);
     return existing;
   }
 
@@ -51,10 +54,12 @@ export async function fulfillPaidOrder(input: FulfillInput) {
         userId: current.userId,
         productId: current.courseId,
       });
-      return tx.order.findUniqueOrThrow({
+      const paidAgain = await tx.order.findUniqueOrThrow({
         where: { id: input.orderId },
         include: { course: true },
       });
+      await grantMathcodePaidOrder(tx, paidAgain);
+      return paidAgain;
     }
 
     const paid = await tx.order.update({
@@ -93,6 +98,8 @@ export async function fulfillPaidOrder(input: FulfillInput) {
       userId: paid.userId,
       productId: paid.courseId,
     });
+    // 识图会员 / 按页：写入 150 页或 guestPages（同一订单只发一次）
+    await grantMathcodePaidOrder(tx, paid);
 
     // 商城销量占位：支付成功后累加「已售」
     if (paid.course.productType === "PRODUCT") {

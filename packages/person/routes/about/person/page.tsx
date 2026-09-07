@@ -4,6 +4,7 @@ import { NavPageTemplateShell } from "@/components/nav-page-template-shell";
 import { resolveContentText } from "@andyyyds/shared/i18n/content-resolve";
 import { getRequestLocaleContext } from "@andyyyds/shared/i18n/get-request-locale";
 import { PersonSocialFeed } from "@andyyyds/person/components/person-social-feed";
+import { listPersonSocialAlbums } from "@andyyyds/person/lib/person-social-album";
 import { PERSON_SOCIAL_POST_ORDER_BY } from "@andyyyds/person/lib/person-social";
 import { prisma } from "@andyyyds/shared/db";
 import type { PortalAboutPage } from "@andyyyds/shared/portal";
@@ -93,10 +94,11 @@ export default async function PersonAboutPage({ searchParams }: Props) {
   const requested = Number.parseInt(String(params.page || "1"), 10);
   const pageRaw = Number.isFinite(requested) && requested > 0 ? requested : 1;
 
-  const [portal, localeCtx, postTotal] = await Promise.all([
+  const [portal, localeCtx, postTotal, albums] = await Promise.all([
     getPortalConfig(),
     getRequestLocaleContext(),
     prisma.personSocialPost.count({ where: { isDeleted: false } }),
+    listPersonSocialAlbums(),
   ]);
   const person = await localizeAboutPage(
     portal.person,
@@ -118,6 +120,13 @@ export default async function PersonAboutPage({ searchParams }: Props) {
       <div className="container py-8 sm:py-10">
         <AboutPageView page={person} embedded />
         <PersonSocialFeed
+          albums={albums.map((row) => ({
+            id: row.id,
+            platform: row.platform,
+            title: row.title,
+            coverUrl: row.coverUrl,
+            itemCount: row._count.items,
+          }))}
           posts={posts.map((row) => ({
             id: row.id,
             platform: row.platform,

@@ -1,13 +1,16 @@
 "use client";
 
 /**
- * MathCode 客户端上传工具（仅站长可见）
+ * MathCode 客户端上传工具（登录用户可用，按页计费）
  *
  * 输入：
  *   - 图片 / PDF：浏览器渲染后走 /api/mathcode/ocr
  *   - Markdown / txt / csv / html / tex：走 /api/mathcode/convert
  *   - Word / WPS / PPT / 表格 / OpenDocument：服务端拆成文字块和内嵌图，再分别 convert / ocr
- * 输出：每一轮上传在右侧新开一框，完整 XeLaTeX，可送进 Overleaf / VS Code。
+ *   - 选择文件、拖拽、Ctrl+V / 长按粘贴（截图、PDF 等）都可以进同一条队列
+ * 输出：每一轮上传在右侧新开一框，完整 XeLaTeX；本页可预览 / 下载 PDF，也可送进 Overleaf / VS Code。
+ * 本轮微调提示词只附加到识别指令，不替换保真规则。
+ * 题间留白按题型写进导出的 .tex，改开关不必重跑识别。
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -20,10 +23,39 @@ import {
 } from "@andyyyds/mathcode/lib/mathcode-doc";
 import { openTexInOverleaf, openTexInVsCode } from "@andyyyds/mathcode/lib/mathcode-open";
 import {
+  filesFromClipboardItems,
+  filesFromDataTransfer,
+  normalizePastedFiles,
+} from "@andyyyds/mathcode/lib/mathcode-clipboard";
+import {
   MATHCODE_ACCEPT,
   classifyMathcodeFile,
   maxBytesForKind,
 } from "@andyyyds/mathcode/lib/mathcode-filetypes";
+import { MATHCODE_USER_HINT_MAX_CHARS } from "@andyyyds/mathcode/lib/mathcode-hint";
+import {
+  buildSpacingPrompt,
+  DEFAULT_QUESTION_SPACING,
+  normalizeQuestionSpacing,
+  type MathcodeQuestionSpacing,
+} from "@andyyyds/mathcode/lib/mathcode-spacing";
+import { MathcodeSpacingPanel } from "@andyyyds/mathcode/components/mathcode-spacing-panel";
+import { MathcodeBillingBar } from "@andyyyds/mathcode/components/mathcode-billing-bar";
+import { MathcodePdfPreview } from "@andyyyds/mathcode/components/mathcode-pdf-preview";
+import {
+  MathcodePayDialog,
+  type MathcodePayIntent,
+} from "@andyyyds/mathcode/components/mathcode-pay-dialog";
+import {
+  clearMathcodePayResume,
+  readMathcodePayResume,
+} from "@andyyyds/mathcode/components/mathcode-wechat-pay";
+import {
+  checkMathcodePages,
+  emptyMathcodeAccess,
+  fetchMathcodeAccess,
+  type MathcodeAccessState,
+} from "@andyyyds/mathcode/lib/mathcode-access-client";
 
 type ItemStatus = "pending" | "processing" | "done" | "error";
 
@@ -55,6 +87,8 @@ const ACCEPT = MATHCODE_ACCEPT;
 /** PDF 页面渲染分辨率倍数；越高识别越清晰，但也更慢/更大 */
 const PDF_RENDER_SCALE = 2;
 const WATERMARK_STORAGE_KEY = "yyds-mathcode-watermark-v1";
+const HINT_STORAGE_KEY = "yyds-mathcode-prompt-hint-v1";
+const SPACING_STORAGE_KEY = "yyds-mathcode-question-gap-v1";
 const WATERMARK_IMAGE_ACCEPT = "image/png,image/jpeg,image/webp,image/gif";
 
 const WATERMARK_POSITIONS: { id: WatermarkPosition; label: string }[] = [
@@ -102,6 +136,17 @@ function loadStoredWatermark(): MathcodeWatermark {
   }
 }
 
+function loadStoredSpacing(): MathcodeQuestionSpacing {
+  if (typeof window === "undefined") return { ...DEFAULT_QUESTION_SPACING };
+  try {
+    const raw = localStorage.getItem(SPACING_STORAGE_KEY);
+    if (!raw) return { ...DEFAULT_QUESTION_SPACING };
+    return normalizeQuestionSpacing(JSON.parse(raw));
+  } catch {
+    return { ...DEFAULT_QUESTION_SPACING };
+  }
+}
+
 function uid(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -127,10 +172,11 @@ function texForOutput(
   output: LatexOutput,
   items: Item[],
   wm: MathcodeWatermark,
+  spacing: MathcodeQuestionSpacing,
 ): string {
   if (output.edited != null) return output.edited;
   const body = joinItemBodies(items, output.itemIds);
-  return body.trim() ? wrapAsLatexDocument(body, wm) : "";
+  return body.trim() ? wrapAsLatexDocument(body, wm, spacing) : "";
 }
 
 /**
@@ -223,12 +269,13 @@ async function renderPdfToItems(file: File): Promise<Item[]> {
   return items;
 }
 
-async function ocrOne(item: Item): Promise<string> {
+async function ocrOne(item: Item, userHint: string): Promise<string> {
   const form = new FormData();
   form.append(
     "file",
     new File([item.blob], `${item.label}.png`, { type: item.mime }),
   );
+  if (userHint) form.append("userHint", userHint);
   const res = await fetch("/api/mathcode/ocr", {
     method: "POST",
     body: form,
@@ -243,13 +290,13 @@ async function ocrOne(item: Item): Promise<string> {
   return (data.latex || "").trim();
 }
 
-async function convertOne(item: Item): Promise<string> {
+async function convertOne(item: Item, userHint: string): Promise<string> {
   const text = (item.sourceText || "").trim();
   if (!text) return "";
   const res = await fetch("/api/mathcode/convert", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text, filename: item.label }),
+    body: JSON.stringify({ text, filename: item.label, userHint }),
   });
   const data = (await res.json().catch(() => ({}))) as {
     latex?: string;
@@ -329,15 +376,117 @@ export function MathcodeTool() {
   const [wmHydrated, setWmHydrated] = useState(false);
   const [wmImageFile, setWmImageFile] = useState<File | null>(null);
   const [wmImagePreview, setWmImagePreview] = useState("");
+  const [userHint, setUserHint] = useState("");
+  const [hintHydrated, setHintHydrated] = useState(false);
+  const [spacing, setSpacing] = useState<MathcodeQuestionSpacing>(
+    DEFAULT_QUESTION_SPACING,
+  );
+  const [spacingHydrated, setSpacingHydrated] = useState(false);
+  const [access, setAccess] = useState<MathcodeAccessState>(emptyMathcodeAccess);
+  const [accessLoading, setAccessLoading] = useState(true);
+  const [payIntent, setPayIntent] = useState<MathcodePayIntent | null>(null);
+  const [resumePayOrder, setResumePayOrder] = useState<{
+    orderId: string;
+    amount: number;
+  } | null>(null);
+  const payWaiterRef = useRef<{
+    resolve: (paid: boolean) => void;
+  } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const wmImageInputRef = useRef<HTMLInputElement>(null);
+  const dropZoneRef = useRef<HTMLDivElement>(null);
+  const pasteCatcherRef = useRef<HTMLDivElement>(null);
   const latestBoxRef = useRef<HTMLDivElement>(null);
   const processingRef = useRef(false);
   const queuedFilesRef = useRef<File[]>([]);
+  const userHintRef = useRef("");
+  const spacingRef = useRef(spacing);
+  const wmRef = useRef(wm);
+  spacingRef.current = spacing;
+  wmRef.current = wm;
 
   useEffect(() => {
     setWm(loadStoredWatermark());
     setWmHydrated(true);
+    setSpacing(loadStoredSpacing());
+    setSpacingHydrated(true);
+    try {
+      const stored = localStorage.getItem(HINT_STORAGE_KEY);
+      if (stored) {
+        setUserHint(stored.slice(0, MATHCODE_USER_HINT_MAX_CHARS));
+      }
+    } catch {
+      // 隐私模式读不了 localStorage 时忽略
+    }
+    setHintHydrated(true);
+    void fetchMathcodeAccess()
+      .then((next) => {
+        setAccess(next);
+        setAccessLoading(false);
+      })
+      .catch(() => {
+        // 额度条读失败不挡工具，转换时还会再校验
+        setAccessLoading(false);
+      });
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const payOrder = params.get("payOrder");
+      const oauth = params.get("wechat_oauth");
+      const stored = readMathcodePayResume();
+      const resumeId = payOrder || stored?.orderId || "";
+      if (resumeId) {
+        void fetch(`/api/orders/${resumeId}`, {
+          cache: "no-store",
+          credentials: "same-origin",
+        })
+          .then(async (res) => {
+            const data = (await res.json()) as {
+              id?: string;
+              status?: string;
+              amount?: number;
+            };
+            if (!res.ok || !data.id) return;
+            if (data.status === "PAID") {
+              clearMathcodePayResume();
+              void fetchMathcodeAccess()
+                .then((next) => {
+                  setAccess(next);
+                  setAccessLoading(false);
+                })
+                .catch(() => undefined);
+              return;
+            }
+            setResumePayOrder({
+              orderId: data.id,
+              amount: Number(data.amount) || stored?.amount || 0,
+            });
+            setPayIntent({ kind: "membership" });
+          })
+          .catch(() => undefined);
+      } else if (params.get("paid") === "1") {
+        void fetchMathcodeAccess()
+          .then((next) => {
+            setAccess(next);
+            setAccessLoading(false);
+          })
+          .catch(() => undefined);
+      }
+      if (oauth === "error" || oauth === "denied") {
+        setError(
+          oauth === "denied"
+            ? "未完成微信授权，无法直接支付。请再点微信支付。"
+            : decodeURIComponent(params.get("msg") || "微信授权失败，请再试"),
+        );
+      }
+      if (payOrder || params.get("paid") === "1" || oauth) {
+        params.delete("payOrder");
+        params.delete("paid");
+        params.delete("wechat_oauth");
+        params.delete("msg");
+        const next = `${window.location.pathname}${params.toString() ? `?${params}` : ""}`;
+        window.history.replaceState(null, "", next);
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -348,6 +497,25 @@ export function MathcodeTool() {
       // 隐私模式写不了 localStorage 时忽略，当场设置仍然生效
     }
   }, [wm, wmHydrated]);
+
+  useEffect(() => {
+    userHintRef.current = userHint;
+    if (!hintHydrated) return;
+    try {
+      localStorage.setItem(HINT_STORAGE_KEY, userHint);
+    } catch {
+      // 写不了就只在本页有效
+    }
+  }, [userHint, hintHydrated]);
+
+  useEffect(() => {
+    if (!spacingHydrated) return;
+    try {
+      localStorage.setItem(SPACING_STORAGE_KEY, JSON.stringify(spacing));
+    } catch {
+      // 隐私模式写不了就只在本页有效
+    }
+  }, [spacing, spacingHydrated]);
 
   useEffect(() => {
     return () => {
@@ -366,7 +534,14 @@ export function MathcodeTool() {
       setOutputs((list) =>
         list.map((o) =>
           o.edited
-            ? { ...o, edited: wrapAsLatexDocument(extractLatexBody(o.edited), next) }
+            ? {
+                ...o,
+                edited: wrapAsLatexDocument(
+                  extractLatexBody(o.edited),
+                  next,
+                  spacingRef.current,
+                ),
+              }
             : o,
         ),
       );
@@ -374,15 +549,116 @@ export function MathcodeTool() {
     });
   }, []);
 
-  const runQueue = useCallback(async (queue: Item[]) => {
+  const patchSpacing = useCallback((next: MathcodeQuestionSpacing) => {
+    const normalized = normalizeQuestionSpacing(next);
+    setSpacing(normalized);
+    setOutputs((list) =>
+      list.map((o) =>
+        o.edited
+          ? {
+              ...o,
+              edited: wrapAsLatexDocument(
+                extractLatexBody(o.edited),
+                wmRef.current,
+                normalized,
+              ),
+            }
+          : o,
+      ),
+    );
+  }, []);
+
+  const closePayDialog = useCallback((paid: boolean) => {
+    const waiter = payWaiterRef.current;
+    payWaiterRef.current = null;
+    setPayIntent(null);
+    setResumePayOrder(null);
+    if (paid) clearMathcodePayResume();
+    waiter?.resolve(paid);
+  }, []);
+
+  const requestPay = useCallback((intent: MathcodePayIntent) => {
+    return new Promise<boolean>((resolve) => {
+      payWaiterRef.current?.resolve(false);
+      payWaiterRef.current = { resolve };
+      setPayIntent(intent);
+    });
+  }, []);
+
+  const refreshAccess = useCallback(async () => {
+    try {
+      const next = await fetchMathcodeAccess();
+      setAccess(next);
+      return next;
+    } catch {
+      return access;
+    }
+  }, [access]);
+
+  const ensureQuota = useCallback(
+    async (pageCount: number) => {
+      if (access.unlimited) return true;
+      const gate = await checkMathcodePages(pageCount);
+      if (gate.ok) return true;
+      if (gate.code === "NEED_LOGIN") {
+        setError("请先登录后再转换");
+        return false;
+      }
+      const paid = await requestPay(
+        gate.code === "NEED_RENEW"
+          ? { kind: "membership" }
+          : { kind: "choose", pageCount: gate.pagesNeeded || pageCount },
+      );
+      if (!paid) {
+        setError(gate.error);
+        return false;
+      }
+      await refreshAccess();
+      const again = await checkMathcodePages(pageCount);
+      if (!again.ok) {
+        setError(again.error);
+        return false;
+      }
+      return true;
+    },
+    [access.unlimited, refreshAccess, requestPay],
+  );
+
+  const billableCount = useCallback((queue: Item[]) => {
+    return queue.filter(
+      (it) => it.source !== "text" || Boolean((it.sourceText || "").trim()),
+    ).length;
+  }, []);
+
+  const runQueue = useCallback(async (queue: Item[], hint: string) => {
+    const needed = billableCount(queue);
+    if (needed > 0) {
+      const allowed = await ensureQuota(needed);
+      if (!allowed) {
+        setItems((prev) =>
+          prev.map((p) =>
+            queue.some((q) => q.id === p.id) && p.status === "pending"
+              ? { ...p, status: "error", error: "未支付或额度不足" }
+              : p,
+          ),
+        );
+        return;
+      }
+    }
     // 并发上限：视觉模型对每分钟请求数敏感，逐张处理更稳
     for (const it of queue) {
       setItems((prev) =>
         prev.map((p) => (p.id === it.id ? { ...p, status: "processing" } : p)),
       );
       try {
+        const runHint = [hint, buildSpacingPrompt(spacingRef.current)]
+          .map((part) => part.trim())
+          .filter(Boolean)
+          .join("\n");
         const latex =
-          it.source === "text" ? await convertOne(it) : await ocrOne(it);
+          it.source === "text"
+            ? await convertOne(it, runHint)
+            : await ocrOne(it, runHint);
         setItems((prev) =>
           prev.map((p) =>
             p.id === it.id ? { ...p, status: "done", latex } : p,
@@ -395,9 +671,14 @@ export function MathcodeTool() {
             p.id === it.id ? { ...p, status: "error", error: msg } : p,
           ),
         );
+        if (/额度|支付|会员|请先登录/.test(msg)) {
+          setError(msg);
+          break;
+        }
       }
     }
-  }, []);
+    void refreshAccess();
+  }, [billableCount, ensureQuota, refreshAccess]);
 
   const acceptFiles = useCallback(
     async (files: FileList | File[]) => {
@@ -508,8 +789,9 @@ export function MathcodeTool() {
             },
           ]);
           setStatus("已加入队列，正在转换…右侧会新开一框");
-          await runQueue(newItems);
-          setStatus("本轮完成。可继续上传，右侧会再开新框显示最新代码。");
+          // 本轮用开始时的提示词，避免识别中途改框导致同一批指令不一致
+          await runQueue(newItems, userHintRef.current.trim());
+          setStatus("本轮完成。可继续上传或粘贴，右侧会再开新框显示最新代码。");
         }
       } finally {
         processingRef.current = false;
@@ -528,7 +810,8 @@ export function MathcodeTool() {
           o.itemIds.includes(id) ? { ...o, edited: null } : o,
         ),
       );
-      await runQueue([target]);
+      // 重试用当前框里的提示词，方便改一句再跑
+      await runQueue([target], userHintRef.current.trim());
     },
     [items, runQueue],
   );
@@ -562,7 +845,7 @@ export function MathcodeTool() {
 
   const copyOutput = useCallback(
     async (output: LatexOutput, fragment: boolean) => {
-      const full = texForOutput(output, items, wm);
+      const full = texForOutput(output, items, wm, spacing);
       const payload = fragment ? extractLatexBody(full) : full;
       if (!payload.trim()) {
         setCopyHint("请先等这一轮识别完成，再复制");
@@ -592,7 +875,7 @@ export function MathcodeTool() {
 
   const downloadOutput = useCallback(
     (output: LatexOutput, fragment: boolean) => {
-      const full = texForOutput(output, items, wm);
+      const full = texForOutput(output, items, wm, spacing);
       const payload = fragment ? extractLatexBody(full) : full;
       if (!payload.trim()) return;
       const stamp = Date.now();
@@ -612,7 +895,7 @@ export function MathcodeTool() {
 
   const openOutputOverleaf = useCallback(
     (output: LatexOutput) => {
-      const tex = texForOutput(output, items, wm);
+      const tex = texForOutput(output, items, wm, spacing);
       if (!tex.trim()) {
         setCopyHint("请先等这一轮识别完成，再打开 Overleaf");
         return;
@@ -629,7 +912,7 @@ export function MathcodeTool() {
 
   const openOutputVsCode = useCallback(
     async (output: LatexOutput) => {
-      const tex = texForOutput(output, items, wm);
+      const tex = texForOutput(output, items, wm, spacing);
       if (!tex.trim()) {
         setCopyHint("请先等这一轮识别完成，再打开 VS Code");
         return;
@@ -647,15 +930,77 @@ export function MathcodeTool() {
     [items, wm],
   );
 
-  const handleDrop = useCallback(
-    (e: React.DragEvent<HTMLDivElement>) => {
-      e.preventDefault();
-      if (e.dataTransfer?.files?.length) {
-        void acceptFiles(e.dataTransfer.files);
-      }
+  const ingestPastedFiles = useCallback(
+    async (raw: File[]) => {
+      if (raw.length === 0) return false;
+      const files = await normalizePastedFiles(raw);
+      if (files.length === 0) return false;
+      void acceptFiles(files);
+      return true;
     },
     [acceptFiles],
   );
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      const files = filesFromDataTransfer(e.dataTransfer);
+      if (files.length) void ingestPastedFiles(files);
+    },
+    [ingestPastedFiles],
+  );
+
+  const handlePasteEvent = useCallback(
+    (e: React.ClipboardEvent | ClipboardEvent) => {
+      const files = filesFromDataTransfer(e.clipboardData);
+      if (files.length === 0) return;
+      // 有文件就按上传处理；纯文字仍留给提示词框 / 输出框
+      e.preventDefault();
+      if (pasteCatcherRef.current) pasteCatcherRef.current.innerHTML = "";
+      void ingestPastedFiles(files);
+    },
+    [ingestPastedFiles],
+  );
+
+  useEffect(() => {
+    const onWindowPaste = (e: ClipboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      // 提示词 / 输出框里粘贴纯文字不要抢走；有文件（截图、PDF）则仍当上传
+      const files = filesFromDataTransfer(e.clipboardData);
+      if (files.length === 0) return;
+      if (
+        target &&
+        (target.tagName === "TEXTAREA" || target.tagName === "INPUT") &&
+        files.every((f) => f.type.startsWith("text/"))
+      ) {
+        return;
+      }
+      e.preventDefault();
+      void ingestPastedFiles(files);
+    };
+    window.addEventListener("paste", onWindowPaste);
+    return () => window.removeEventListener("paste", onWindowPaste);
+  }, [ingestPastedFiles]);
+
+  const handlePasteButton = useCallback(async () => {
+    if (typeof navigator !== "undefined" && navigator.clipboard?.read) {
+      try {
+        const items = await navigator.clipboard.read();
+        const files = await filesFromClipboardItems(items);
+        if (await ingestPastedFiles(files)) {
+          setStatus("已从剪贴板读入文件，正在加入队列…");
+          return;
+        }
+      } catch {
+        // 微信 / HTTP / 未授权时走页面粘贴
+      }
+    }
+    dropZoneRef.current?.focus();
+    pasteCatcherRef.current?.focus();
+    setStatus(
+      "请在本页按 Ctrl+V（电脑）或点下方粘贴区后长按粘贴（手机/微信）。截图、PDF 和其他文件都可以。",
+    );
+  }, [ingestPastedFiles]);
 
   const handleWmImagePicked = useCallback(
     (file: File | null) => {
@@ -689,6 +1034,23 @@ export function MathcodeTool() {
 
   return (
     <div className="grid gap-6">
+      <MathcodeBillingBar
+        access={access}
+        loading={accessLoading}
+        onBuyMembership={() => void requestPay({ kind: "membership" })}
+      />
+      {payIntent ? (
+        <MathcodePayDialog
+          intent={payIntent}
+          resumeOrder={resumePayOrder}
+          channels={access.channels}
+          onPaid={() => {
+            void refreshAccess();
+            closePayDialog(true);
+          }}
+          onClose={() => closePayDialog(false)}
+        />
+      ) : null}
       <section className="surface rounded-[28px] p-5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -939,32 +1301,84 @@ export function MathcodeTool() {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
       <section className="surface rounded-[28px] p-5 sm:p-6">
+        <label className="mb-5 block">
+          <span className="text-sm font-medium text-[var(--ink)]">
+            本轮微调提示词（可选）
+          </span>
+          <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
+            上传或粘贴前写在这里，会附加到这一轮识别指令里，不替换「有什么写什么」的保真规则。
+            例如：保留原题编号、化学式用 ce、只要公式不要题干。
+          </p>
+          <textarea
+            value={userHint}
+            maxLength={MATHCODE_USER_HINT_MAX_CHARS}
+            onChange={(e) =>
+              setUserHint(e.target.value.slice(0, MATHCODE_USER_HINT_MAX_CHARS))
+            }
+            rows={4}
+            className="field mt-2 min-h-24 w-full resize-y rounded-xl px-3 py-2 text-sm leading-6 outline-none focus:border-[var(--brand)]"
+            placeholder="这一轮想怎么微调？可留空。"
+          />
+          <span className="mt-1 block text-right text-[10px] text-[var(--muted)]">
+            {userHint.length}/{MATHCODE_USER_HINT_MAX_CHARS}
+          </span>
+        </label>
+
+        <MathcodeSpacingPanel spacing={spacing} onChange={patchSpacing} />
+
         <div
-          className="flex min-h-[160px] flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-[var(--brand)]/40 bg-[var(--brand)]/5 p-6 text-center transition hover:border-[var(--brand)]/70"
+          ref={dropZoneRef}
+          tabIndex={0}
+          className="flex min-h-[160px] flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-[var(--brand)]/40 bg-[var(--brand)]/5 p-6 text-center outline-none transition hover:border-[var(--brand)]/70 focus:border-[var(--brand)]"
           onDragOver={(e) => e.preventDefault()}
           onDrop={handleDrop}
+          onPaste={handlePasteEvent}
         >
           <p className="text-sm font-medium text-[var(--ink)]">
-            拖拽截图、PDF、Word / WPS、PPT、表格或 Markdown 到这里
+            拖拽、选择或粘贴截图、PDF、Word / WPS、PPT、表格或 Markdown
           </p>
           <p className="text-xs text-[var(--muted)]">
-            图片 / PDF 按页识别；Word、WPS、PPT、Excel、Markdown 抽正文再转 LaTeX。
-            旧版 .doc / .ppt / .xls 请先另存为 docx / pptx / xlsx，或导出 PDF。
+            电脑用 Ctrl+V；手机/微信先点下方粘贴区再长按粘贴。图片和 PDF 都可以。
+            图片 / PDF 按页识别；办公文档抽正文再转 LaTeX。
             每上传一轮，右侧都会新开一框。
           </p>
-          <label className="btn btn-primary cursor-pointer">
-            选择文件
-            <input
-              ref={inputRef}
-              type="file"
-              multiple
-              accept={ACCEPT}
-              className="hidden"
-              onChange={(e) => {
-                if (e.target.files) void acceptFiles(e.target.files);
-              }}
-            />
-          </label>
+          <div className="flex w-full max-w-md flex-col gap-2 sm:flex-row sm:justify-center">
+            <label className="btn btn-primary min-h-11 cursor-pointer px-4">
+              选择文件
+              <input
+                ref={inputRef}
+                type="file"
+                multiple
+                accept={ACCEPT}
+                className="hidden"
+                onChange={(e) => {
+                  if (e.target.files) void acceptFiles(e.target.files);
+                }}
+              />
+            </label>
+            <button
+              type="button"
+              className="btn btn-secondary min-h-11 px-4"
+              onClick={() => void handlePasteButton()}
+            >
+              从剪贴板粘贴
+            </button>
+          </div>
+          <div
+            ref={pasteCatcherRef}
+            role="textbox"
+            aria-label="粘贴截图或文件"
+            tabIndex={0}
+            contentEditable
+            suppressContentEditableWarning
+            data-placeholder="点这里后 Ctrl+V 或长按粘贴"
+            className="min-h-11 w-full max-w-md rounded-xl border border-dashed border-[var(--brand)]/30 bg-white/70 px-3 py-2 text-left text-sm text-[var(--muted)] outline-none empty:before:pointer-events-none empty:before:content-[attr(data-placeholder)] focus:border-[var(--brand)]"
+            onPaste={handlePasteEvent}
+            onInput={(e) => {
+              // 只收文件，误贴的文字立刻清掉，避免当正文提交
+              e.currentTarget.innerHTML = "";
+            }}
+          />
         </div>
 
         {(status || error) && (
@@ -983,7 +1397,7 @@ export function MathcodeTool() {
         <ul className="mt-5 space-y-3">
           {items.length === 0 ? (
             <li className="text-xs text-[var(--muted)]">
-              还没有内容。转换过程只用于生成 LaTeX，不会把文件入库。
+              还没有内容。可选文件、拖进来，或粘贴截图 / PDF。转换过程只用于生成 LaTeX，不会把文件入库。
             </li>
           ) : (
             items.map((it) => (
@@ -1070,7 +1484,7 @@ export function MathcodeTool() {
               LaTeX 输出
             </h2>
             <p className="text-xs text-[var(--muted)]">
-              每上传一次都会在这里新开一框，最新一次在最上面。可用 Overleaf / VS Code 直接打开当前源码。
+              每上传一次都会在这里新开一框，最新一次在最上面。可在本页预览并下载 PDF，也可用 Overleaf / VS Code 打开源码。
             </p>
           </div>
           {outputs.length > 0 ? (
@@ -1078,7 +1492,7 @@ export function MathcodeTool() {
               <button
                 type="button"
                 className="btn btn-primary min-h-11 px-4 text-sm"
-                disabled={!texForOutput(outputs[outputs.length - 1], items, wm).trim()}
+                disabled={!texForOutput(outputs[outputs.length - 1], items, wm, spacing).trim()}
                 onClick={() => openOutputOverleaf(outputs[outputs.length - 1])}
               >
                 打开 Overleaf
@@ -1086,7 +1500,7 @@ export function MathcodeTool() {
               <button
                 type="button"
                 className="btn btn-secondary min-h-11 px-4 text-sm"
-                disabled={!texForOutput(outputs[outputs.length - 1], items, wm).trim()}
+                disabled={!texForOutput(outputs[outputs.length - 1], items, wm, spacing).trim()}
                 onClick={() => void openOutputVsCode(outputs[outputs.length - 1])}
               >
                 打开 VS Code
@@ -1105,12 +1519,12 @@ export function MathcodeTool() {
 
         {outputCards.length === 0 ? (
           <p className="mt-4 text-xs text-[var(--muted)]">
-            识别完成后，完整可编译的 main.tex 会出现在这里。可继续上传，每次都会新增一框。
+            识别完成后，完整可编译的 main.tex 会出现在这里，并可在本页预览、下载 PDF。可继续上传，每次都会新增一框。
           </p>
         ) : (
           <div className="mt-4 space-y-4">
             {outputCards.map((output) => {
-              const tex = texForOutput(output, items, wm);
+              const tex = texForOutput(output, items, wm, spacing);
               const busy = output.itemIds.some((id) => {
                 const it = items.find((i) => i.id === id);
                 return it?.status === "pending" || it?.status === "processing";
@@ -1210,6 +1624,15 @@ export function MathcodeTool() {
                         : "这一轮的完整 main.tex 会显示在这里。"
                     }
                   />
+                  <MathcodePdfPreview
+                    tex={tex}
+                    auto={isLatest && !busy}
+                    disabled={busy || !tex.trim()}
+                    watermarkFile={wm.imageEnabled ? wmImageFile : null}
+                    watermarkFileName={wm.imageFileName}
+                    watermarkMissing={wm.imageEnabled && !wmImageFile}
+                    downloadName={pdfDownloadName(output.title)}
+                  />
                 </div>
               );
             })}
@@ -1218,11 +1641,12 @@ export function MathcodeTool() {
 
         <details className="mt-4 text-xs leading-6 text-[var(--muted)]">
           <summary className="cursor-pointer text-[var(--ink)]">
-            Overleaf 编译步骤（本次必须 XeLaTeX）
+            还想用 Overleaf / VS Code 时（必须 XeLaTeX）
           </summary>
           <ol className="ml-5 mt-2 list-decimal space-y-1">
             <li>
-              点「打开 Overleaf」会把当前 .tex 送进新工程（Compiler = XeLaTeX）。
+              本页「预览 PDF / 下载 PDF」已经按 XeLaTeX 编好，一般不用再开编辑器。
+              若要改源码，点「打开 Overleaf」会把当前 .tex 送进新工程（Compiler = XeLaTeX）。
               「打开 VS Code」会先唤起电脑上的 VS Code 客户端；没有客户端再打开网页版。同时会下载 main.tex。
             </li>
             <li>
@@ -1258,6 +1682,11 @@ function StatusBadge({ status }: { status: ItemStatus }) {
       {text}
     </span>
   );
+}
+
+function pdfDownloadName(title: string): string {
+  const base = title.replace(/[^\w\u4e00-\u9fff.-]+/g, "_").slice(0, 40);
+  return `${base || "mathcode"}.pdf`;
 }
 
 function downloadText(text: string, filename: string) {

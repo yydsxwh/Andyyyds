@@ -21,16 +21,24 @@ export type SoftwareProduct = {
 
 export const SOFTWARE_PRODUCTS: SoftwareProduct[] = [
   {
-    // 站长内部工具：截图/PDF 公式 → LaTeX，直接可入库自用；卡片仍展示便于统一入口
+    id: "docs",
+    name: "网页文档",
+    tagline: "在浏览器里写文档",
+    description:
+      "标题、正文、加粗、多级标题、项目符号、可自定义的多级编号、插图和简单表格。可打开/另存 Word 与 HTML，设置页眉页脚页码并打印。手机微信同样能用。",
+    status: "live",
+    href: "/products/docs",
+    badge: "网页编辑",
+  },
+  {
     id: "mathcode",
     name: "MathCode 公式转 LaTeX",
     tagline: "数理化公式 AI 识别",
     description:
-      "上传教材、试题截图、PDF，或 Word / WPS / PPT / Excel / Markdown，由 AI 转写为可编辑的 LaTeX：有什么写什么；可一键用 Overleaf / VS Code 打开生成的源码。",
+      "上传教材、试题截图、PDF，或 Word / WPS / PPT / Excel / Markdown，由 AI 转写为可编辑的 LaTeX，并在本页预览、下载 PDF。未开通会员 0.5 元/页，会员 30 元/月含 150 页。",
     status: "live",
     href: "/products/mathcode",
-    badge: "站长专用 · 立即可用",
-    adminOnly: true,
+    badge: "0.5元/页 · 会员更优惠",
   },
   {
     id: "kemiao-meeting",

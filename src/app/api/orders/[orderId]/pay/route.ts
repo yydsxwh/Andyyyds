@@ -15,6 +15,10 @@ import { prisma } from "@andyyyds/shared/db";
 import { answersComplete } from "@andyyyds/shared/order-form";
 import { fulfillPaidOrder } from "@andyyyds/shared/orders";
 import { getPaymentChannels, getPublicSiteUrl } from "@andyyyds/shared/payments";
+import {
+  isMathcodeProductType,
+  paymentReturnPath,
+} from "@andyyyds/shared/product-types";
 import { getOrderFormConfig } from "@andyyyds/shared/site-settings";
 import {
   createH5Payment,
@@ -22,6 +26,7 @@ import {
   createNativePayment,
   isWechatOAuthConfigured,
 } from "@andyyyds/shared/wechat-pay";
+import { resolveWechatPayTradeType } from "@andyyyds/shared/wechat-pay-trade";
 
 const bodySchema = z
   .object({
@@ -54,6 +59,34 @@ function isMobileUa(ua: string) {
   );
 }
 
+function wechatOauthReturnPath(order: {
+  id: string;
+  orderNo: string;
+  course: { productType: string };
+}) {
+  return paymentReturnPath({
+    orderId: order.id,
+    orderNo: order.orderNo,
+    productType: order.course.productType,
+  });
+}
+
+async function wechatH5RedirectUrl(order: {
+  id: string;
+  orderNo: string;
+  course: { productType: string };
+}) {
+  const siteUrl = await getPublicSiteUrl();
+  if (order.course.productType === "MATHCODE") {
+    return `${siteUrl}${paymentReturnPath({
+      orderId: order.id,
+      orderNo: order.orderNo,
+      productType: order.course.productType,
+    })}`;
+  }
+  return `${siteUrl}/checkout/return?out_trade_no=${order.orderNo}`;
+}
+
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ orderId: string }> },
@@ -81,12 +114,15 @@ export async function POST(
     });
   }
 
-  const orderForm = await getOrderFormConfig();
-  if (!answersComplete(orderForm, order.formAnswersJson)) {
-    return NextResponse.json(
-      { error: "请先填写完整的购买信息" },
-      { status: 400 },
-    );
+  // 识图壳在工具页内付，没有收货表单；套用商城必填项会让手机直接付不了。
+  if (!isMathcodeProductType(order.course.productType)) {
+    const orderForm = await getOrderFormConfig();
+    if (!answersComplete(orderForm, order.formAnswersJson)) {
+      return NextResponse.json(
+        { error: "请先填写完整的购买信息" },
+        { status: 400 },
+      );
+    }
   }
 
   const ua = uaFrom(req);
@@ -105,10 +141,12 @@ export async function POST(
     tradeType = "native";
   }
 
-  // 服务端按 UA 校正：防止客户端误传 native，导致手机只能看到二维码
-  if (channel === "WECHAT" && tradeType === "native") {
-    if (isWeChatUa(ua)) tradeType = "jsapi";
-    else if (isMobileUa(ua)) tradeType = "h5";
+  if (channel === "WECHAT") {
+    tradeType = resolveWechatPayTradeType({
+      requested: tradeType,
+      allowNativeFallback,
+      ua,
+    });
   }
 
   const channels = await getPaymentChannels();
@@ -145,7 +183,7 @@ export async function POST(
           if (oauthReady) {
             return NextResponse.json({
               mode: "wechat_need_oauth",
-              oauthUrl: `/api/auth/wechat?returnUrl=${encodeURIComponent(`/checkout/${order.id}`)}`,
+              oauthUrl: `/api/auth/wechat?purpose=bind&returnUrl=${encodeURIComponent(wechatOauthReturnPath(order))}`,
               status: "PENDING",
               orderNo: order.orderNo,
               amount: order.amount,
@@ -244,9 +282,8 @@ export async function POST(
           }
         }
         if (order.codeUrl && order.payChannel === "WECHAT_H5") {
-          const siteUrl = await getPublicSiteUrl();
           const redirectUrl = encodeURIComponent(
-            `${siteUrl}/checkout/return?out_trade_no=${order.orderNo}`,
+            await wechatH5RedirectUrl(order),
           );
           const payUrl = order.codeUrl.includes("redirect_url=")
             ? order.codeUrl
@@ -273,9 +310,8 @@ export async function POST(
             where: { id: order.id },
             data: { payChannel: "WECHAT_H5", codeUrl: mwebUrl },
           });
-          const siteUrl = await getPublicSiteUrl();
           const redirectUrl = encodeURIComponent(
-            `${siteUrl}/checkout/return?out_trade_no=${order.orderNo}`,
+            await wechatH5RedirectUrl(order),
           );
           const payUrl = `${mwebUrl}${mwebUrl.includes("?") ? "&" : "?"}redirect_url=${redirectUrl}`;
           return NextResponse.json({

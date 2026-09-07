@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * 站长：填写 B站/抖音/小红书主页并同步投稿，或粘贴作品链接导入。
+ * 站长：填写 B站/抖音/小红书/视频号主页并同步投稿与合集，或粘贴作品/合集链接导入。
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -33,6 +33,17 @@ type PostRow = {
   sortOrder: number;
 };
 
+type AlbumRow = {
+  id: string;
+  platform: string;
+  platformLabel: string;
+  title: string;
+  coverUrl: string;
+  sourceUrl: string;
+  itemCount: number;
+  syncedAt: string;
+};
+
 function postMatchesQuery(post: PostRow, query: string) {
   const q = query.trim().toLowerCase();
   if (!q) return true;
@@ -49,8 +60,13 @@ export function StudioPersonSocialPanel() {
   const [bilibili, setBilibili] = useState("");
   const [douyin, setDouyin] = useState("");
   const [xiaohongshu, setXiaohongshu] = useState("");
+  const [wechatChannels, setWechatChannels] = useState("");
   const [rsshubBaseUrl, setRsshubBaseUrl] = useState("");
   const [importUrls, setImportUrls] = useState("");
+  const [albumUrl, setAlbumUrl] = useState("");
+  const [albums, setAlbums] = useState<AlbumRow[]>([]);
+  const [albumNameId, setAlbumNameId] = useState("");
+  const [albumName, setAlbumName] = useState("");
   const [postTotal, setPostTotal] = useState(0);
   const [posts, setPosts] = useState<PostRow[]>([]);
   const [dirtyOrder, setDirtyOrder] = useState(false);
@@ -71,8 +87,10 @@ export function StudioPersonSocialPanel() {
       setBilibili(data.accounts?.bilibili || "");
       setDouyin(data.accounts?.douyin || "");
       setXiaohongshu(data.accounts?.xiaohongshu || "");
+      setWechatChannels(data.accounts?.wechatChannels || "");
       setRsshubBaseUrl(data.accounts?.rsshubBaseUrl || "");
       setPostTotal(data.postTotal || 0);
+      setAlbums(data.albums || []);
       setPosts(data.posts || []);
       setDirtyOrder(false);
       if (typeof data.syncLastMessage === "string" && data.syncLastMessage) {
@@ -230,8 +248,8 @@ export function StudioPersonSocialPanel() {
       <div className="surface rounded-[28px] p-5 sm:p-6">
         <h2 className="text-lg font-semibold">平台主页</h2>
         <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-          填自己的主页链接后点同步，投稿会出现在前台「个人介绍」。B
-          站用公开投稿接口，比较稳；抖音、小红书经常拦未登录抓取，自动同步失败时把作品分享链接贴到下面导入即可。
+          填自己的主页链接后点同步，投稿和合集会出现在前台「个人介绍」，用法和公众号宣传类似。B
+          站投稿/合集比较稳；抖音、小红书、视频号经常拦未登录抓取，失败时把作品或合集分享链接贴到下面导入即可。
         </p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <label className="block text-sm sm:col-span-2">
@@ -265,6 +283,16 @@ export function StudioPersonSocialPanel() {
             />
           </label>
           <label className="block text-sm sm:col-span-2">
+            <span className="mb-1.5 block text-[var(--muted)]">微信视频号主页</span>
+            <input
+              className="field w-full min-h-11"
+              value={wechatChannels}
+              onChange={(e) => setWechatChannels(e.target.value)}
+              placeholder="https://channels.weixin.qq.com/… 或 https://weixin.qq.com/sph/…"
+              disabled={busy}
+            />
+          </label>
+          <label className="block text-sm sm:col-span-2">
             <span className="mb-1.5 block text-[var(--muted)]">
               RSSHub 地址（可选）
             </span>
@@ -288,6 +316,7 @@ export function StudioPersonSocialPanel() {
                 bilibili,
                 douyin,
                 xiaohongshu,
+                wechatChannels,
                 rsshubBaseUrl,
               })
             }
@@ -320,13 +349,13 @@ export function StudioPersonSocialPanel() {
       <div className="surface rounded-[28px] p-5 sm:p-6">
         <h2 className="text-lg font-semibold">粘贴作品链接导入</h2>
         <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-          抖音、小红书、B 站的单条分享链接都可以，一行一条或用空格隔开。导入后与主页同步进同一列表。
+          抖音、小红书、B 站、视频号的单条分享链接都可以，一行一条或用空格隔开。导入后与主页同步进同一列表。
         </p>
         <textarea
           className="field mt-3 min-h-28 w-full"
           value={importUrls}
           onChange={(e) => setImportUrls(e.target.value)}
-          placeholder="https://v.douyin.com/…&#10;https://www.bilibili.com/video/BV…&#10;https://www.xiaohongshu.com/explore/…"
+          placeholder="https://v.douyin.com/…&#10;https://www.bilibili.com/video/BV…&#10;https://www.xiaohongshu.com/explore/…&#10;https://weixin.qq.com/sph/…"
           disabled={busy}
         />
         <button
@@ -342,6 +371,159 @@ export function StudioPersonSocialPanel() {
         >
           导入链接
         </button>
+      </div>
+
+      <div className="surface rounded-[28px] p-5 sm:p-6">
+        <h2 className="text-lg font-semibold">合集 / 专辑</h2>
+        <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+          和公众号合集一样：B 站同步主页时会自动拉合集/系列；其它平台请打开合集页，复制地址栏链接添加。条目会尽量对上已导入的投稿。
+        </p>
+        <label className="mt-4 block text-sm">
+          <span className="mb-1.5 block text-[var(--muted)]">合集链接</span>
+          <input
+            className="field w-full min-h-11"
+            value={albumUrl}
+            onChange={(e) => setAlbumUrl(e.target.value)}
+            placeholder="https://space.bilibili.com/…/channel/collectiondetail?sid=…"
+            disabled={busy}
+          />
+        </label>
+        <button
+          type="button"
+          className="btn btn-primary mt-3 min-h-11 px-5"
+          disabled={busy || !albumUrl.trim()}
+          onClick={() => {
+            const sourceUrl = albumUrl.trim();
+            void postAction({ action: "add_album", sourceUrl }).then((ok) => {
+              if (ok) setAlbumUrl("");
+            });
+          }}
+        >
+          添加并同步合集
+        </button>
+        {albums.length ? (
+          <ul className="mt-4 space-y-3">
+            {albums.map((album) => (
+              <li
+                key={album.id}
+                className="flex flex-col gap-3 rounded-2xl border border-[var(--line)] p-3 sm:flex-row sm:items-center"
+              >
+                {album.coverUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={album.coverUrl}
+                    alt=""
+                    referrerPolicy="no-referrer"
+                    className="h-16 w-24 shrink-0 rounded-xl object-cover"
+                  />
+                ) : (
+                  <div className="flex h-16 w-24 shrink-0 items-center justify-center rounded-xl bg-[var(--bg-deep)] text-xs text-[var(--muted)]">
+                    合集
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  {albumNameId === album.id ? (
+                    <input
+                      className="field min-h-11 w-full"
+                      value={albumName}
+                      onChange={(e) => setAlbumName(e.target.value)}
+                      placeholder="合集名称"
+                    />
+                  ) : (
+                    <div className="truncate font-medium">
+                      {album.title || "未命名合集"}
+                    </div>
+                  )}
+                  <div className="mt-0.5 text-xs text-[var(--muted)]">
+                    {album.platformLabel} · {album.itemCount} 条
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {albumNameId === album.id ? (
+                    <>
+                      <button
+                        type="button"
+                        className="btn btn-primary min-h-11 px-3 text-sm"
+                        disabled={busy}
+                        onClick={() =>
+                          void postAction({
+                            action: "rename_album",
+                            id: album.id,
+                            title: albumName,
+                          }).then((ok) => {
+                            if (ok) {
+                              setAlbumNameId("");
+                              setAlbumName("");
+                            }
+                          })
+                        }
+                      >
+                        保存名称
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary min-h-11 px-3 text-sm"
+                        onClick={() => {
+                          setAlbumNameId("");
+                          setAlbumName("");
+                        }}
+                      >
+                        取消
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn btn-secondary min-h-11 px-3 text-sm"
+                      onClick={() => {
+                        setAlbumNameId(album.id);
+                        setAlbumName(album.title);
+                      }}
+                    >
+                      改名
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="btn btn-secondary min-h-11 px-3 text-sm"
+                    disabled={busy}
+                    onClick={() =>
+                      void postAction({ action: "refresh_album", id: album.id })
+                    }
+                  >
+                    刷新
+                  </button>
+                  <a
+                    href={`/about/person/albums/${album.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn btn-secondary min-h-11 px-3 text-sm"
+                  >
+                    查看
+                  </a>
+                  <button
+                    type="button"
+                    className="btn btn-secondary min-h-11 px-3 text-sm text-red-600"
+                    disabled={busy}
+                    onClick={() => {
+                      if (
+                        typeof window !== "undefined" &&
+                        !window.confirm(`确定移除合集「${album.title}」？`)
+                      ) {
+                        return;
+                      }
+                      void postAction({ action: "delete_album", id: album.id });
+                    }}
+                  >
+                    删除
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-4 text-sm text-[var(--muted)]">尚未添加合集</p>
+        )}
       </div>
 
       {loadError ? (

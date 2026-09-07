@@ -2,8 +2,8 @@
  * 软件产品 · MathCode
  * 公开 URL：/products/mathcode
  *
- * 未登录 / 非站长：展示介绍卡片 + 登录入口（不暴露识别工具）。
- * 站长：加载客户端上传工具，实际识别调用 /api/mathcode/ocr。
+ * 未登录：介绍 + 价格 + 登录。
+ * 已登录：上传工具 + 额度条；站长不限次免费，其余先付再转。
  */
 
 import Link from "next/link";
@@ -12,19 +12,18 @@ import { NavPageTemplateShell } from "@/components/nav-page-template-shell";
 import { OpenVsCodeButton } from "@andyyyds/mathcode/components/open-vscode-button";
 import { getSession } from "@andyyyds/shared/auth";
 import { MATHCODE_EDITOR_LINKS } from "@andyyyds/mathcode/lib/mathcode-open";
-import { isAdmin } from "@andyyyds/shared/roles";
+import {
+  MATHCODE_GUEST_CENTS_PER_PAGE,
+  MATHCODE_MEMBER_CENTS_PER_PAGE,
+  MATHCODE_MEMBERSHIP_CENTS,
+  MATHCODE_MEMBERSHIP_PAGES,
+} from "@andyyyds/mathcode/lib/mathcode-quota";
+import { formatPrice } from "@andyyyds/shared/utils";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = {
-  title: "MathCode · 文档转 LaTeX",
-  description:
-    "上传公式截图、PDF、Word、WPS、PPT、表格或 Markdown，由 AI 转为可编辑的 LaTeX 源码。",
-};
-
 export default async function MathcodePage() {
   const session = await getSession();
-  const admin = Boolean(session && isAdmin(session));
 
   return (
     <NavPageTemplateShell type="products">
@@ -38,8 +37,9 @@ export default async function MathcodePage() {
           </h1>
           <p className="mt-3 text-sm leading-7 text-[var(--muted)] sm:text-base">
             支持公式截图、PDF、Word、WPS、PPT、Excel 表格和 Markdown。
-            只复刻原文有的文字、公式和色块，不编点评、不编公众号、不补没拍到的内容。
-            输出完整 XeLaTeX + ctex 源码，可用下方按钮直接送进 Overleaf 或 VS Code。
+            可以选文件、拖拽，也可以 Ctrl+V / 长按粘贴（截图、PDF 等）。
+            每次识别前可写一栏微调提示词，并可设定选择题、填空题、计算题、证明题之间空几行、半页或一页。只复刻原文有的文字、公式和色块，不编点评、不编公众号、不补没拍到的内容。
+            输出完整 XeLaTeX + ctex 源码，可在本页直接预览排版并下载 PDF，也可用下方按钮送进 Overleaf 或 VS Code。
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             <a
@@ -56,7 +56,7 @@ export default async function MathcodePage() {
           </div>
           <p className="mt-2 text-xs text-[var(--muted)]">
             这是编辑器入口。VS Code 会优先打开电脑客户端，没有再打开网页版。
-            识别完成后，结果框里的同名按钮会把<strong>当前生成的 .tex</strong>送进去。
+            识别完成后，结果框里可预览、下载 PDF；同名按钮会把<strong>当前生成的 .tex</strong>送进编辑器。
             Windows 客户端侧栏也有「转 LaTeX」，与本页同一套工具，无需另装独立软件。
           </p>
           <p className="mt-2 text-xs">
@@ -69,28 +69,33 @@ export default async function MathcodePage() {
           </p>
         </header>
 
-        {admin ? (
+        {session ? (
           <MathcodeTool />
         ) : (
           <section className="surface rounded-[28px] p-6 text-sm leading-7 text-[var(--muted)] sm:p-8">
             <p className="text-base font-medium text-[var(--ink)]">
-              本工具目前仅站长可用
+              登录后即可转换，先付再转
             </p>
-            <p className="mt-3">
-              为控制 AI 识别成本，MathCode 现阶段对内使用，后续将逐步开放给注册用户并设置额度。
-              若你希望优先体验或希望覆盖特定识别场景（教材、试题、化学结构式、物理受力图等），欢迎联系站长。
-            </p>
+            <ul className="mt-3 list-disc space-y-2 pl-5">
+              <li>
+                未开会员：{formatPrice(MATHCODE_GUEST_CENTS_PER_PAGE)} / 页（1 张图
+                = 1 页，PDF 一页 = 1 次），调用微信支付后再识别。
+              </li>
+              <li>
+                会员 {formatPrice(MATHCODE_MEMBERSHIP_CENTS)} / 月，含{" "}
+                {MATHCODE_MEMBERSHIP_PAGES} 页（30 ÷ 0.2 = 150，相当于{" "}
+                {formatPrice(MATHCODE_MEMBER_CENTS_PER_PAGE)} / 页）。
+              </li>
+              <li>
+                150 页用完须再开通会员，获得新的 150 页，不能按 0.5 元补差。
+              </li>
+              <li>站长账号不限次免费。</li>
+            </ul>
             <div className="mt-6 flex flex-wrap gap-3">
-              {session ? (
-                <Link href="/" className="btn btn-secondary">
-                  返回首页
-                </Link>
-              ) : (
-                <Link href="/login" className="btn btn-primary">
-                  登录
-                </Link>
-              )}
-              <Link href="/products" className="btn btn-secondary">
+              <Link href="/login?next=/products/mathcode" className="btn btn-primary min-h-11">
+                登录后使用
+              </Link>
+              <Link href="/products" className="btn btn-secondary min-h-11">
                 返回软件产品
               </Link>
             </div>

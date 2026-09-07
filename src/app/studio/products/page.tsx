@@ -8,13 +8,14 @@ import { getSession } from "@andyyyds/shared/auth";
 import { prisma } from "@andyyyds/shared/db";
 import { PRODUCT_PLAZA_ORDER_BY } from "@andyyyds/shared/product-display-order";
 import { MEETUP_PRODUCT_TYPE } from "@andyyyds/meetup/lib/meetup";
+import { MATHCODE_PRODUCT_TYPE } from "@andyyyds/shared/product-types";
 import { isAdmin } from "@andyyyds/shared/roles";
 
 export const dynamic = "force-dynamic";
 
 /**
  * 站长「产品管理」：统一管理可售 Course（单课/专栏/资料/商城）的展示次序、置顶、精华与增删改。
- * 约搭壳(MEETUP)不是可运营课程商品，排除在外，改活动请走约搭管理。
+ * 约搭壳(MEETUP)、识图壳(MATHCODE)不是可运营课程商品，排除在外。
  * 与创作者中心「课程与资料」分离：此处仅站长，面向全站运营。
  */
 export default async function StudioProductsPage() {
@@ -24,7 +25,7 @@ export default async function StudioProductsPage() {
 
   const rows = await prisma.course.findMany({
     // 约搭≠课程：产品管理勿列活动壳，避免「编辑」链进课程表单
-    where: { productType: { not: MEETUP_PRODUCT_TYPE } },
+    where: { productType: { notIn: [MEETUP_PRODUCT_TYPE, MATHCODE_PRODUCT_TYPE] } },
     include: {
       teacher: { select: { name: true } },
       category: { select: { name: true } },

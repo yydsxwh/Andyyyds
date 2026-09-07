@@ -36,6 +36,9 @@ export default async function CheckoutPage({
     if (order.course.productType === "COLUMN") {
       redirect(productDetailPath(order.course.slug, "COLUMN"));
     }
+    if (order.course.productType === "MATHCODE") {
+      redirect("/products/mathcode");
+    }
     redirect(`/learn/${order.course.slug}`);
   }
 
