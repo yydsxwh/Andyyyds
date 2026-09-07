@@ -400,19 +400,18 @@ export function DocsEditor({ initial, loggedIn }: Props) {
         <span className="text-xs text-[var(--muted)]">{saveLabel}</span>
         <button
           type="button"
-          className={`btn min-h-11 px-3 text-sm ${
-            saveState === "dirty" || saveState === "error" ? "btn-primary" : "btn-secondary"
-          }`}
+          className="btn btn-primary min-h-11 px-3 text-sm"
           disabled={saveState === "saving"}
           title="保存（Ctrl+S）"
           onClick={saveNow}
         >
-          {saveState === "saving" ? "保存中…" : "保存"}
+          {saveState === "saving" ? "保存中…" : saveState === "saved" ? "已保存" : "保存"}
+          <span className="ml-1 hidden text-[11px] font-normal opacity-80 sm:inline">Ctrl+S</span>
         </button>
         {docId === DOCS_LOCAL_ID && loggedIn ? (
           <button
             type="button"
-            className="btn btn-primary min-h-11 px-3 text-sm"
+            className="btn btn-secondary min-h-11 px-3 text-sm"
             onClick={() => void saveToCloud()}
           >
             保存到云端
@@ -421,7 +420,7 @@ export function DocsEditor({ initial, loggedIn }: Props) {
         {docId === DOCS_LOCAL_ID && !loggedIn ? (
           <Link
             href="/login?next=/products/docs/local"
-            className="btn btn-primary min-h-11 px-3 text-sm"
+            className="btn btn-secondary min-h-11 px-3 text-sm"
           >
             登录后存到云端
           </Link>
