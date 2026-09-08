@@ -61,9 +61,14 @@
 }
 
 .person-nav {
-  display: flex;
+  display: none;
   flex-wrap: wrap;
   gap: 0.25rem;
+  width: 100%;
+}
+
+.person-nav.is-open {
+  display: flex;
 }
 
 .person-nav a,
@@ -75,6 +80,18 @@
   border-radius: 999px;
   font-size: 0.9rem;
   color: var(--ps-muted);
+}
+
+/* 不用 Tailwind hidden：本文件的 display 会盖掉 utility */
+@media (min-width: 640px) {
+  .person-nav {
+    display: flex;
+    width: auto;
+    margin-left: auto;
+  }
+  .person-nav-btn {
+    display: none;
+  }
 }
 
 .person-nav a[aria-current="page"],
@@ -271,6 +288,21 @@
   --ps-navy: #102033;
   --ps-gold: #9a7b3c;
   --ps-line: rgba(16, 32, 51, 0.1);
+}
+
+.person-admin-nav {
+  display: none;
+  gap: 0.25rem;
+}
+
+.person-admin-nav.is-open {
+  display: grid;
+}
+
+@media (min-width: 640px) {
+  .person-admin-nav {
+    display: grid;
+  }
 }
 
 .person-admin-nav a[aria-current="page"] {

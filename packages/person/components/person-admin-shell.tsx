@@ -53,7 +53,7 @@ export function PersonAdminShell({ children }: { children: React.ReactNode }) {
       </button>
       <div className="grid gap-5 lg:grid-cols-[15rem_1fr]">
         <nav
-          className={`person-admin-nav grid gap-1 ${open ? "" : "hidden sm:grid"}`}
+          className={`person-admin-nav${open ? " is-open" : ""}`}
           aria-label="个人展示后台导航"
         >
           {LINKS.map((link) => {

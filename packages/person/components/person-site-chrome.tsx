@@ -42,14 +42,14 @@ export function PersonSiteChrome({ profile, children, showAdmin }: Props) {
           </Link>
           <button
             type="button"
-            className="person-nav-btn sm:hidden"
+            className="person-nav-btn"
             aria-expanded={open}
             onClick={() => setOpen((value) => !value)}
           >
             {open ? "收起菜单" : "菜单"}
           </button>
           <nav
-            className={`person-nav w-full sm:ml-auto sm:w-auto ${open ? "" : "hidden sm:flex"}`}
+            className={`person-nav${open ? " is-open" : ""}`}
             aria-label="个人展示导航"
           >
             {NAV.map((item) => (
