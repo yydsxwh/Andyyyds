@@ -2,15 +2,20 @@
 
 /**
  * 首页时钟：装扮决定样式。
- * 未启用自由画布时，站长可按视口百分比拖位置；启用后时钟铺在画布盒子里，由画布负责拖放缩放。
+ * 未启用自由画布时，站长可按视口百分比拖位置；启用后铺在画布盒子里。
+ * 点击表盘放大/缩小（本机）；时区改点城市名，避免和缩放抢点击。
  */
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
   HomeClockFace,
   HOME_CLOCK_FRAME_CLASS,
 } from "@/components/home-clock-face";
+import {
+  HOME_FLOAT_ZOOM,
+  useHomeFloatPlace,
+} from "@/components/use-home-float-place";
 import {
   DEFAULT_HOME_CLOCK,
   normalizeHomeClock,
@@ -27,8 +32,6 @@ import {
 
 const TZ_STORAGE_KEY = "yyds.homeClock.timeZone";
 const PROVERB = "一寸光阴一寸金，寸金难买寸光阴。";
-const DRAG_THRESHOLD_PX = 8;
-const EDGE_PAD_PX = 8;
 
 function readStoredTimeZone(): string {
   if (typeof window === "undefined") return DEFAULT_MEETUP_TIMEZONE;
@@ -60,23 +63,12 @@ function formatClock(now: Date, timeZone: string): string {
   }
 }
 
-function clampBox(left: number, top: number, width: number, height: number) {
-  const maxLeft = Math.max(EDGE_PAD_PX, window.innerWidth - width - EDGE_PAD_PX);
-  const maxTop = Math.max(EDGE_PAD_PX, window.innerHeight - height - EDGE_PAD_PX);
-  return {
-    left: Math.min(maxLeft, Math.max(EDGE_PAD_PX, left)),
-    top: Math.min(maxTop, Math.max(EDGE_PAD_PX, top)),
-  };
-}
-
 type Props = {
   config?: HomeClockConfig | null;
   canDrag?: boolean;
   className?: string;
-  style?: CSSProperties;
-  /** 装扮画布预览不在「/」，仍要渲染真实时钟 */
+  style?: React.CSSProperties;
   forceVisible?: boolean;
-  /** 铺满装扮指定的盒子，而不是视口固定定位那套 */
   fill?: boolean;
 };
 
@@ -92,43 +84,21 @@ export function SiteHomeClock({
   const isHome = pathname === "/";
   const visible = forceVisible || isHome;
   const clock = normalizeHomeClock(config);
-  // 画布缩放由外层把手负责，避免和视口拖动抢指针
   const allowViewportDrag = canDrag && !fill;
+  const place = useHomeFloatPlace({
+    canDrag: allowViewportDrag,
+    xPercent: clock.xPercent,
+    yPercent: clock.yPercent,
+    persistField: "homeClock",
+  });
   const [timeZone, setTimeZone] = useState(DEFAULT_MEETUP_TIMEZONE);
   const [now, setNow] = useState(() => new Date());
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [placed, setPlaced] = useState<{ x: number; y: number } | null>(() =>
-    clock.xPercent == null || clock.yPercent == null
-      ? null
-      : { x: clock.xPercent, y: clock.yPercent },
-  );
-  const [dragging, setDragging] = useState(false);
-  const [saveHint, setSaveHint] = useState("");
-  const rootRef = useRef<HTMLDivElement>(null);
-  const skipClickRef = useRef(false);
-  const dragRef = useRef<{
-    pointerId: number;
-    startX: number;
-    startY: number;
-    origLeft: number;
-    origTop: number;
-    moved: boolean;
-    lastX: number;
-    lastY: number;
-  } | null>(null);
 
   useEffect(() => {
     setTimeZone(readStoredTimeZone());
   }, []);
-
-  useEffect(() => {
-    if (clock.xPercent == null || clock.yPercent == null) {
-      setPlaced(null);
-      return;
-    }
-    setPlaced({ x: clock.xPercent, y: clock.yPercent });
-  }, [clock.xPercent, clock.yPercent]);
 
   useEffect(() => {
     if (!visible) return;
@@ -139,11 +109,11 @@ export function SiteHomeClock({
   useEffect(() => {
     if (!open) return;
     function onDoc(e: MouseEvent) {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+      if (!place.rootRef.current?.contains(e.target as Node)) setOpen(false);
     }
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
-  }, [open]);
+  }, [open, place.rootRef]);
 
   const hits = useMemo(() => searchMeetupTzCities(query, 16), [query]);
   const quick = useMemo(
@@ -158,9 +128,9 @@ export function SiteHomeClock({
 
   const label = meetupTimeZoneLabel(timeZone);
   const clockText = formatClock(now, timeZone);
-  const customPlace = placed != null;
   const frameClass =
     HOME_CLOCK_FRAME_CLASS[clock.style] || HOME_CLOCK_FRAME_CLASS.imperial;
+  const scale = place.zoomed ? HOME_FLOAT_ZOOM : 1;
 
   function pickZone(tz: string) {
     const next = normalizeMeetupTimeZone(tz);
@@ -174,159 +144,89 @@ export function SiteHomeClock({
     setQuery("");
   }
 
-  async function persistPlace(xPercent: number, yPercent: number) {
-    setSaveHint("正在保存位置…");
-    try {
-      const res = await fetch("/api/studio/decorate", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          // 只写位置，样式以库里为准，避免覆盖刚在装扮页改的表盘
-          homeClock: { xPercent, yPercent },
-        }),
-      });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(data.error || "保存失败");
-      }
-      setSaveHint("位置已保存，访客会看到这里");
-    } catch (error) {
-      setSaveHint(error instanceof Error ? error.message : "保存失败");
-    }
-  }
-
-  function onPointerDown(event: React.PointerEvent<HTMLButtonElement>) {
-    if (!allowViewportDrag || event.button !== 0) return;
-    const box = rootRef.current?.getBoundingClientRect();
-    if (!box) return;
-    dragRef.current = {
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
-      origLeft: box.left,
-      origTop: box.top,
-      moved: false,
-      lastX: placed?.x ?? 0,
-      lastY: placed?.y ?? 0,
-    };
-    event.currentTarget.setPointerCapture(event.pointerId);
-  }
-
-  function onPointerMove(event: React.PointerEvent<HTMLButtonElement>) {
-    const drag = dragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    const dx = event.clientX - drag.startX;
-    const dy = event.clientY - drag.startY;
-    if (!drag.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) return;
-    drag.moved = true;
-    setDragging(true);
-    setOpen(false);
-    const box = rootRef.current?.getBoundingClientRect();
-    const width = box?.width || 160;
-    const height = box?.height || 56;
-    const next = clampBox(drag.origLeft + dx, drag.origTop + dy, width, height);
-    const xPercent = Math.round((next.left / window.innerWidth) * 1000) / 10;
-    const yPercent = Math.round((next.top / window.innerHeight) * 1000) / 10;
-    drag.lastX = xPercent;
-    drag.lastY = yPercent;
-    setPlaced({ x: xPercent, y: yPercent });
-  }
-
-  function onPointerUp(event: React.PointerEvent<HTMLButtonElement>) {
-    const drag = dragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    dragRef.current = null;
-    setDragging(false);
-    try {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    } catch {
-      /* already released */
-    }
-    if (drag.moved) {
-      skipClickRef.current = true;
-      void persistPlace(drag.lastX, drag.lastY);
-    }
-  }
-
-  function onClockClick() {
-    if (skipClickRef.current) {
-      skipClickRef.current = false;
-      return;
-    }
-    setOpen((v) => !v);
-  }
-
-  const placeStyle = customPlace
-    ? { left: `${placed.x}%`, top: `${placed.y}%` }
+  const placeStyle = place.customPlace
+    ? { left: `${place.placed!.x}%`, top: `${place.placed!.y}%` }
     : { right: "0.75rem", top: "4.55rem" };
   const rootStyle = fill ? style : placeStyle;
-  const rootClassName = fill
-    ? `relative flex h-full min-h-11 w-full max-w-none flex-col items-stretch gap-0.5 ${className}`
-    : `fixed z-[35] flex max-w-[min(100%,20rem)] select-none flex-col items-end gap-0.5 sm:max-w-none ${
-        dragging ? "cursor-grabbing" : ""
-      } ${className}`;
 
   return (
-    <div ref={rootRef} className={rootClassName} style={rootStyle}>
-      <button
-        type="button"
+    <div
+      ref={place.rootRef}
+      className={
+        fill
+          ? `relative flex h-full min-h-11 w-full max-w-none flex-col items-stretch gap-0.5 ${className}`
+          : `fixed z-[35] flex max-w-[min(100%,20rem)] select-none flex-col items-end gap-0.5 sm:max-w-none ${
+              place.dragging ? "cursor-grabbing" : ""
+            } ${place.dragging || place.zoomed ? "z-[42]" : ""} ${className}`
+      }
+      style={rootStyle}
+    >
+      <div
         className={
           fill
-            ? `flex h-full min-h-11 w-full items-center justify-center gap-1.5 rounded-[28px] border px-2 py-1 backdrop-blur-md transition sm:px-3 ${frameClass}`
-            : `flex min-h-11 items-center gap-1 rounded-full border px-1.5 py-1 backdrop-blur-md transition sm:gap-1.5 sm:px-3 ${frameClass} ${
-                allowViewportDrag
-                  ? "touch-none cursor-grab active:cursor-grabbing"
-                  : "active:opacity-90"
-              }`
+            ? `flex h-full min-h-11 w-full items-center justify-center gap-1.5 rounded-[28px] border px-2 py-1 backdrop-blur-md transition-transform duration-200 sm:px-3 ${frameClass}`
+            : `flex min-h-11 items-center gap-1 rounded-full border px-1.5 py-1 backdrop-blur-md transition-transform duration-200 sm:gap-1.5 sm:px-3 ${frameClass}`
         }
-        aria-expanded={open}
-        aria-haspopup="dialog"
-        title={
-          allowViewportDrag
-            ? `按住拖动摆位置 · 当前时区：${label}`
-            : `当前时区：${label}（点击切换）`
-        }
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
-        onClick={onClockClick}
+        style={{ transform: `scale(${scale})`, transformOrigin: fill ? "center" : "top right" }}
       >
-        <span
-          className={
-            fill
-              ? "relative inline-flex aspect-square h-[min(4.5rem,70%)] w-auto shrink-0"
-              : "relative inline-flex h-8 w-8 shrink-0 sm:h-9 sm:w-9"
+        <button
+          type="button"
+          className={`flex min-h-11 items-center gap-1.5 touch-manipulation ${
+            allowViewportDrag ? "cursor-grab active:cursor-grabbing" : ""
+          }`}
+          aria-label={place.zoomed ? "缩小时钟" : "放大时钟"}
+          title={
+            allowViewportDrag
+              ? "按住拖动摆位置 · 点击放大或缩小"
+              : "点击放大或缩小"
           }
+          onPointerDown={place.onPointerDown}
+          onPointerMove={place.onPointerMove}
+          onPointerUp={place.onPointerUp}
+          onPointerCancel={place.onPointerUp}
+          onClick={place.onActivate}
         >
-          <HomeClockFace
-            now={now}
-            timeZone={timeZone}
-            style={clock.style}
-            className="h-full w-full"
-          />
-        </span>
-        {clock.showDigital ? (
           <span
             className={
               fill
-                ? "min-w-0 truncate tabular-nums text-sm font-semibold tracking-wide"
-                : "hidden tabular-nums text-sm font-semibold tracking-wide min-[480px]:inline"
+                ? "relative inline-flex aspect-square h-[min(4.5rem,70%)] w-auto shrink-0"
+                : "relative inline-flex h-8 w-8 shrink-0 sm:h-9 sm:w-9"
             }
           >
-            {clockText}
+            <HomeClockFace
+              now={now}
+              timeZone={timeZone}
+              style={clock.style}
+              className="h-full w-full"
+            />
           </span>
-        ) : null}
-        <span
+          {clock.showDigital ? (
+            <span
+              className={
+                fill
+                  ? "min-w-0 truncate tabular-nums text-sm font-semibold tracking-wide"
+                  : "hidden tabular-nums text-sm font-semibold tracking-wide min-[480px]:inline"
+              }
+            >
+              {clockText}
+            </span>
+          ) : null}
+        </button>
+        <button
+          type="button"
           className={
             fill
               ? "hidden min-w-0 max-w-[7rem] truncate text-xs opacity-80 min-[360px]:inline"
               : "hidden max-w-[5.5rem] truncate text-xs opacity-80 sm:inline"
           }
+          aria-expanded={open}
+          aria-haspopup="dialog"
+          title={`当前时区：${label}（点击切换）`}
+          onClick={() => setOpen((v) => !v)}
         >
           {label}
-        </span>
-      </button>
+        </button>
+      </div>
 
       {clock.showProverb ? (
         <p
@@ -343,7 +243,7 @@ export function SiteHomeClock({
 
       {allowViewportDrag ? (
         <p className="hidden text-[10px] leading-4 text-[var(--muted)] sm:block">
-          {saveHint || "按住时钟拖动，松手保存位置"}
+          {place.saveHint || "按住拖动，点击放大；点城市名改时区"}
         </p>
       ) : null}
 

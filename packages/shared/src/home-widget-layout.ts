@@ -4,7 +4,12 @@
  */
 
 export const HOME_WIDGET_CLOCK_ID = "clock";
+export const HOME_WIDGET_LOGO_ID = "logo";
 export const HOME_WIDGET_NAV_PREFIX = "nav:";
+
+export function isHomeWidgetFixedId(id: string) {
+  return id === HOME_WIDGET_CLOCK_ID || id === HOME_WIDGET_LOGO_ID;
+}
 
 /** 触控可点的最小高度；再矮微信里很难拖、也难看清标题 */
 export const HOME_WIDGET_MIN_H_PX = 56;
@@ -113,6 +118,12 @@ export function defaultHomeWidgetBoxes(
   navKeys: string[],
 ): Record<string, HomeWidgetBox> {
   const items: Record<string, HomeWidgetBox> = {
+    [HOME_WIDGET_LOGO_ID]: clampHomeWidgetBox({
+      xPct: 2,
+      yPx: 8,
+      wPct: 22,
+      hPx: 120,
+    }),
     [HOME_WIDGET_CLOCK_ID]: clampHomeWidgetBox({
       xPct: 68,
       yPx: 8,
@@ -178,7 +189,7 @@ export function normalizeHomeWidgetLayout(
       .trim()
       .slice(0, 64);
     if (!id) continue;
-    if (id !== HOME_WIDGET_CLOCK_ID && !isHomeWidgetNavId(id)) continue;
+    if (!isHomeWidgetFixedId(id) && !isHomeWidgetNavId(id)) continue;
     items[id] = clampHomeWidgetBox(rawBox);
   }
   return {

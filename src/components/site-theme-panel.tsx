@@ -20,6 +20,14 @@ import {
   normalizeHomeClock,
   type HomeClockConfig,
 } from "@andyyyds/shared/home-clock";
+import {
+  HOME_LOGO_ALT,
+  HOME_LOGO_ANIM_SRC,
+  HOME_LOGO_STILL_SRC,
+  homeLogoEqual,
+  normalizeHomeLogo,
+  type HomeLogoConfig,
+} from "@andyyyds/shared/home-logo";
 import { resolveThemeFx } from "@andyyyds/shared/site-theme-islands";
 import {
   DEFAULT_FONT_SIZES,
@@ -69,7 +77,7 @@ import {
   type TypographyConfig,
 } from "@andyyyds/shared/site-typography";
 
-type TabKey = "packs" | "backgrounds" | "palettes" | "layout" | "type" | "clock";
+type TabKey = "packs" | "backgrounds" | "palettes" | "layout" | "type" | "clock" | "logo";
 type PaletteFilter = "all" | ThemePaletteCategory;
 type PackFilter = "all" | ThemePackCategory;
 
@@ -82,6 +90,7 @@ type ThemeDraft = {
   fontSizes: FontSizesConfig;
   typography: TypographyConfig;
   homeClock: HomeClockConfig;
+  homeLogo: HomeLogoConfig;
 };
 
 type Props = {
@@ -95,6 +104,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "layout", label: "换版式" },
   { key: "type", label: "文字" },
   { key: "clock", label: "时钟" },
+  { key: "logo", label: "颗秒标" },
 ];
 
 function draftFromConfig(config: DecorateConfig): ThemeDraft {
@@ -106,6 +116,7 @@ function draftFromConfig(config: DecorateConfig): ThemeDraft {
     fontSizes: normalizeFontSizes(config.fontSizes),
     typography: normalizeTypography(config.typography),
     homeClock: normalizeHomeClock(config.homeClock),
+    homeLogo: normalizeHomeLogo(config.homeLogo),
   };
 }
 
@@ -124,7 +135,8 @@ function draftsEqual(a: ThemeDraft, b: ThemeDraft): boolean {
   return (
     sizesMatch &&
     typographyEqual(a.typography, b.typography) &&
-    homeClockEqual(a.homeClock, b.homeClock)
+    homeClockEqual(a.homeClock, b.homeClock) &&
+    homeLogoEqual(a.homeLogo, b.homeLogo)
   );
 }
 
@@ -152,6 +164,7 @@ export function SiteThemePanel({ initial }: Props) {
     fontSizes,
     typography,
     homeClock,
+    homeLogo,
   } = draft;
   const isDirty = !draftsEqual(draft, saved);
   const savedRef = useRef(saved);
@@ -182,6 +195,7 @@ export function SiteThemePanel({ initial }: Props) {
     initial.fontSizes?.filterTag,
     initial.typography,
     initial.homeClock,
+    initial.homeLogo,
   ]);
 
   // 未保存离开页：浏览器原生提示（站内 Link 无法拦截，靠文案提醒）
@@ -315,6 +329,7 @@ export function SiteThemePanel({ initial }: Props) {
       fontSizes: draft.fontSizes,
       typography: draft.typography,
       homeClock: draft.homeClock,
+      homeLogo: draft.homeLogo,
     });
     setMessage(`已试穿「${pack.name}」，请点「保存装扮」后全站生效`);
   }
@@ -390,6 +405,14 @@ export function SiteThemePanel({ initial }: Props) {
     setMessage("已试穿时钟，请点「保存装扮」后全站生效");
   }
 
+  function applyHomeLogo(patch: Partial<HomeLogoConfig>) {
+    setDraft((prev) => ({
+      ...prev,
+      homeLogo: normalizeHomeLogo({ ...prev.homeLogo, ...patch }),
+    }));
+    setMessage("已试穿颗秒标，请点「保存装扮」后全站生效");
+  }
+
   function resetDraft() {
     // 撤销到上次成功写入 decorateJson 的组合，而不是清空
     setDraft(saved);
@@ -413,6 +436,7 @@ export function SiteThemePanel({ initial }: Props) {
         typography,
         // 未改时钟时不回写，避免覆盖首页刚拖好的位置
         ...(homeClockEqual(homeClock, saved.homeClock) ? {} : { homeClock }),
+        ...(homeLogoEqual(homeLogo, saved.homeLogo) ? {} : { homeLogo }),
       }),
     });
     setSaving(false);
@@ -511,7 +535,7 @@ export function SiteThemePanel({ initial }: Props) {
           </p>
         ) : (
           <p className="mt-2 text-xs text-[var(--muted)]">
-            点选主题/背景/配色/时钟只在本页试穿，不会自动改全站；确认后必须点「保存装扮」。时钟位置请回首页按住拖动。
+            点选主题/背景/配色/时钟/颗秒标只在本页试穿，不会自动改全站；确认后必须点「保存装扮」。位置请回首页按住拖动。
           </p>
         )}
       </div>
@@ -560,7 +584,7 @@ export function SiteThemePanel({ initial }: Props) {
             点击下方仅试穿，需点「保存装扮」才改全站
           </span>
         </div>
-        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
           <CurrentSlot
             label="主题包"
             title={currentPack?.name || "自定义"}
@@ -593,6 +617,11 @@ export function SiteThemePanel({ initial }: Props) {
             label="时钟"
             title={HOME_CLOCK_STYLE_META[homeClock.style]?.name || "皇家金"}
             preview="linear-gradient(145deg, #1a140c, #d4af37 55%, #f3e6c4)"
+          />
+          <CurrentSlot
+            label="颗秒标"
+            title={homeLogo.visible ? (homeLogo.useAnimation ? "动画" : "静帧") : "已隐藏"}
+            preview="radial-gradient(circle at 40% 35%, #7cff6b, #1a140c 70%)"
           />
         </div>
       </div>
@@ -875,6 +904,10 @@ export function SiteThemePanel({ initial }: Props) {
 
       {tab === "clock" ? (
         <ClockTab clock={homeClock} onChange={applyHomeClock} />
+      ) : null}
+
+      {tab === "logo" ? (
+        <LogoTab logo={homeLogo} onChange={applyHomeLogo} />
       ) : null}
     </div>
   );
@@ -1276,7 +1309,7 @@ function ClockTab({
     <section className="space-y-5">
       <Header
         title="首页时钟"
-        hint="选一套奢华表盘；位置请回首页按住时钟拖动，松手即保存。访客看到同一套样式和位置。"
+        hint="选一套奢华表盘；位置请回首页按住时钟拖动，松手即保存。点击表盘可放大或缩小（只影响本机）。访客看到同一套样式和位置。"
       />
 
       <div
@@ -1362,7 +1395,7 @@ function ClockTab({
 
       <div className="flex flex-col gap-2 rounded-2xl border border-[var(--line)] bg-white/80 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-[var(--muted)]">
-          想改位置：打开首页，按住时钟拖到想要的地方。窄屏微信里同样可拖。
+          想改位置：打开首页，按住时钟拖到想要的地方。点击表盘放大或缩小。改时区请点城市名。
         </p>
         <button
           type="button"
@@ -1371,6 +1404,84 @@ function ClockTab({
           onClick={() => onChange({ xPercent: null, yPercent: null })}
         >
           恢复默认右上角
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function LogoTab({
+  logo,
+  onChange,
+}: {
+  logo: HomeLogoConfig;
+  onChange: (patch: Partial<HomeLogoConfig>) => void;
+}) {
+  const placed =
+    logo.xPercent != null && logo.yPercent != null
+      ? `距左 ${logo.xPercent}% · 距顶 ${logo.yPercent}%`
+      : "默认：顶栏左下角，与时钟对称";
+  const previewSrc = logo.useAnimation ? HOME_LOGO_ANIM_SRC : HOME_LOGO_STILL_SRC;
+
+  return (
+    <section className="space-y-5">
+      <Header
+        title="首页颗秒标"
+        hint="从颗秒抠图素材里选用了透明底静帧和压缩后的旋转动画。位置请回首页按住拖动；点击可放大或缩小（只影响本机）。"
+      />
+
+      <div className="flex flex-col items-center gap-3 rounded-[22px] border border-[var(--line)] bg-white/80 px-4 py-6 sm:flex-row sm:items-center sm:justify-center sm:gap-5">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={previewSrc}
+          alt={HOME_LOGO_ALT}
+          width={128}
+          height={128}
+          className="h-28 w-28 object-contain"
+        />
+        <div className="text-center sm:text-left">
+          <p className="text-lg font-semibold tracking-wide">
+            {logo.visible ? (logo.useAnimation ? "旋转动画" : "透明静帧") : "已隐藏"}
+          </p>
+          <p className="mt-1 text-sm text-[var(--muted)]">
+            动画已压到约 0.5MB，避免原 15MB GIF 在微信里拖垮首页。
+          </p>
+          <p className="mt-2 text-xs text-[var(--muted)]">当前摆放：{placed}</p>
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="flex min-h-12 items-center justify-between gap-3 rounded-2xl border border-[var(--line)] bg-white/90 px-4">
+          <span className="text-sm">首页显示颗秒标</span>
+          <input
+            type="checkbox"
+            className="h-5 w-5 accent-[var(--brand)]"
+            checked={logo.visible}
+            onChange={(event) => onChange({ visible: event.target.checked })}
+          />
+        </label>
+        <label className="flex min-h-12 items-center justify-between gap-3 rounded-2xl border border-[var(--line)] bg-white/90 px-4">
+          <span className="text-sm">使用旋转动画</span>
+          <input
+            type="checkbox"
+            className="h-5 w-5 accent-[var(--brand)]"
+            checked={logo.useAnimation}
+            onChange={(event) => onChange({ useAnimation: event.target.checked })}
+          />
+        </label>
+      </div>
+
+      <div className="flex flex-col gap-2 rounded-2xl border border-[var(--line)] bg-white/80 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-[var(--muted)]">
+          想改位置：打开首页，按住颗秒标拖到想要的地方。点击放大或缩小。窄屏微信里同样可拖、可点。
+        </p>
+        <button
+          type="button"
+          className="btn btn-secondary min-h-11 shrink-0 px-4 text-sm"
+          disabled={logo.xPercent == null && logo.yPercent == null}
+          onClick={() => onChange({ xPercent: null, yPercent: null })}
+        >
+          恢复默认左上角
         </button>
       </div>
     </section>

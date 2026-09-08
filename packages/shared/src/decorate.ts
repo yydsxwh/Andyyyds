@@ -28,6 +28,11 @@ import {
   normalizeHomeClock,
   type HomeClockConfig,
 } from "@andyyyds/shared/home-clock";
+import {
+  DEFAULT_HOME_LOGO,
+  normalizeHomeLogo,
+  type HomeLogoConfig,
+} from "@andyyyds/shared/home-logo";
 
 export type { HomeWidgetBox, HomeWidgetLayoutConfig } from "@andyyyds/shared/home-widget-layout";
 
@@ -89,6 +94,8 @@ export type DecorateConfig = {
   typography: TypographyConfig;
   /** 首页时钟样式与摆放；未配置时用右上默认角 */
   homeClock: HomeClockConfig;
+  /** 首页颗秒标摆放；未配置时默认左上，与时钟对称 */
+  homeLogo: HomeLogoConfig;
   /** 首页时钟与门户卡片的自由位置/尺寸；未启用时保持顶栏时钟 + 栅格 */
   homeWidgetLayout: HomeWidgetLayoutConfig;
 };
@@ -139,6 +146,7 @@ export const DEFAULT_DECORATE: DecorateConfig = {
   fontSizes: { ...DEFAULT_FONT_SIZES },
   typography: structuredClone(DEFAULT_TYPOGRAPHY),
   homeClock: { ...DEFAULT_HOME_CLOCK },
+  homeLogo: { ...DEFAULT_HOME_LOGO },
   homeWidgetLayout: structuredClone(DEFAULT_HOME_WIDGET_LAYOUT),
 };
 
@@ -270,6 +278,7 @@ export function parseDecorate(raw: string | null | undefined): DecorateConfig {
       ),
       ...theme,
       homeClock: normalizeHomeClock(parsed.homeClock),
+      homeLogo: normalizeHomeLogo(parsed.homeLogo),
       homeWidgetLayout: normalizeHomeWidgetLayout(parsed.homeWidgetLayout),
     };
   } catch {
