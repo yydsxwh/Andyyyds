@@ -59,6 +59,36 @@ function Section({
   );
 }
 
+function ContactChip({
+  chip,
+  prefix = "",
+}: {
+  chip: { key: string; label: string; value: string; href: string };
+  prefix?: string;
+}) {
+  const text = chip.value !== chip.label ? chip.value : "";
+  if (chip.href) {
+    return (
+      <a
+        key={`${prefix}${chip.key}`}
+        href={chip.href}
+        className="person-chip"
+        target={chip.href.startsWith("http") ? "_blank" : undefined}
+        rel="noopener noreferrer"
+      >
+        <strong>{chip.label}</strong>
+        {text}
+      </a>
+    );
+  }
+  return (
+    <span key={`${prefix}${chip.key}`} className="person-chip">
+      <strong>{chip.label}</strong>
+      {text}
+    </span>
+  );
+}
+
 function socialChips(accounts: PersonSocialAccounts) {
   const items: { label: string; href: string }[] = [];
   if (accounts.bilibili) items.push({ label: PERSON_SOCIAL_PLATFORM_LABEL.BILIBILI, href: accounts.bilibili });
@@ -126,19 +156,9 @@ export function PersonSiteHome({
 
       {chips.length || media.length ? (
         <div className="mt-5 flex flex-wrap gap-2">
-          {chips.map((chip) =>
-            chip.href ? (
-              <a key={chip.key} href={chip.href} className="person-chip" target={chip.href.startsWith("http") ? "_blank" : undefined} rel="noopener noreferrer">
-                <strong>{chip.label}</strong>
-                {chip.value}
-              </a>
-            ) : (
-              <span key={chip.key} className="person-chip">
-                <strong>{chip.label}</strong>
-                {chip.value}
-              </span>
-            ),
-          )}
+          {chips.map((chip) => (
+            <ContactChip key={chip.key} chip={chip} />
+          ))}
           {media.map((item) => (
             <a
               key={item.label}
@@ -276,25 +296,9 @@ export function PersonSiteHome({
               邮件、电话与常见社交账号都可以直接点开。微信 / QQ 请按号码添加。
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
-              {chips.map((chip) =>
-                chip.href ? (
-                  <a
-                    key={`contact-${chip.key}`}
-                    href={chip.href}
-                    className="person-chip"
-                    target={chip.href.startsWith("http") ? "_blank" : undefined}
-                    rel="noopener noreferrer"
-                  >
-                    <strong>{chip.label}</strong>
-                    {chip.value}
-                  </a>
-                ) : (
-                  <span key={`contact-${chip.key}`} className="person-chip">
-                    <strong>{chip.label}</strong>
-                    {chip.value}
-                  </span>
-                ),
-              )}
+              {chips.map((chip) => (
+                <ContactChip key={`contact-${chip.key}`} chip={chip} prefix="contact-" />
+              ))}
               {media.map((item) => (
                 <a
                   key={`contact-media-${item.label}`}
