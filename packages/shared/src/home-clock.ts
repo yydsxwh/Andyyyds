@@ -25,6 +25,8 @@ export type HomeClockConfig = {
   yPercent: number | null;
   showDigital: boolean;
   showProverb: boolean;
+  /** false 后首页不画时钟；点开后的「隐藏」站长会写这个 */
+  visible: boolean;
 };
 
 export const DEFAULT_HOME_CLOCK: HomeClockConfig = {
@@ -33,6 +35,7 @@ export const DEFAULT_HOME_CLOCK: HomeClockConfig = {
   yPercent: null,
   showDigital: true,
   showProverb: true,
+  visible: true,
 };
 
 export const HOME_CLOCK_STYLE_META: Record<
@@ -79,6 +82,7 @@ export function normalizeHomeClock(
       typeof raw?.showProverb === "boolean"
         ? raw.showProverb
         : DEFAULT_HOME_CLOCK.showProverb,
+    visible: raw?.visible !== false,
   };
 }
 
@@ -88,6 +92,7 @@ export function homeClockEqual(a: HomeClockConfig, b: HomeClockConfig): boolean 
     a.xPercent === b.xPercent &&
     a.yPercent === b.yPercent &&
     a.showDigital === b.showDigital &&
-    a.showProverb === b.showProverb
+    a.showProverb === b.showProverb &&
+    a.visible === b.visible
   );
 }

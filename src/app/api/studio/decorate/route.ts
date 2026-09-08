@@ -22,6 +22,7 @@ import {
   HOME_CLOCK_STYLES,
   normalizeHomeClock,
 } from "@andyyyds/shared/home-clock";
+import { normalizeHomeLogo } from "@andyyyds/shared/home-logo";
 import { requireAdmin, studioErrorResponse } from "@andyyyds/shared/studio";
 import {
   getSiteSettings,
@@ -90,6 +91,27 @@ const patchSchema = z.object({
       yPercent: z.number().min(0).max(100).nullable().optional(),
       showDigital: z.boolean().optional(),
       showProverb: z.boolean().optional(),
+      visible: z.boolean().optional(),
+    })
+    .optional(),
+  homeLogo: z
+    .object({
+      visible: z.boolean().optional(),
+      xPercent: z.number().min(0).max(100).nullable().optional(),
+      yPercent: z.number().min(0).max(100).nullable().optional(),
+      useAnimation: z.boolean().optional(),
+      pngLogos: z
+        .array(
+          z.object({
+            id: z.string().min(1).max(64),
+            url: z.string().min(1).max(800),
+            visible: z.boolean().optional(),
+            xPercent: z.number().min(0).max(100).nullable().optional(),
+            yPercent: z.number().min(0).max(100).nullable().optional(),
+          }),
+        )
+        .max(8)
+        .optional(),
     })
     .optional(),
   homeWidgetLayout: z
@@ -177,6 +199,10 @@ export async function PATCH(req: Request) {
       ...current.homeClock,
       ...(body.homeClock || {}),
     });
+    const homeLogo = normalizeHomeLogo({
+      ...current.homeLogo,
+      ...(body.homeLogo || {}),
+    });
     // 局部 PATCH 不传此字段时保留库中摆放，避免主题/门面保存把布局冲掉
     const homeWidgetLayout = normalizeHomeWidgetLayout(
       body.homeWidgetLayout ?? current.homeWidgetLayout,
@@ -223,6 +249,7 @@ export async function PATCH(req: Request) {
       fontSizes,
       typography,
       homeClock,
+      homeLogo,
       homeWidgetLayout,
     };
 

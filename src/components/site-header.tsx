@@ -2,6 +2,8 @@ import Link from "next/link";
 import { ChatUnreadBadge } from "@/components/chat/chat-unread-badge";
 import { SiteHeaderNav, type HeaderNavLink } from "@/components/site-header-nav";
 import { SiteHomeClock } from "@/components/site-home-clock";
+import { SiteHomeLogo } from "@/components/site-home-logo";
+import { SiteHomePngLogos } from "@/components/site-home-png-logos";
 import { UserAvatar } from "@/components/user-avatar";
 import { getSession } from "@andyyyds/shared/auth";
 import { DEFAULT_LOGO_URL } from "@andyyyds/shared/decorate";
@@ -247,11 +249,21 @@ export async function SiteHeader() {
     </header>
     {/* 自由布局启用后时钟改走首页画布，避免顶栏与画布各画一只 */}
     {decorate.homeWidgetLayout?.enabled ? null : (
-      <SiteHomeClock
-        config={decorate.homeClock}
-        canDrag={Boolean(session && canManageDecorate(session))}
-      />
+      <>
+        <SiteHomeLogo
+          config={decorate.homeLogo}
+          canDrag={Boolean(session && canManageDecorate(session))}
+        />
+        <SiteHomeClock
+          config={decorate.homeClock}
+          canDrag={Boolean(session && canManageDecorate(session))}
+        />
+      </>
     )}
+    <SiteHomePngLogos
+      config={decorate.homeLogo}
+      canDrag={Boolean(session && canManageDecorate(session))}
+    />
     </>
   );
 }

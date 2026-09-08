@@ -454,6 +454,7 @@ function ClassicHomeByOrder({
                 modules={modules}
                 layout={decorate.homeWidgetLayout}
                 clockConfig={decorate.homeClock}
+                logoConfig={decorate.homeLogo}
               />
             ) : (
               <PortalEntranceSection key="portal" modules={modules} />
@@ -490,6 +491,7 @@ function ClassicHomeByOrder({
           modules={modules}
           layout={decorate.homeWidgetLayout}
           clockConfig={decorate.homeClock}
+          logoConfig={decorate.homeLogo}
         />
       ) : null}
     </div>
@@ -722,6 +724,7 @@ export default async function HomePage() {
             modules={modules}
             layout={decorate.homeWidgetLayout}
             clockConfig={decorate.homeClock}
+            logoConfig={decorate.homeLogo}
           />
         ) : null}
         <PageModulesView
