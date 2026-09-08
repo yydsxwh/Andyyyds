@@ -2,7 +2,7 @@
   "name": "@andyyyds/person",
   "version": "0.1.0",
   "private": true,
-  "description": "Andyyyds 个人IP",
+  "description": "Andyyyds 个人展示站：档案、项目、博客、作品与独立后台",
   "exports": {
     "./*": "./*"
   },
