@@ -86,7 +86,12 @@ export function normalizeHomePngLogos(
 }
 
 export function normalizeHomeLogo(
-  raw: Partial<HomeLogoConfig> | null | undefined,
+  raw:
+    | (Partial<Omit<HomeLogoConfig, "pngLogos">> & {
+        pngLogos?: unknown;
+      })
+    | null
+    | undefined,
 ): HomeLogoConfig {
   return {
     visible: raw?.visible !== false,
