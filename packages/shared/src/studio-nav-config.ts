@@ -54,6 +54,7 @@ export const STUDIO_ADMIN_HUB_NAV_KEYS = [
   "cms",
   "wechat-mp",
   "person-social",
+  "person-site",
   "bg-music",
   "settings",
 ] as const;
@@ -89,6 +90,7 @@ export const DEFAULT_STUDIO_NAV: StudioNavConfig = {
     { key: "cms", label: "内容管理", href: "/studio/cms" },
     { key: "wechat-mp", label: "公众号宣传", href: "/studio/wechat-mp" },
     { key: "person-social", label: "个人IP投稿", href: "/studio/person-social" },
+    { key: "person-site", label: "个人展示后台", href: "/person-admin" },
     { key: "bg-music", label: "背景音乐", href: "/studio/bg-music" },
     { key: "settings", label: "系统设置", href: "/studio/settings" },
   ],
@@ -188,6 +190,15 @@ function migrateStoredSections(parsed: Partial<StudioNavConfig>): {
       (item) => String(item.key || "") === "wechat-mp",
     );
     if (wechatIdx >= 0) topAdmin.splice(wechatIdx + 1, 0, entry);
+    else topAdmin.push(entry);
+  }
+  if (!seenAdmin.has("person-site")) {
+    seenAdmin.add("person-site");
+    const entry = { key: "person-site" };
+    const socialIdx = topAdmin.findIndex(
+      (item) => String(item.key || "") === "person-social",
+    );
+    if (socialIdx >= 0) topAdmin.splice(socialIdx + 1, 0, entry);
     else topAdmin.push(entry);
   }
 

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { StudioNav } from "@/components/studio-nav";
 import { StudioPersonSocialPanel } from "@andyyyds/person/components/studio-person-social-panel";
@@ -18,8 +19,11 @@ export default async function StudioPersonSocialPage() {
       <div>
         <h1 className="text-2xl font-semibold">个人IP投稿</h1>
         <p className="mt-2 text-sm text-[var(--muted)]">
-          同步自己的抖音、B站、小红书、微信视频号投稿和合集，展示在前台「个人介绍」。用法和公众号宣传类似。
+          同步自己的抖音、B站、小红书、微信视频号投稿和合集。档案、项目、博客等请到独立的个人展示后台。
         </p>
+        <Link href="/person-admin" className="btn btn-primary mt-3 inline-flex min-h-11 px-4 text-sm">
+          打开个人展示后台
+        </Link>
       </div>
       <StudioPersonSocialPanel />
     </div>

@@ -1,0 +1,347 @@
+/* 个人展示站：职场商务，暖纸 + 海军蓝 + 金线。仅包在 .person-site 内，不影响全站玻璃风。 */
+
+.person-site {
+  --ps-navy: #102033;
+  --ps-navy-soft: #1b334d;
+  --ps-ink: #162433;
+  --ps-muted: #5d6d7e;
+  --ps-line: rgba(16, 32, 51, 0.1);
+  --ps-gold: #9a7b3c;
+  --ps-gold-soft: rgba(154, 123, 60, 0.12);
+  --ps-paper: #f4f1ea;
+  --ps-card: #fffcf7;
+  --ps-white: #ffffff;
+  background: radial-gradient(ellipse 80% 40% at 100% 0%, rgba(154, 123, 60, 0.08), transparent 50%),
+    linear-gradient(180deg, #f7f4ee 0%, var(--ps-paper) 40%, #efe8dc 100%);
+  color: var(--ps-ink);
+  min-height: 70vh;
+}
+
+.person-site a {
+  color: inherit;
+}
+
+.person-top {
+  position: sticky;
+  top: 3.5rem;
+  z-index: 30;
+  border-bottom: 1px solid var(--ps-line);
+  background: rgba(255, 252, 247, 0.92);
+}
+
+@media (min-width: 640px) {
+  .person-top {
+    top: 4rem;
+  }
+}
+
+.person-top-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+  min-height: 3.5rem;
+  padding: 0.55rem 0;
+}
+
+.person-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-height: 2.75rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+}
+
+.person-brand-mark {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  background: var(--ps-gold);
+}
+
+.person-nav {
+  display: none;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  width: 100%;
+}
+
+.person-nav.is-open {
+  display: flex;
+}
+
+.person-nav a,
+.person-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0 0.85rem;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  color: var(--ps-muted);
+}
+
+/* 不用 Tailwind hidden：本文件的 display 会盖掉 utility */
+@media (min-width: 640px) {
+  .person-nav {
+    display: flex;
+    width: auto;
+    margin-left: auto;
+  }
+  .person-nav-btn {
+    display: none;
+  }
+}
+
+.person-nav a[aria-current="page"],
+.person-nav a:active {
+  color: var(--ps-navy);
+  background: var(--ps-gold-soft);
+}
+
+.person-hero {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--ps-line);
+  border-radius: 28px;
+  background: var(--ps-navy);
+  color: #f6f1e7;
+}
+
+.person-hero-cover {
+  display: block;
+  width: 100%;
+  height: 180px;
+  object-fit: cover;
+  opacity: 0.45;
+}
+
+.person-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(16, 32, 51, 0.15) 0%, rgba(16, 32, 51, 0.88) 72%);
+  pointer-events: none;
+}
+
+@media (min-width: 640px) {
+  .person-hero-cover {
+    height: 240px;
+  }
+}
+
+.person-hero-body {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 1.25rem;
+  padding: 1.25rem 1.15rem 1.6rem;
+}
+
+@media (min-width: 768px) {
+  .person-hero-body {
+    grid-template-columns: auto 1fr;
+    align-items: end;
+    padding: 1.6rem 1.8rem 1.9rem;
+  }
+}
+
+.person-avatar {
+  width: 112px;
+  height: 112px;
+  border-radius: 999px;
+  object-fit: cover;
+  border: 3px solid #f3e6c8;
+  background: var(--ps-navy-soft);
+}
+
+.person-kicker {
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #d4c19a;
+}
+
+.person-name {
+  margin-top: 0.35rem;
+  font-size: clamp(1.8rem, 4vw, 2.7rem);
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+}
+
+.person-headline {
+  margin-top: 0.45rem;
+  max-width: 38rem;
+  font-size: 1.05rem;
+  line-height: 1.7;
+  color: rgba(246, 241, 231, 0.82);
+}
+
+.person-card {
+  border: 1px solid var(--ps-line);
+  border-radius: 24px;
+  background: var(--ps-card);
+  box-shadow: 0 10px 30px rgba(16, 32, 51, 0.04);
+}
+
+.person-section-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  font-size: 1.35rem;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+}
+
+.person-section-title::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--ps-gold), transparent);
+}
+
+.person-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0 0.9rem;
+  border: 1px solid var(--ps-line);
+  border-radius: 999px;
+  background: var(--ps-white);
+  font-size: 0.88rem;
+}
+
+.person-chip strong {
+  margin-right: 0.4rem;
+  color: var(--ps-gold);
+  font-weight: 650;
+}
+
+.person-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 640px) {
+  .person-grid-2 {
+    grid-template-columns: 1fr 1fr;
+  }
+  .person-grid-3 {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
+.person-tile {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 11rem;
+  text-align: left;
+}
+
+.person-tile img {
+  width: 100%;
+  height: 10rem;
+  object-fit: cover;
+}
+
+.person-tile-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 1rem 1.05rem 1.15rem;
+}
+
+.person-meta {
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  color: var(--ps-gold);
+}
+
+.person-empty {
+  padding: 1.2rem 0;
+  color: var(--ps-muted);
+  font-size: 0.95rem;
+}
+
+.person-footer {
+  margin-top: 2.5rem;
+  padding: 1.4rem 0 2.4rem;
+  border-top: 1px solid var(--ps-line);
+  color: var(--ps-muted);
+  font-size: 0.85rem;
+}
+
+.person-prose {
+  font-size: 1.05rem;
+  line-height: 1.9;
+}
+
+.person-prose p + p {
+  margin-top: 1rem;
+}
+
+.person-file-preview {
+  overflow: hidden;
+  border-radius: 18px;
+  background: #fff;
+}
+
+.person-file-media {
+  display: block;
+  width: 100%;
+  max-height: 28rem;
+  object-fit: contain;
+  background: #111827;
+}
+
+.person-file-frame {
+  display: block;
+  width: 100%;
+  min-height: 22rem;
+  border: 0;
+  background: #fff;
+}
+
+.person-code {
+  margin: 0;
+  max-height: 22rem;
+  overflow: auto;
+  padding: 1rem;
+  border-radius: 16px;
+  background: #122033;
+  color: #f4f1ea;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.person-admin {
+  --ps-navy: #102033;
+  --ps-gold: #9a7b3c;
+  --ps-line: rgba(16, 32, 51, 0.1);
+}
+
+.person-admin-nav {
+  display: none;
+  gap: 0.25rem;
+}
+
+.person-admin-nav.is-open {
+  display: grid;
+}
+
+@media (min-width: 640px) {
+  .person-admin-nav {
+    display: grid;
+  }
+}
+
+.person-admin-nav a[aria-current="page"] {
+  background: rgba(154, 123, 60, 0.14);
+  color: #102033;
+}

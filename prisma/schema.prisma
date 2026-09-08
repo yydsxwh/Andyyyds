@@ -839,6 +839,59 @@ model PersonSocialAlbumItem {
   @@index([sourceUrlKey])
 }
 
+/// 个人展示站档案。单独一张表，以后拆独立域名/服务器时整包迁走即可。
+model PersonProfile {
+  id          String   @id @default("default")
+  displayName String   @default("")
+  headline    String   @default("")
+  about       String   @default("")
+  avatarUrl   String   @default("")
+  coverUrl    String   @default("")
+  location    String   @default("")
+  email       String   @default("")
+  phone       String   @default("")
+  wechat      String   @default("")
+  qq          String   @default("")
+  website     String   @default("")
+  github      String   @default("")
+  linkedin    String   @default("")
+  zhihu       String   @default("")
+  weibo       String   @default("")
+  /// [{label,value,href}] 额外联系方式，避免每加一种就改表
+  extraContacts String @default("[]")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+/// 个人展示站条目：简历/视频介绍/项目/博客/作品/荣誉/成绩/实践/活动/兴趣/照片
+model PersonEntry {
+  id         String    @id @default(cuid())
+  /// RESUME | INTRO_VIDEO | PROJECT | BLOG | PORTFOLIO | HONOR | GRADE | PRACTICE | ACTIVITY | INTEREST | PHOTO
+  kind       String
+  title      String    @default("")
+  summary    String    @default("")
+  body       String    @default("")
+  coverUrl   String    @default("")
+  /// 作品/相册多图 JSON 字符串数组
+  images     String    @default("[]")
+  /// [{id,name,url,mime,size,kind}] 栏目附件：文档/视频/代码/压缩包等
+  files      String    @default("[]")
+  org        String    @default("")
+  role       String    @default("")
+  period     String    @default("")
+  location   String    @default("")
+  link       String    @default("")
+  sortOrder  Int       @default(0)
+  published  Boolean   @default(true)
+  featured   Boolean   @default(false)
+  occurredAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([kind, published, sortOrder])
+  @@index([kind, featured])
+}
+
 /// 公众号已发表图文（freepublish 同步到本站「公司宣传」）
 model WechatMpArticle {
   id           String   @id @default(cuid())

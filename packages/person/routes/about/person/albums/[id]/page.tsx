@@ -1,11 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import { PersonSiteChrome } from "@andyyyds/person/components/person-site-chrome";
 import { getPersonSocialAlbumDetail } from "@andyyyds/person/lib/person-social-album";
 import {
   PERSON_SOCIAL_PLATFORM_LABEL,
   type PersonSocialPlatform,
 } from "@andyyyds/person/lib/person-social";
+import { getPersonProfile } from "@andyyyds/person/lib/person-site-store";
+import { getSession } from "@andyyyds/shared/auth";
+import { isAdmin } from "@andyyyds/shared/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -20,14 +24,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function PersonAlbumPage({ params }: Props) {
   const { id } = await params;
-  const album = await getPersonSocialAlbumDetail(id);
+  const [album, profile, session] = await Promise.all([
+    getPersonSocialAlbumDetail(id),
+    getPersonProfile(),
+    getSession(),
+  ]);
   if (!album) notFound();
   const platformLabel =
     PERSON_SOCIAL_PLATFORM_LABEL[album.platform as PersonSocialPlatform] ||
     album.platform;
 
   return (
-    <div className="container py-8 sm:py-12">
+    <PersonSiteChrome profile={profile} showAdmin={Boolean(session && isAdmin(session))}>
       <Link
         href="/about/person"
         className="inline-flex min-h-11 items-center text-sm text-[var(--brand)] touch-manipulation hover:underline"
@@ -92,7 +100,7 @@ export default async function PersonAlbumPage({ params }: Props) {
       ) : (
         <p className="text-sm text-[var(--muted)]">这个合集还没有条目。</p>
       )}
-    </div>
+    </PersonSiteChrome>
   );
 }
 
