@@ -1,12 +1,16 @@
 "use client";
 
 /**
- * 首页浮动件（时钟 / 颗秒标）共用：站长拖位置写入装扮；点击只在本机放大缩小。
+ * 首页浮动件（时钟 / 颗秒标）共用：站长拖位置写入装扮；
+ * 点击先弹出＋－，再逐步放大缩小。缩放只存在本机。
  */
 
 import { useEffect, useRef, useState } from "react";
 
-export const HOME_FLOAT_ZOOM = 1.88;
+export const HOME_FLOAT_SCALE_MIN = 0.6;
+export const HOME_FLOAT_SCALE_MAX = 2.8;
+export const HOME_FLOAT_SCALE_STEP = 0.2;
+export const HOME_FLOAT_SCALE_DEFAULT = 1;
 export const HOME_FLOAT_DRAG_THRESHOLD_PX = 8;
 export const HOME_FLOAT_EDGE_PAD_PX = 8;
 
@@ -18,6 +22,14 @@ function clampBox(left: number, top: number, width: number, height: number) {
     left: Math.min(maxLeft, Math.max(pad, left)),
     top: Math.min(maxTop, Math.max(pad, top)),
   };
+}
+
+function clampScale(value: number) {
+  const stepped = Math.round(value / HOME_FLOAT_SCALE_STEP) * HOME_FLOAT_SCALE_STEP;
+  return Math.min(
+    HOME_FLOAT_SCALE_MAX,
+    Math.max(HOME_FLOAT_SCALE_MIN, Math.round(stepped * 10) / 10),
+  );
 }
 
 type PersistField = "homeClock" | "homeLogo";
@@ -39,7 +51,8 @@ export function useHomeFloatPlace({
     xPercent == null || yPercent == null ? null : { x: xPercent, y: yPercent },
   );
   const [dragging, setDragging] = useState(false);
-  const [zoomed, setZoomed] = useState(false);
+  const [scale, setScale] = useState(HOME_FLOAT_SCALE_DEFAULT);
+  const [controlsOpen, setControlsOpen] = useState(false);
   const [saveHint, setSaveHint] = useState("");
   const rootRef = useRef<HTMLDivElement>(null);
   const skipClickRef = useRef(false);
@@ -61,6 +74,17 @@ export function useHomeFloatPlace({
     }
     setPlaced({ x: xPercent, y: yPercent });
   }, [xPercent, yPercent]);
+
+  useEffect(() => {
+    if (!controlsOpen) return;
+    function onDocPointerDown(event: PointerEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setControlsOpen(false);
+      }
+    }
+    document.addEventListener("pointerdown", onDocPointerDown);
+    return () => document.removeEventListener("pointerdown", onDocPointerDown);
+  }, [controlsOpen]);
 
   async function persistPlace(nextX: number, nextY: number) {
     setSaveHint("正在保存位置…");
@@ -139,20 +163,35 @@ export function useHomeFloatPlace({
       skipClickRef.current = false;
       return;
     }
-    setZoomed((prev) => !prev);
+    setControlsOpen((prev) => !prev);
+  }
+
+  function zoomIn() {
+    setScale((prev) => clampScale(prev + HOME_FLOAT_SCALE_STEP));
+  }
+
+  function zoomOut() {
+    setScale((prev) => clampScale(prev - HOME_FLOAT_SCALE_STEP));
   }
 
   const customPlace = placed != null;
+  const scaled = scale !== HOME_FLOAT_SCALE_DEFAULT;
   return {
     rootRef,
     placed,
     dragging,
-    zoomed,
+    scale,
+    scaled,
+    controlsOpen,
+    canZoomIn: scale < HOME_FLOAT_SCALE_MAX,
+    canZoomOut: scale > HOME_FLOAT_SCALE_MIN,
     saveHint,
     customPlace,
     onPointerDown,
     onPointerMove,
     onPointerUp,
     onActivate,
+    zoomIn,
+    zoomOut,
   };
 }

@@ -1309,7 +1309,7 @@ function ClockTab({
     <section className="space-y-5">
       <Header
         title="首页时钟"
-        hint="选一套奢华表盘；位置请回首页按住时钟拖动，松手即保存。点击表盘可放大或缩小（只影响本机）。访客看到同一套样式和位置。"
+        hint="选一套奢华表盘；位置请回首页按住时钟拖动，松手即保存。点击表盘出现＋－，再逐步放大或缩小（只影响本机）。访客看到同一套样式和位置。"
       />
 
       <div
@@ -1395,7 +1395,7 @@ function ClockTab({
 
       <div className="flex flex-col gap-2 rounded-2xl border border-[var(--line)] bg-white/80 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-[var(--muted)]">
-          想改位置：打开首页，按住时钟拖到想要的地方。点击表盘放大或缩小。改时区请点城市名。
+          想改位置：打开首页，按住时钟拖到想要的地方。点击表盘出现＋－，再逐步放大或缩小。改时区请点城市名。
         </p>
         <button
           type="button"
@@ -1427,7 +1427,7 @@ function LogoTab({
     <section className="space-y-5">
       <Header
         title="首页颗秒标"
-        hint="从颗秒抠图素材里选用了透明底静帧和压缩后的旋转动画。位置请回首页按住拖动；点击可放大或缩小（只影响本机）。"
+        hint="从颗秒抠图素材里选用了透明底静帧和压缩后的旋转动画。位置请回首页按住拖动；点击后出现＋－，再逐步放大或缩小（只影响本机）。"
       />
 
       <div className="flex flex-col items-center gap-3 rounded-[22px] border border-[var(--line)] bg-white/80 px-4 py-6 sm:flex-row sm:items-center sm:justify-center sm:gap-5">
@@ -1473,7 +1473,7 @@ function LogoTab({
 
       <div className="flex flex-col gap-2 rounded-2xl border border-[var(--line)] bg-white/80 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-[var(--muted)]">
-          想改位置：打开首页，按住颗秒标拖到想要的地方。点击放大或缩小。窄屏微信里同样可拖、可点。
+          想改位置：打开首页，按住颗秒标拖到想要的地方。点击后出现＋－，再逐步放大或缩小。窄屏微信里同样可拖、可点。
         </p>
         <button
           type="button"

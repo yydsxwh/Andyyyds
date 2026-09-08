@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * 首页颗秒标：静帧或压缩动画；站长可拖，所有人可点按放大/缩小。
+ * 首页颗秒标：静帧或压缩动画；站长可拖，所有人可点出＋－再逐步缩放。
  */
 
 import { usePathname } from "next/navigation";
@@ -14,10 +14,8 @@ import {
   normalizeHomeLogo,
   type HomeLogoConfig,
 } from "@andyyyds/shared/home-logo";
-import {
-  HOME_FLOAT_ZOOM,
-  useHomeFloatPlace,
-} from "@/components/use-home-float-place";
+import { HomeFloatZoomControls } from "@/components/home-float-zoom-controls";
+import { useHomeFloatPlace } from "@/components/use-home-float-place";
 
 type Props = {
   config?: HomeLogoConfig | null;
@@ -54,7 +52,6 @@ export function SiteHomeLogo({
     ? { left: `${place.placed!.x}%`, top: `${place.placed!.y}%` }
     : { left: "0.75rem", top: "4.55rem" };
   const rootStyle = fill ? style : placeStyle;
-  const scale = place.zoomed ? HOME_FLOAT_ZOOM : 1;
   const src = logo.useAnimation ? HOME_LOGO_ANIM_SRC : HOME_LOGO_STILL_SRC;
 
   return (
@@ -62,9 +59,9 @@ export function SiteHomeLogo({
       ref={place.rootRef}
       className={
         fill
-          ? `relative flex h-full min-h-11 w-full items-center justify-center ${className}`
-          : `fixed z-[34] select-none ${place.dragging ? "cursor-grabbing" : ""} ${
-              place.dragging || place.zoomed ? "z-[42]" : ""
+          ? `relative flex h-full min-h-11 w-full flex-col items-center justify-center ${className}`
+          : `fixed z-[34] flex select-none flex-col items-start ${place.dragging ? "cursor-grabbing" : ""} ${
+              place.dragging || place.controlsOpen || place.scaled ? "z-[42]" : ""
             } ${className}`
       }
       style={rootStyle}
@@ -78,11 +75,11 @@ export function SiteHomeLogo({
                 allowViewportDrag ? "cursor-grab active:cursor-grabbing" : ""
               }`
         }
-        aria-label={place.zoomed ? "缩小颗秒标" : "放大颗秒标"}
+        aria-label={place.controlsOpen ? "收起颗秒标缩放按钮" : "显示颗秒标缩放按钮"}
         title={
           allowViewportDrag
-            ? "按住拖动摆位置 · 点击放大或缩小"
-            : "点击放大或缩小"
+            ? "按住拖动摆位置 · 点击后用＋－逐步缩放"
+            : "点击后用＋－逐步放大或缩小"
         }
         onPointerDown={place.onPointerDown}
         onPointerMove={place.onPointerMove}
@@ -103,7 +100,7 @@ export function SiteHomeLogo({
               : "h-[5.5rem] w-[5.5rem] object-contain transition-transform duration-200 sm:h-24 sm:w-24"
           }
           style={{
-            transform: `scale(${scale})`,
+            transform: `scale(${place.scale})`,
             transformOrigin: fill ? "center" : "top left",
           }}
           onError={(event) => {
@@ -113,9 +110,18 @@ export function SiteHomeLogo({
           }}
         />
       </button>
+      {place.controlsOpen ? (
+        <HomeFloatZoomControls
+          align={fill ? "center" : "start"}
+          canZoomIn={place.canZoomIn}
+          canZoomOut={place.canZoomOut}
+          onZoomIn={place.zoomIn}
+          onZoomOut={place.zoomOut}
+        />
+      ) : null}
       {allowViewportDrag ? (
         <p className="mt-1 hidden max-w-[9rem] text-center text-[10px] leading-4 text-[var(--muted)] sm:block">
-          {place.saveHint || "按住拖动，点击放大"}
+          {place.saveHint || "按住拖动，点击后用＋－缩放"}
         </p>
       ) : null}
     </div>

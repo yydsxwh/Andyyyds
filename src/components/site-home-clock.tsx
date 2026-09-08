@@ -3,7 +3,7 @@
 /**
  * 首页时钟：装扮决定样式。
  * 未启用自由画布时，站长可按视口百分比拖位置；启用后铺在画布盒子里。
- * 点击表盘放大/缩小（本机）；时区改点城市名，避免和缩放抢点击。
+ * 点击表盘弹出＋－逐步缩放（本机）；时区改点城市名，避免和缩放抢点击。
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -12,10 +12,8 @@ import {
   HomeClockFace,
   HOME_CLOCK_FRAME_CLASS,
 } from "@/components/home-clock-face";
-import {
-  HOME_FLOAT_ZOOM,
-  useHomeFloatPlace,
-} from "@/components/use-home-float-place";
+import { HomeFloatZoomControls } from "@/components/home-float-zoom-controls";
+import { useHomeFloatPlace } from "@/components/use-home-float-place";
 import {
   DEFAULT_HOME_CLOCK,
   normalizeHomeClock,
@@ -130,8 +128,6 @@ export function SiteHomeClock({
   const clockText = formatClock(now, timeZone);
   const frameClass =
     HOME_CLOCK_FRAME_CLASS[clock.style] || HOME_CLOCK_FRAME_CLASS.imperial;
-  const scale = place.zoomed ? HOME_FLOAT_ZOOM : 1;
-
   function pickZone(tz: string) {
     const next = normalizeMeetupTimeZone(tz);
     setTimeZone(next);
@@ -157,7 +153,7 @@ export function SiteHomeClock({
           ? `relative flex h-full min-h-11 w-full max-w-none flex-col items-stretch gap-0.5 ${className}`
           : `fixed z-[35] flex max-w-[min(100%,20rem)] select-none flex-col items-end gap-0.5 sm:max-w-none ${
               place.dragging ? "cursor-grabbing" : ""
-            } ${place.dragging || place.zoomed ? "z-[42]" : ""} ${className}`
+            } ${place.dragging || place.controlsOpen || place.scaled ? "z-[42]" : ""} ${className}`
       }
       style={rootStyle}
     >
@@ -167,18 +163,18 @@ export function SiteHomeClock({
             ? `flex h-full min-h-11 w-full items-center justify-center gap-1.5 rounded-[28px] border px-2 py-1 backdrop-blur-md transition-transform duration-200 sm:px-3 ${frameClass}`
             : `flex min-h-11 items-center gap-1 rounded-full border px-1.5 py-1 backdrop-blur-md transition-transform duration-200 sm:gap-1.5 sm:px-3 ${frameClass}`
         }
-        style={{ transform: `scale(${scale})`, transformOrigin: fill ? "center" : "top right" }}
+        style={{ transform: `scale(${place.scale})`, transformOrigin: fill ? "center" : "top right" }}
       >
         <button
           type="button"
           className={`flex min-h-11 items-center gap-1.5 touch-manipulation ${
             allowViewportDrag ? "cursor-grab active:cursor-grabbing" : ""
           }`}
-          aria-label={place.zoomed ? "缩小时钟" : "放大时钟"}
+          aria-label={place.controlsOpen ? "收起时钟缩放按钮" : "显示时钟缩放按钮"}
           title={
             allowViewportDrag
-              ? "按住拖动摆位置 · 点击放大或缩小"
-              : "点击放大或缩小"
+              ? "按住拖动摆位置 · 点击后用＋－逐步缩放"
+              : "点击后用＋－逐步放大或缩小"
           }
           onPointerDown={place.onPointerDown}
           onPointerMove={place.onPointerMove}
@@ -228,6 +224,16 @@ export function SiteHomeClock({
         </button>
       </div>
 
+      {place.controlsOpen ? (
+        <HomeFloatZoomControls
+          align={fill ? "center" : "end"}
+          canZoomIn={place.canZoomIn}
+          canZoomOut={place.canZoomOut}
+          onZoomIn={place.zoomIn}
+          onZoomOut={place.zoomOut}
+        />
+      ) : null}
+
       {clock.showProverb ? (
         <p
           className={
@@ -243,7 +249,7 @@ export function SiteHomeClock({
 
       {allowViewportDrag ? (
         <p className="hidden text-[10px] leading-4 text-[var(--muted)] sm:block">
-          {place.saveHint || "按住拖动，点击放大；点城市名改时区"}
+          {place.saveHint || "按住拖动，点击后用＋－缩放；点城市名改时区"}
         </p>
       ) : null}
 
