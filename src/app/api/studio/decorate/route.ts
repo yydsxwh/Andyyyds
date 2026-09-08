@@ -91,6 +91,7 @@ const patchSchema = z.object({
       yPercent: z.number().min(0).max(100).nullable().optional(),
       showDigital: z.boolean().optional(),
       showProverb: z.boolean().optional(),
+      visible: z.boolean().optional(),
     })
     .optional(),
   homeLogo: z
@@ -99,6 +100,18 @@ const patchSchema = z.object({
       xPercent: z.number().min(0).max(100).nullable().optional(),
       yPercent: z.number().min(0).max(100).nullable().optional(),
       useAnimation: z.boolean().optional(),
+      pngLogos: z
+        .array(
+          z.object({
+            id: z.string().min(1).max(64),
+            url: z.string().min(1).max(800),
+            visible: z.boolean().optional(),
+            xPercent: z.number().min(0).max(100).nullable().optional(),
+            yPercent: z.number().min(0).max(100).nullable().optional(),
+          }),
+        )
+        .max(8)
+        .optional(),
     })
     .optional(),
   homeWidgetLayout: z

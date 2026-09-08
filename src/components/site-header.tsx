@@ -3,6 +3,7 @@ import { ChatUnreadBadge } from "@/components/chat/chat-unread-badge";
 import { SiteHeaderNav, type HeaderNavLink } from "@/components/site-header-nav";
 import { SiteHomeClock } from "@/components/site-home-clock";
 import { SiteHomeLogo } from "@/components/site-home-logo";
+import { SiteHomePngLogos } from "@/components/site-home-png-logos";
 import { UserAvatar } from "@/components/user-avatar";
 import { getSession } from "@andyyyds/shared/auth";
 import { DEFAULT_LOGO_URL } from "@andyyyds/shared/decorate";
@@ -259,6 +260,10 @@ export async function SiteHeader() {
         />
       </>
     )}
+    <SiteHomePngLogos
+      config={decorate.homeLogo}
+      canDrag={Boolean(session && canManageDecorate(session))}
+    />
     </>
   );
 }

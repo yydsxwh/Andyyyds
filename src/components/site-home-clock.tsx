@@ -80,14 +80,17 @@ export function SiteHomeClock({
 }: Props) {
   const pathname = usePathname();
   const isHome = pathname === "/";
-  const visible = forceVisible || isHome;
   const clock = normalizeHomeClock(config);
+  const visible = (forceVisible || isHome) && clock.visible;
   const allowViewportDrag = canDrag && !fill;
   const place = useHomeFloatPlace({
     canDrag: allowViewportDrag,
     xPercent: clock.xPercent,
     yPercent: clock.yPercent,
     persistField: "homeClock",
+    buildHidePatch: allowViewportDrag
+      ? () => ({ homeClock: { visible: false } })
+      : () => null,
   });
   const [timeZone, setTimeZone] = useState(DEFAULT_MEETUP_TIMEZONE);
   const [now, setNow] = useState(() => new Date());
@@ -122,7 +125,7 @@ export function SiteHomeClock({
     [],
   );
 
-  if (!visible) return null;
+  if (!visible || place.hidden) return null;
 
   const label = meetupTimeZoneLabel(timeZone);
   const clockText = formatClock(now, timeZone);
@@ -173,8 +176,8 @@ export function SiteHomeClock({
           aria-label={place.controlsOpen ? "收起时钟缩放按钮" : "显示时钟缩放按钮"}
           title={
             allowViewportDrag
-              ? "按住拖动摆位置 · 点击后用＋－逐步缩放"
-              : "点击后用＋－逐步放大或缩小"
+              ? "按住拖动摆位置 · 点击后用＋－缩放或隐藏"
+              : "点击后用＋－逐步放大或缩小，也可隐藏"
           }
           onPointerDown={place.onPointerDown}
           onPointerMove={place.onPointerMove}
@@ -231,6 +234,8 @@ export function SiteHomeClock({
           canZoomOut={place.canZoomOut}
           onZoomIn={place.zoomIn}
           onZoomOut={place.zoomOut}
+          onHide={place.onHide}
+          hideLabel="隐藏"
         />
       ) : null}
 
@@ -249,7 +254,7 @@ export function SiteHomeClock({
 
       {allowViewportDrag ? (
         <p className="hidden text-[10px] leading-4 text-[var(--muted)] sm:block">
-          {place.saveHint || "按住拖动，点击后用＋－缩放；点城市名改时区"}
+          {place.saveHint || "按住拖动，点击后用＋－或隐藏；点城市名改时区"}
         </p>
       ) : null}
 

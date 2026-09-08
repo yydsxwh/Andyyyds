@@ -1,8 +1,9 @@
 "use client";
 
 /**
- * 首页浮动件（时钟 / 颗秒标）共用：站长拖位置写入装扮；
- * 点击先弹出＋－，再逐步放大缩小。缩放只存在本机。
+ * 首页浮动件（时钟 / 颗秒标 / PNG 标）共用：
+ * 站长拖位置写入装扮；点击弹出＋－逐步缩放，并可用「隐藏」收起。
+ * 缩放只存在本机；隐藏：访客只藏本机，站长再写库以免刷新又出来。
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -39,6 +40,10 @@ type Args = {
   xPercent: number | null;
   yPercent: number | null;
   persistField: PersistField;
+  /** 拖位置时覆盖默认 PATCH 体，给 PNG 挂件改某一条 */
+  buildPlacePatch?: (x: number, y: number) => Record<string, unknown>;
+  /** 站长点隐藏时写库；不传则只藏本机 */
+  buildHidePatch?: () => Record<string, unknown> | null;
 };
 
 export function useHomeFloatPlace({
@@ -46,6 +51,8 @@ export function useHomeFloatPlace({
   xPercent,
   yPercent,
   persistField,
+  buildPlacePatch,
+  buildHidePatch,
 }: Args) {
   const [placed, setPlaced] = useState<{ x: number; y: number } | null>(() =>
     xPercent == null || yPercent == null ? null : { x: xPercent, y: yPercent },
@@ -53,6 +60,7 @@ export function useHomeFloatPlace({
   const [dragging, setDragging] = useState(false);
   const [scale, setScale] = useState(HOME_FLOAT_SCALE_DEFAULT);
   const [controlsOpen, setControlsOpen] = useState(false);
+  const [hidden, setHidden] = useState(false);
   const [saveHint, setSaveHint] = useState("");
   const rootRef = useRef<HTMLDivElement>(null);
   const skipClickRef = useRef(false);
@@ -86,21 +94,19 @@ export function useHomeFloatPlace({
     return () => document.removeEventListener("pointerdown", onDocPointerDown);
   }, [controlsOpen]);
 
-  async function persistPlace(nextX: number, nextY: number) {
-    setSaveHint("正在保存位置…");
+  async function persistPatch(body: Record<string, unknown>, busy: string, ok: string) {
+    setSaveHint(busy);
     try {
       const res = await fetch("/api/studio/decorate", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          [persistField]: { xPercent: nextX, yPercent: nextY },
-        }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(data.error || "保存失败");
       }
-      setSaveHint("位置已保存，访客会看到这里");
+      setSaveHint(ok);
     } catch (error) {
       setSaveHint(error instanceof Error ? error.message : "保存失败");
     }
@@ -154,7 +160,10 @@ export function useHomeFloatPlace({
     }
     if (drag.moved) {
       skipClickRef.current = true;
-      void persistPlace(drag.lastX, drag.lastY);
+      const body = buildPlacePatch
+        ? buildPlacePatch(drag.lastX, drag.lastY)
+        : { [persistField]: { xPercent: drag.lastX, yPercent: drag.lastY } };
+      void persistPatch(body, "正在保存位置…", "位置已保存，访客会看到这里");
     }
   }
 
@@ -174,6 +183,15 @@ export function useHomeFloatPlace({
     setScale((prev) => clampScale(prev - HOME_FLOAT_SCALE_STEP));
   }
 
+  function onHide() {
+    setHidden(true);
+    setControlsOpen(false);
+    if (!canDrag) return;
+    const body = buildHidePatch ? buildHidePatch() : { [persistField]: { visible: false } };
+    if (!body) return;
+    void persistPatch(body, "正在隐藏…", "已隐藏，装扮里可再打开");
+  }
+
   const customPlace = placed != null;
   const scaled = scale !== HOME_FLOAT_SCALE_DEFAULT;
   return {
@@ -183,6 +201,7 @@ export function useHomeFloatPlace({
     scale,
     scaled,
     controlsOpen,
+    hidden,
     canZoomIn: scale < HOME_FLOAT_SCALE_MAX,
     canZoomOut: scale > HOME_FLOAT_SCALE_MIN,
     saveHint,
@@ -193,5 +212,6 @@ export function useHomeFloatPlace({
     onActivate,
     zoomIn,
     zoomOut,
+    onHide,
   };
 }

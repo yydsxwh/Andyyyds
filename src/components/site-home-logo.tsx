@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * 首页颗秒标：静帧或压缩动画；站长可拖，所有人可点出＋－再逐步缩放。
+ * 首页颗秒标：静帧或压缩动画；站长可拖，点开后用＋－缩放或隐藏。
  */
 
 import { usePathname } from "next/navigation";
@@ -44,9 +44,12 @@ export function SiteHomeLogo({
     xPercent: logo.xPercent,
     yPercent: logo.yPercent,
     persistField: "homeLogo",
+    buildHidePatch: allowViewportDrag
+      ? () => ({ homeLogo: { visible: false } })
+      : () => null,
   });
 
-  if (!visible) return null;
+  if (!visible || place.hidden) return null;
 
   const placeStyle = place.customPlace
     ? { left: `${place.placed!.x}%`, top: `${place.placed!.y}%` }
@@ -78,8 +81,8 @@ export function SiteHomeLogo({
         aria-label={place.controlsOpen ? "收起颗秒标缩放按钮" : "显示颗秒标缩放按钮"}
         title={
           allowViewportDrag
-            ? "按住拖动摆位置 · 点击后用＋－逐步缩放"
-            : "点击后用＋－逐步放大或缩小"
+            ? "按住拖动摆位置 · 点击后用＋－缩放或隐藏"
+            : "点击后用＋－逐步放大或缩小，也可隐藏"
         }
         onPointerDown={place.onPointerDown}
         onPointerMove={place.onPointerMove}
@@ -117,11 +120,13 @@ export function SiteHomeLogo({
           canZoomOut={place.canZoomOut}
           onZoomIn={place.zoomIn}
           onZoomOut={place.zoomOut}
+          onHide={place.onHide}
+          hideLabel="隐藏"
         />
       ) : null}
       {allowViewportDrag ? (
         <p className="mt-1 hidden max-w-[9rem] text-center text-[10px] leading-4 text-[var(--muted)] sm:block">
-          {place.saveHint || "按住拖动，点击后用＋－缩放"}
+          {place.saveHint || "按住拖动，点击后用＋－或隐藏"}
         </p>
       ) : null}
     </div>

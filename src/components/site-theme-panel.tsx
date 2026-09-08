@@ -7,6 +7,7 @@ import {
   SaveFeedback,
   type SaveStatus,
 } from "@/components/save-feedback";
+import { ImageUrlField } from "@/components/image-url-field";
 import { SiteFontLoader } from "@/components/site-font-loader";
 import {
   HomeClockFace,
@@ -21,9 +22,12 @@ import {
   type HomeClockConfig,
 } from "@andyyyds/shared/home-clock";
 import {
+  createHomePngLogo,
   HOME_LOGO_ALT,
   HOME_LOGO_ANIM_SRC,
+  HOME_LOGO_STILL_FALLBACK_SRC,
   HOME_LOGO_STILL_SRC,
+  HOME_PNG_LOGO_MAX,
   homeLogoEqual,
   normalizeHomeLogo,
   type HomeLogoConfig,
@@ -104,7 +108,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "layout", label: "换版式" },
   { key: "type", label: "文字" },
   { key: "clock", label: "时钟" },
-  { key: "logo", label: "颗秒标" },
+  { key: "logo", label: "首页标" },
 ];
 
 function draftFromConfig(config: DecorateConfig): ThemeDraft {
@@ -620,7 +624,17 @@ export function SiteThemePanel({ initial }: Props) {
           />
           <CurrentSlot
             label="颗秒标"
-            title={homeLogo.visible ? (homeLogo.useAnimation ? "动画" : "静帧") : "已隐藏"}
+            title={
+              homeLogo.visible
+                ? `${homeLogo.useAnimation ? "动画" : "静帧"}${
+                    homeLogo.pngLogos.filter((item) => item.visible).length
+                      ? ` · PNG ${homeLogo.pngLogos.filter((item) => item.visible).length}`
+                      : ""
+                  }`
+                : homeLogo.pngLogos.some((item) => item.visible)
+                  ? `颗秒已藏 · PNG ${homeLogo.pngLogos.filter((item) => item.visible).length}`
+                  : "已隐藏"
+            }
             preview="radial-gradient(circle at 40% 35%, #7cff6b, #1a140c 70%)"
           />
         </div>
@@ -1309,7 +1323,7 @@ function ClockTab({
     <section className="space-y-5">
       <Header
         title="首页时钟"
-        hint="选一套奢华表盘；位置请回首页按住时钟拖动，松手即保存。点击表盘出现＋－，再逐步放大或缩小（只影响本机）。访客看到同一套样式和位置。"
+        hint="选一套奢华表盘；位置请回首页按住时钟拖动，松手即保存。点击表盘出现＋－和「隐藏」。缩放只影响本机；站长点隐藏会写进装扮。"
       />
 
       <div
@@ -1374,6 +1388,15 @@ function ClockTab({
 
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="flex min-h-12 items-center justify-between gap-3 rounded-2xl border border-[var(--line)] bg-white/90 px-4">
+          <span className="text-sm">首页显示时钟</span>
+          <input
+            type="checkbox"
+            className="h-5 w-5 accent-[var(--brand)]"
+            checked={clock.visible}
+            onChange={(event) => onChange({ visible: event.target.checked })}
+          />
+        </label>
+        <label className="flex min-h-12 items-center justify-between gap-3 rounded-2xl border border-[var(--line)] bg-white/90 px-4">
           <span className="text-sm">显示数字时间</span>
           <input
             type="checkbox"
@@ -1395,7 +1418,7 @@ function ClockTab({
 
       <div className="flex flex-col gap-2 rounded-2xl border border-[var(--line)] bg-white/80 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-[var(--muted)]">
-          想改位置：打开首页，按住时钟拖到想要的地方。点击表盘出现＋－，再逐步放大或缩小。改时区请点城市名。
+          想改位置：打开首页，按住时钟拖到想要的地方。点击表盘出现＋－和「隐藏」。改时区请点城市名。
         </p>
         <button
           type="button"
@@ -1417,17 +1440,31 @@ function LogoTab({
   logo: HomeLogoConfig;
   onChange: (patch: Partial<HomeLogoConfig>) => void;
 }) {
+  const [draftPngUrl, setDraftPngUrl] = useState("");
   const placed =
     logo.xPercent != null && logo.yPercent != null
       ? `距左 ${logo.xPercent}% · 距顶 ${logo.yPercent}%`
       : "默认：顶栏左下角，与时钟对称";
   const previewSrc = logo.useAnimation ? HOME_LOGO_ANIM_SRC : HOME_LOGO_STILL_SRC;
+  const canAddPng = logo.pngLogos.length < HOME_PNG_LOGO_MAX;
+  const hasKemiaoPng = logo.pngLogos.some(
+    (item) =>
+      item.url === HOME_LOGO_STILL_FALLBACK_SRC || item.url === HOME_LOGO_STILL_SRC,
+  );
+
+  function addPng(url: string) {
+    const next = createHomePngLogo(url);
+    if (!next.url || !canAddPng) return;
+    if (logo.pngLogos.some((item) => item.url === next.url)) return;
+    onChange({ pngLogos: [...logo.pngLogos, next] });
+    setDraftPngUrl("");
+  }
 
   return (
     <section className="space-y-5">
       <Header
         title="首页颗秒标"
-        hint="从颗秒抠图素材里选用了透明底静帧和压缩后的旋转动画。位置请回首页按住拖动；点击后出现＋－，再逐步放大或缩小（只影响本机）。"
+        hint="颗秒动画和 PNG 标可以同时挂在首页。点开后用＋－逐步缩放，也可点「隐藏」。缩放只影响本机；站长隐藏会写进装扮。"
       />
 
       <div className="flex flex-col items-center gap-3 rounded-[22px] border border-[var(--line)] bg-white/80 px-4 py-6 sm:flex-row sm:items-center sm:justify-center sm:gap-5">
@@ -1473,7 +1510,7 @@ function LogoTab({
 
       <div className="flex flex-col gap-2 rounded-2xl border border-[var(--line)] bg-white/80 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-[var(--muted)]">
-          想改位置：打开首页，按住颗秒标拖到想要的地方。点击后出现＋－，再逐步放大或缩小。窄屏微信里同样可拖、可点。
+          想改位置：打开首页，按住颗秒标拖到想要的地方。点击后出现＋－和「隐藏」。
         </p>
         <button
           type="button"
@@ -1483,6 +1520,87 @@ function LogoTab({
         >
           恢复默认左上角
         </button>
+      </div>
+
+      <div className="space-y-3 rounded-[22px] border border-[var(--line)] bg-white/80 p-4">
+        <h3 className="text-base font-semibold">额外 PNG 标</h3>
+        <p className="text-sm text-[var(--muted)]">
+          和颗秒动画同时显示。最多 {HOME_PNG_LOGO_MAX} 个。点「保存装扮」后全站生效。
+        </p>
+        <button
+          type="button"
+          className="btn btn-secondary min-h-11 px-4 text-sm"
+          disabled={!canAddPng || hasKemiaoPng}
+          onClick={() => addPng(HOME_LOGO_STILL_FALLBACK_SRC)}
+        >
+          添加颗秒 PNG 静帧
+        </button>
+        <ImageUrlField
+          label="上传或选用 PNG"
+          value={draftPngUrl}
+          onChange={setDraftPngUrl}
+          showPresets={false}
+          hint="选好图后点下方「加到首页」"
+        />
+        <button
+          type="button"
+          className="btn btn-primary min-h-11 px-4 text-sm"
+          disabled={!canAddPng || !draftPngUrl.trim()}
+          onClick={() => addPng(draftPngUrl)}
+        >
+          加到首页
+        </button>
+
+        {logo.pngLogos.length === 0 ? (
+          <p className="text-sm text-[var(--muted)]">还没有额外 PNG 标</p>
+        ) : (
+          <ul className="space-y-3">
+            {logo.pngLogos.map((item) => (
+              <li
+                key={item.id}
+                className="flex flex-col gap-3 rounded-2xl border border-[var(--line)] bg-white/90 p-3 sm:flex-row sm:items-center"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={item.url}
+                  alt=""
+                  className="h-16 w-16 object-contain"
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs text-[var(--muted)]">{item.url}</p>
+                  <label className="mt-2 flex min-h-11 items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      className="h-5 w-5 accent-[var(--brand)]"
+                      checked={item.visible}
+                      onChange={(event) =>
+                        onChange({
+                          pngLogos: logo.pngLogos.map((png) =>
+                            png.id === item.id
+                              ? { ...png, visible: event.target.checked }
+                              : png,
+                          ),
+                        })
+                      }
+                    />
+                    首页显示
+                  </label>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-secondary min-h-11 px-3 text-sm"
+                  onClick={() =>
+                    onChange({
+                      pngLogos: logo.pngLogos.filter((png) => png.id !== item.id),
+                    })
+                  }
+                >
+                  移除
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </section>
   );
