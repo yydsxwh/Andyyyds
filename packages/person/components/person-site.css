@@ -284,6 +284,42 @@
   margin-top: 1rem;
 }
 
+.person-file-preview {
+  overflow: hidden;
+  border-radius: 18px;
+  background: #fff;
+}
+
+.person-file-media {
+  display: block;
+  width: 100%;
+  max-height: 28rem;
+  object-fit: contain;
+  background: #111827;
+}
+
+.person-file-frame {
+  display: block;
+  width: 100%;
+  min-height: 22rem;
+  border: 0;
+  background: #fff;
+}
+
+.person-code {
+  margin: 0;
+  max-height: 22rem;
+  overflow: auto;
+  padding: 1rem;
+  border-radius: 16px;
+  background: #122033;
+  color: #f4f1ea;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .person-admin {
   --ps-navy: #102033;
   --ps-gold: #9a7b3c;

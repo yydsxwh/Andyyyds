@@ -863,10 +863,10 @@ model PersonProfile {
   updatedAt   DateTime @updatedAt
 }
 
-/// 个人展示站条目：项目/博客/作品/荣誉/成绩/实践/活动/兴趣/照片
+/// 个人展示站条目：简历/视频介绍/项目/博客/作品/荣誉/成绩/实践/活动/兴趣/照片
 model PersonEntry {
   id         String    @id @default(cuid())
-  /// PROJECT | BLOG | PORTFOLIO | HONOR | GRADE | PRACTICE | ACTIVITY | INTEREST | PHOTO
+  /// RESUME | INTRO_VIDEO | PROJECT | BLOG | PORTFOLIO | HONOR | GRADE | PRACTICE | ACTIVITY | INTEREST | PHOTO
   kind       String
   title      String    @default("")
   summary    String    @default("")
@@ -874,6 +874,8 @@ model PersonEntry {
   coverUrl   String    @default("")
   /// 作品/相册多图 JSON 字符串数组
   images     String    @default("[]")
+  /// [{id,name,url,mime,size,kind}] 栏目附件：文档/视频/代码/压缩包等
+  files      String    @default("[]")
   org        String    @default("")
   role       String    @default("")
   period     String    @default("")

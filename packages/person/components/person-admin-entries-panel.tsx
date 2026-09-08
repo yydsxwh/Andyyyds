@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { personEntryAdminHint } from "@andyyyds/person/lib/person-files";
 import {
   PERSON_ENTRY_KIND_LABEL,
   PERSON_MAX_IMAGES,
@@ -13,6 +14,7 @@ import {
   fetchPersonAdminEntries,
   savePersonAdminEntry,
 } from "@andyyyds/person/lib/person-site-client";
+import { PersonFilesField } from "@andyyyds/person/components/person-files-field";
 import { PersonImageField } from "@andyyyds/person/components/person-image-field";
 
 function emptyDraft(kind: PersonEntryKind): Partial<PersonEntryPayload> {
@@ -28,6 +30,7 @@ function emptyDraft(kind: PersonEntryKind): Partial<PersonEntryPayload> {
     period: "",
     location: "",
     link: "",
+    files: [],
     published: true,
     featured: false,
   };
@@ -84,7 +87,7 @@ export function PersonAdminEntriesPanel({ kind }: { kind: PersonEntryKind }) {
       <div>
         <h2 className="text-lg font-semibold">{PERSON_ENTRY_KIND_LABEL[kind]}</h2>
         <p className="mt-1 text-sm text-[var(--muted)]">
-          写好后前台对应栏目会立刻展示。未发布的只留在后台。
+          {personEntryAdminHint(kind)} 未发布的只留在后台。
         </p>
       </div>
       <div className="grid gap-3">
@@ -154,6 +157,11 @@ export function PersonAdminEntriesPanel({ kind }: { kind: PersonEntryKind }) {
             onChange={(e) => setDraft((current) => ({ ...current, link: e.target.value }))}
           />
         </label>
+        <PersonFilesField
+          hint={personEntryAdminHint(kind)}
+          files={draft.files || []}
+          onChange={(files) => setDraft((current) => ({ ...current, files }))}
+        />
         <PersonImageField
           label="封面 / 照片"
           value={draft.coverUrl || ""}

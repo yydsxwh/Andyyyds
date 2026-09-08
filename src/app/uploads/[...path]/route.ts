@@ -22,6 +22,10 @@ const MIME_BY_EXT: Record<string, string> = {
   ".webm": "video/webm",
   ".pdf": "application/pdf",
   ".txt": "text/plain; charset=utf-8",
+  ".md": "text/markdown; charset=utf-8",
+  ".csv": "text/csv; charset=utf-8",
+  ".mp3": "audio/mpeg",
+  ".wav": "audio/wav",
 };
 
 function resolveSafeUploadPath(segments: string[]): string | null {

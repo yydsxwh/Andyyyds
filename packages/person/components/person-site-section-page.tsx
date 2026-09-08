@@ -1,5 +1,6 @@
 import { PERSON_ENTRY_KIND_LABEL, type PersonEntryKind, type PersonEntryPayload } from "@andyyyds/person/lib/person-site";
 import { PersonEmpty, PersonEntryCard } from "@andyyyds/person/components/person-entry-card";
+import { PersonFileStrip } from "@andyyyds/person/components/person-file-gallery";
 
 export function PersonSiteSectionPage({
   title,
@@ -20,11 +21,13 @@ export function PersonSiteSectionPage({
       {entries.length ? (
         <div className="person-grid person-grid-2 mt-8">
           {entries.map((entry) => (
-            <PersonEntryCard
-              key={entry.id}
-              entry={entry}
-              showKind={kinds && kinds.length > 1 ? PERSON_ENTRY_KIND_LABEL[entry.kind] : undefined}
-            />
+            <div key={entry.id}>
+              <PersonEntryCard
+                entry={entry}
+                showKind={kinds && kinds.length > 1 ? PERSON_ENTRY_KIND_LABEL[entry.kind] : undefined}
+              />
+              <PersonFileStrip entryId={entry.id} files={entry.files || []} />
+            </div>
           ))}
         </div>
       ) : (

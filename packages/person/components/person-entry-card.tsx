@@ -31,6 +31,9 @@ export function PersonEntryCard({
         {entry.role ? (
           <p className="mt-auto text-xs text-[var(--ps-muted)]">{entry.role}</p>
         ) : null}
+        {entry.files?.length ? (
+          <p className="text-xs text-[var(--ps-muted)]">{entry.files.length} 个附件，点开可预览或下载</p>
+        ) : null}
       </div>
     </Link>
   );

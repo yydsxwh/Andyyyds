@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PersonFileGallery } from "@andyyyds/person/components/person-file-gallery";
 import { splitPersonAbout, type PersonEntryPayload } from "@andyyyds/person/lib/person-site";
 
 export function PersonSiteArticle({
@@ -38,6 +39,7 @@ export function PersonSiteArticle({
           ))}
         </div>
       ) : null}
+      <PersonFileGallery entryId={entry.id} files={entry.files || []} />
       {entry.link ? (
         <a
           href={entry.link}

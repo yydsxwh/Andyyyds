@@ -14,6 +14,8 @@ import {
 } from "@andyyyds/person/lib/person-social";
 import { PersonSocialFeed, type PersonSocialAlbumCard, type PersonSocialCard, type PersonSocialPagination } from "@andyyyds/person/components/person-social-feed";
 import { PersonEmpty, PersonEntryCard } from "@andyyyds/person/components/person-entry-card";
+import { PersonFileGallery } from "@andyyyds/person/components/person-file-gallery";
+import { firstPersonVideo, personFilePreviewPath } from "@andyyyds/person/lib/person-files";
 
 type Props = {
   profile: PersonProfilePayload;
@@ -28,6 +30,8 @@ type Props = {
   activities: PersonEntryPayload[];
   interests: PersonEntryPayload[];
   photos: PersonEntryPayload[];
+  resumes: PersonEntryPayload[];
+  introVideos: PersonEntryPayload[];
   albums: PersonSocialAlbumCard[];
   posts: PersonSocialCard[];
   pagination: PersonSocialPagination;
@@ -118,6 +122,8 @@ export function PersonSiteHome({
   activities,
   interests,
   photos,
+  resumes,
+  introVideos,
   albums,
   posts,
   pagination,
@@ -207,6 +213,46 @@ export function PersonSiteHome({
         </Section>
       ) : null}
 
+      {introVideos.length ? (
+        <Section
+          id="intro"
+          title="视频自我介绍"
+          moreHref={introVideos.length > 1 ? "/about/person/intro" : undefined}
+        >
+          <div className="grid gap-5">
+            {introVideos.slice(0, 2).map((entry) => {
+              const video = firstPersonVideo(entry.files);
+              return (
+                <div key={entry.id} className="person-card overflow-hidden p-4 sm:p-5">
+                  <p className="person-meta">{entry.period || "自我介绍"}</p>
+                  <h3 className="mt-1 text-lg font-semibold">{entry.title}</h3>
+                  {entry.summary ? (
+                    <p className="mt-2 text-sm leading-6 text-[var(--ps-muted)]">{entry.summary}</p>
+                  ) : null}
+                  {video ? (
+                    <video
+                      className="person-file-media mt-4"
+                      src={personFilePreviewPath(entry.id, video.id)}
+                      controls
+                      playsInline
+                      preload="metadata"
+                    />
+                  ) : (
+                    <PersonFileGallery entryId={entry.id} files={entry.files} />
+                  )}
+                  <Link
+                    href={personEntryHref(entry)}
+                    className="mt-3 inline-flex min-h-11 items-center text-sm text-[var(--ps-gold)]"
+                  >
+                    查看这条介绍
+                  </Link>
+                </div>
+              );
+            })}
+          </div>
+        </Section>
+      ) : null}
+
       {featured.length ? (
         <Section title="精选">
           <div className="person-grid person-grid-2">
@@ -220,6 +266,25 @@ export function PersonSiteHome({
           </div>
         </Section>
       ) : null}
+
+      <Section
+        id="resume"
+        title="简历"
+        moreHref={resumes.length > 1 ? "/about/person/resume" : undefined}
+      >
+        {resumes.length ? (
+          <div className="grid gap-5">
+            {resumes.slice(0, 2).map((entry) => (
+              <div key={entry.id}>
+                <PersonEntryCard entry={entry} />
+                <PersonFileGallery entryId={entry.id} files={entry.files} />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <PersonEmpty>简历文档会在这里预览和下载。</PersonEmpty>
+        )}
+      </Section>
 
       <Section id="projects" title="项目经历" moreHref={projects.length > 4 ? "/about/person/projects" : undefined}>
         {projects.length ? (
@@ -281,9 +346,9 @@ export function PersonSiteHome({
         <Section title="兴趣">
           <div className="flex flex-wrap gap-2">
             {interests.map((item) => (
-              <span key={item.id} className="person-chip">
+              <Link key={item.id} href={personEntryHref(item)} className="person-chip">
                 {item.title}
-              </span>
+              </Link>
             ))}
           </div>
         </Section>

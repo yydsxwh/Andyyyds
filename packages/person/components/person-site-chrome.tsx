@@ -8,6 +8,8 @@ import "./person-site.css";
 
 const NAV = [
   { href: "/about/person", label: "关于", match: "exact" as const },
+  { href: "/about/person/resume", label: "简历", match: "prefix" as const },
+  { href: "/about/person/intro", label: "视频", match: "prefix" as const },
   { href: "/about/person/projects", label: "项目", match: "prefix" as const },
   { href: "/about/person/blog", label: "博客", match: "prefix" as const },
   { href: "/about/person/portfolio", label: "作品", match: "prefix" as const },

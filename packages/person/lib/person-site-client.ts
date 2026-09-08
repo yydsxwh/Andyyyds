@@ -1,3 +1,4 @@
+import type { PersonEntryFile } from "@andyyyds/person/lib/person-files";
 import type {
   PersonEntryKind,
   PersonEntryPayload,
@@ -92,6 +93,19 @@ export async function deletePersonAdminEntry(id: string): Promise<void> {
     const body = await readJson(res);
     throw new Error(errorMessage(body, "删除失败"));
   }
+}
+
+export async function uploadPersonAdminFile(file: File): Promise<PersonEntryFile> {
+  const form = new FormData();
+  form.set("file", file);
+  const res = await fetch("/api/person-admin/files", {
+    method: "POST",
+    credentials: "same-origin",
+    body: form,
+  });
+  const body = await readJson(res);
+  if (!res.ok) throw new Error(errorMessage(body, "文件上传失败"));
+  return body as PersonEntryFile;
 }
 
 export async function uploadPersonAdminImage(file: File): Promise<string> {

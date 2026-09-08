@@ -51,6 +51,8 @@ export default async function PersonAboutPage({ searchParams }: Props) {
         activities={site.activities}
         interests={site.interests}
         photos={site.photos}
+        resumes={site.resumes}
+        introVideos={site.introVideos}
         albums={albums.map((row) => ({
           id: row.id,
           platform: row.platform,

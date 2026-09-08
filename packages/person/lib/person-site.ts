@@ -2,7 +2,16 @@
  * 个人展示站：档案 + 条目种类。规则集中在这里，方便以后整包拆到独立域名。
  */
 
+import {
+  normalizePersonFiles,
+  type PersonEntryFile,
+} from "@andyyyds/person/lib/person-files";
+
+export type { PersonEntryFile, PersonFileKind } from "@andyyyds/person/lib/person-files";
+
 export const PERSON_ENTRY_KINDS = [
+  "RESUME",
+  "INTRO_VIDEO",
   "PROJECT",
   "BLOG",
   "PORTFOLIO",
@@ -17,6 +26,8 @@ export const PERSON_ENTRY_KINDS = [
 export type PersonEntryKind = (typeof PERSON_ENTRY_KINDS)[number];
 
 export const PERSON_ENTRY_KIND_LABEL: Record<PersonEntryKind, string> = {
+  RESUME: "简历",
+  INTRO_VIDEO: "视频自我介绍",
   PROJECT: "项目经历",
   BLOG: "博客 / 技术随笔",
   PORTFOLIO: "作品集",
@@ -83,6 +94,7 @@ export type PersonEntryPayload = {
   featured: boolean;
   occurredAt: string | null;
   updatedAt: string;
+  files: PersonEntryFile[];
 };
 
 export const DEFAULT_PERSON_PROFILE: PersonProfilePayload = {
@@ -201,6 +213,7 @@ export function normalizePersonEntry(
     body: String(input.body ?? "").replace(/\u0000/g, "").trim().slice(0, PERSON_BODY_MAX),
     coverUrl: clipUrl(input.coverUrl),
     images: normalizeImageList(input.images),
+    files: normalizePersonFiles(input.files),
     org: clip(input.org, PERSON_TITLE_MAX),
     role: clip(input.role, PERSON_TITLE_MAX),
     period: clip(input.period, PERSON_CONTACT_MAX),
@@ -321,6 +334,8 @@ export function splitPersonAbout(about: string): string[] {
 }
 
 export function personEntrySectionHref(kind: PersonEntryKind): string {
+  if (kind === "RESUME") return "/about/person/resume";
+  if (kind === "INTRO_VIDEO") return "/about/person/intro";
   if (kind === "PROJECT") return "/about/person/projects";
   if (kind === "BLOG") return "/about/person/blog";
   if (kind === "PORTFOLIO") return "/about/person/portfolio";

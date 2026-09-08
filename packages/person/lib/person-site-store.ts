@@ -4,6 +4,7 @@
 
 import { prisma } from "@andyyyds/shared/db";
 import { getPortalConfig } from "@andyyyds/shared/site-settings";
+import { normalizePersonFiles } from "@andyyyds/person/lib/person-files";
 import {
   DEFAULT_PERSON_PROFILE,
   PERSON_PROFILE_ID,
@@ -30,6 +31,7 @@ function toEntryPayload(row: {
   body: string;
   coverUrl: string;
   images: string;
+  files?: string;
   org: string;
   role: string;
   period: string;
@@ -50,6 +52,7 @@ function toEntryPayload(row: {
     body: row.body,
     coverUrl: row.coverUrl,
     images: normalizeImageList(row.images),
+    files: normalizePersonFiles(row.files),
     org: row.org,
     role: row.role,
     period: row.period,
@@ -139,6 +142,18 @@ export async function getPersonEntry(
   return toEntryPayload(row);
 }
 
+export async function getPersonEntryFile(
+  entryId: string,
+  fileId: string,
+  publishedOnly = false,
+) {
+  const entry = await getPersonEntry(entryId, publishedOnly);
+  if (!entry) return null;
+  const file = entry.files.find((item) => item.id === fileId);
+  if (!file) return null;
+  return { entry, file };
+}
+
 export async function createPersonEntry(input: unknown): Promise<PersonEntryPayload> {
   const data = normalizePersonEntry(input);
   const count = await prisma.personEntry.count({ where: { kind: data.kind } });
@@ -150,6 +165,7 @@ export async function createPersonEntry(input: unknown): Promise<PersonEntryPayl
       body: data.body,
       coverUrl: data.coverUrl,
       images: JSON.stringify(data.images),
+      files: JSON.stringify(data.files),
       org: data.org,
       role: data.role,
       period: data.period,
@@ -167,6 +183,8 @@ export async function createPersonEntry(input: unknown): Promise<PersonEntryPayl
 function defaultEntryTitle(kind: PersonEntryKind): string {
   if (kind === "PHOTO") return "照片";
   if (kind === "INTEREST") return "兴趣";
+  if (kind === "RESUME") return "简历";
+  if (kind === "INTRO_VIDEO") return "视频自我介绍";
   return "未命名";
 }
 
@@ -186,6 +204,7 @@ export async function updatePersonEntry(
       body: data.body,
       coverUrl: data.coverUrl,
       images: JSON.stringify(data.images),
+      files: JSON.stringify(data.files),
       org: data.org,
       role: data.role,
       period: data.period,
@@ -223,5 +242,7 @@ export async function loadPersonSitePublic() {
     activities: byKind("ACTIVITY"),
     interests: byKind("INTEREST"),
     photos: byKind("PHOTO"),
+    resumes: byKind("RESUME"),
+    introVideos: byKind("INTRO_VIDEO"),
   };
 }
