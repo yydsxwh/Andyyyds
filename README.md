@@ -49,6 +49,7 @@ npm run dev
 - `packages/meetup`（`@andyyyds/meetup`）约搭
 - `packages/courses`（`@andyyyds/courses`）网课资料
 - `packages/mathcode`（`@andyyyds/mathcode`）识图转LaTeX
+- `packages/decorate`（`@andyyyds/decorate`）网站装扮（主题/配色/门面/首页挂件）
 - `src/app` 站点路由与 API 薄封装（URL 不变）
-- `src/components` 站点壳 UI（导航、装修、支付页等）
+- `src/components` 站点壳 UI（导航、支付页等）
 - `prisma` 数据模型与种子数据

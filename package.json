@@ -30,6 +30,7 @@
     "@andyyyds/company": "*",
     "@andyyyds/courses": "*",
     "@andyyyds/docs": "*",
+    "@andyyyds/decorate": "*",
     "@andyyyds/forum": "*",
     "@andyyyds/mathcode": "*",
     "@andyyyds/meetup": "*",
