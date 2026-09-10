@@ -201,7 +201,15 @@ export function useHomeFloatPlace({
       gestureRef.current = null;
       setDragging(false);
       setResizing(false);
-      if (!gesture.moved) return;
+      if (!gesture.moved) {
+        // 当成点击：打开／收起＋－；短暂挡住随后 click，避免连翻两次
+        skipClickRef.current = true;
+        setControlsOpen((prev) => !prev);
+        window.setTimeout(() => {
+          skipClickRef.current = false;
+        }, 50);
+        return;
+      }
       skipClickRef.current = true;
       const opts = optsRef.current;
       if (gesture.mode === "resize") {
@@ -236,8 +244,11 @@ export function useHomeFloatPlace({
     if (!optsRef.current.canDrag || event.button !== 0) return;
     const box = rootRef.current?.getBoundingClientRect();
     if (!box) return;
-    event.preventDefault();
-    event.stopPropagation();
+    // 不在 pointerdown 里 preventDefault：否则浏览器不再发 click，＋－弹层出不来
+    if (mode === "resize") {
+      event.preventDefault();
+      event.stopPropagation();
+    }
     const current = placedRef.current;
     gestureRef.current = {
       mode,
