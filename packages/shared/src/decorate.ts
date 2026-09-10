@@ -94,7 +94,7 @@ export type DecorateConfig = {
   typography: TypographyConfig;
   /** 首页时钟样式与摆放；未配置时用右上默认角 */
   homeClock: HomeClockConfig;
-  /** 首页颗秒标摆放；未配置时默认左上，与时钟对称 */
+  /** 首页颗秒标摆放与大小；始终浮动，不进门户画布 */
   homeLogo: HomeLogoConfig;
   /** 首页时钟与门户卡片的自由位置/尺寸；未启用时保持顶栏时钟 + 栅格 */
   homeWidgetLayout: HomeWidgetLayoutConfig;

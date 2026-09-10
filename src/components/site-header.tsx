@@ -247,18 +247,17 @@ export async function SiteHeader() {
         </div>
       </div>
     </header>
+    {/* 颗秒标始终浮动在首页，不跟门户画布走，避免一开自由布局就失踪 */}
+    <SiteHomeLogo
+      config={decorate.homeLogo}
+      canDrag={Boolean(session && canManageDecorate(session))}
+    />
     {/* 自由布局启用后时钟改走首页画布，避免顶栏与画布各画一只 */}
     {decorate.homeWidgetLayout?.enabled ? null : (
-      <>
-        <SiteHomeLogo
-          config={decorate.homeLogo}
-          canDrag={Boolean(session && canManageDecorate(session))}
-        />
-        <SiteHomeClock
-          config={decorate.homeClock}
-          canDrag={Boolean(session && canManageDecorate(session))}
-        />
-      </>
+      <SiteHomeClock
+        config={decorate.homeClock}
+        canDrag={Boolean(session && canManageDecorate(session))}
+      />
     )}
     <SiteHomePngLogos
       config={decorate.homeLogo}

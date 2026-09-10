@@ -25,9 +25,15 @@ import {
   createHomePngLogo,
   HOME_LOGO_ALT,
   HOME_LOGO_ANIM_SRC,
+  HOME_LOGO_SCALE_DEFAULT,
+  HOME_LOGO_SCALE_MAX,
+  HOME_LOGO_SCALE_MIN,
+  HOME_LOGO_SCALE_STEP,
   HOME_LOGO_STILL_FALLBACK_SRC,
   HOME_LOGO_STILL_SRC,
   HOME_PNG_LOGO_MAX,
+  homeLogoScalePercent,
+  homeLogoSizePx,
   homeLogoEqual,
   normalizeHomeLogo,
   type HomeLogoConfig,
@@ -539,7 +545,7 @@ export function SiteThemePanel({ initial }: Props) {
           </p>
         ) : (
           <p className="mt-2 text-xs text-[var(--muted)]">
-            点选主题/背景/配色/时钟/颗秒标只在本页试穿，不会自动改全站；确认后必须点「保存装扮」。位置请回首页按住拖动。
+            点选主题/背景/配色/时钟/颗秒标只在本页试穿，不会自动改全站；确认后必须点「保存装扮」。颗秒标也可回首页按住拖动、拉右下角改大小。
           </p>
         )}
       </div>
@@ -626,7 +632,7 @@ export function SiteThemePanel({ initial }: Props) {
             label="颗秒标"
             title={
               homeLogo.visible
-                ? `${homeLogo.useAnimation ? "动画" : "静帧"}${
+                ? `${homeLogo.useAnimation ? "动画" : "静帧"} · ${homeLogoScalePercent(homeLogo.scale)}%${
                     homeLogo.pngLogos.filter((item) => item.visible).length
                       ? ` · PNG ${homeLogo.pngLogos.filter((item) => item.visible).length}`
                       : ""
@@ -1464,7 +1470,7 @@ function LogoTab({
     <section className="space-y-5">
       <Header
         title="首页颗秒标"
-        hint="颗秒动画和 PNG 标可以同时挂在首页。点开后用＋－逐步缩放，也可点「隐藏」。缩放只影响本机；站长隐藏会写进装扮。"
+        hint="颗秒标始终浮动在首页，不跟门户画布走。站长可拖位置、拉右下角或用下方滑杆改大小，保存后全站生效。"
       />
 
       <div className="flex flex-col items-center gap-3 rounded-[22px] border border-[var(--line)] bg-white/80 px-4 py-6 sm:flex-row sm:items-center sm:justify-center sm:gap-5">
@@ -1474,11 +1480,19 @@ function LogoTab({
           alt={HOME_LOGO_ALT}
           width={128}
           height={128}
-          className="h-28 w-28 object-contain"
+          className="object-contain"
+          style={{
+            width: homeLogoSizePx(logo.scale),
+            height: homeLogoSizePx(logo.scale),
+            maxWidth: "12rem",
+            maxHeight: "12rem",
+          }}
         />
         <div className="text-center sm:text-left">
           <p className="text-lg font-semibold tracking-wide">
-            {logo.visible ? (logo.useAnimation ? "旋转动画" : "透明静帧") : "已隐藏"}
+            {logo.visible
+              ? `${logo.useAnimation ? "旋转动画" : "透明静帧"} · ${homeLogoScalePercent(logo.scale)}%`
+              : "已隐藏"}
           </p>
           <p className="mt-1 text-sm text-[var(--muted)]">
             动画已压到约 0.5MB，避免原 15MB GIF 在微信里拖垮首页。
@@ -1508,9 +1522,35 @@ function LogoTab({
         </label>
       </div>
 
+      <label className="block rounded-2xl border border-[var(--line)] bg-white/80 px-4 py-3">
+        <span className="flex items-center justify-between text-sm">
+          <span>大小</span>
+          <span className="font-medium text-[var(--ink)]">
+            {homeLogoScalePercent(logo.scale)}% · {homeLogoSizePx(logo.scale)}px
+          </span>
+        </span>
+        <input
+          type="range"
+          className="mt-2 w-full accent-[var(--brand)]"
+          min={HOME_LOGO_SCALE_MIN}
+          max={HOME_LOGO_SCALE_MAX}
+          step={HOME_LOGO_SCALE_STEP}
+          value={logo.scale}
+          onChange={(event) => onChange({ scale: Number(event.target.value) })}
+        />
+        <button
+          type="button"
+          className="btn btn-secondary mt-3 min-h-11 px-4 text-sm"
+          disabled={logo.scale === HOME_LOGO_SCALE_DEFAULT}
+          onClick={() => onChange({ scale: HOME_LOGO_SCALE_DEFAULT })}
+        >
+          恢复默认大小
+        </button>
+      </label>
+
       <div className="flex flex-col gap-2 rounded-2xl border border-[var(--line)] bg-white/80 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-[var(--muted)]">
-          想改位置：打开首页，按住颗秒标拖到想要的地方。点击后出现＋－和「隐藏」。
+          想改位置或大小：打开首页，按住颗秒标拖动，拉右下角改尺寸。这里改的大小点「保存装扮」后全站生效。
         </p>
         <button
           type="button"

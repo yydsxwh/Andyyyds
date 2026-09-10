@@ -113,17 +113,11 @@ export function homeWidgetBoxStyle(box: HomeWidgetBox): {
   };
 }
 
-/** 门户卡片默认两列，贴近手机微信；时钟默认画布右上 */
+/** 门户卡片默认两列，贴近手机微信；时钟默认画布右上。颗秒标不进画布，始终首页浮动。 */
 export function defaultHomeWidgetBoxes(
   navKeys: string[],
 ): Record<string, HomeWidgetBox> {
   const items: Record<string, HomeWidgetBox> = {
-    [HOME_WIDGET_LOGO_ID]: clampHomeWidgetBox({
-      xPct: 2,
-      yPx: 8,
-      wPct: 22,
-      hPx: 120,
-    }),
     [HOME_WIDGET_CLOCK_ID]: clampHomeWidgetBox({
       xPct: 68,
       yPx: 8,

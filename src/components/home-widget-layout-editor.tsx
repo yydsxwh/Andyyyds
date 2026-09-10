@@ -15,12 +15,9 @@ import {
 } from "@/components/save-feedback";
 import { HomePortalCardBody } from "@/components/home-portal-card-body";
 import { SiteHomeClock } from "@/components/site-home-clock";
-import { SiteHomeLogo } from "@/components/site-home-logo";
 import type { HomeClockConfig } from "@andyyyds/shared/home-clock";
-import type { HomeLogoConfig } from "@andyyyds/shared/home-logo";
 import {
   HOME_WIDGET_CLOCK_ID,
-  HOME_WIDGET_LOGO_ID,
   HOME_WIDGET_DEFAULT_CANVAS_MIN_HEIGHT_PX,
   HOME_WIDGET_MAX_H_PX,
   HOME_WIDGET_MAX_W_PCT,
@@ -54,12 +51,10 @@ type Props = {
   initial: HomeWidgetLayoutConfig;
   navItems: PortalNavLink[];
   clockConfig?: HomeClockConfig | null;
-  logoConfig?: HomeLogoConfig | null;
 };
 
 function widgetLabel(id: string, navItems: PortalNavLink[]) {
   if (id === HOME_WIDGET_CLOCK_ID) return "首页时钟";
-  if (id === HOME_WIDGET_LOGO_ID) return "颗秒标";
   const key = id.startsWith("nav:") ? id.slice(4) : id;
   return navItems.find((item) => item.key === key)?.label || key;
 }
@@ -68,7 +63,6 @@ export function HomeWidgetLayoutEditor({
   initial,
   navItems,
   clockConfig,
-  logoConfig,
 }: Props) {
   const router = useRouter();
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -222,7 +216,6 @@ export function HomeWidgetLayoutEditor({
   }
 
   const widgetIds = [
-    HOME_WIDGET_LOGO_ID,
     HOME_WIDGET_CLOCK_ID,
     ...navKeys.map((key) => homeWidgetNavId(key)),
   ];
@@ -240,7 +233,7 @@ export function HomeWidgetLayoutEditor({
           <span>
             <span className="font-medium text-[var(--ink)]">启用自由布局</span>
             <span className="mt-0.5 block text-[var(--muted)]">
-              勾选并保存后，首页时钟离开顶栏，和门户卡片一起按画布摆放。手机微信可拖、可拉角缩放。
+              勾选并保存后，首页时钟离开顶栏，和门户卡片一起按画布摆放。颗秒标仍在首页自由拖动改大小。手机微信可拖、可拉角缩放。
             </span>
           </span>
         </label>
@@ -367,13 +360,6 @@ export function HomeWidgetLayoutEditor({
                     forceVisible
                     fill
                     config={clockConfig}
-                    className="h-full w-full"
-                  />
-                ) : id === HOME_WIDGET_LOGO_ID ? (
-                  <SiteHomeLogo
-                    forceVisible
-                    fill
-                    config={logoConfig}
                     className="h-full w-full"
                   />
                 ) : (
