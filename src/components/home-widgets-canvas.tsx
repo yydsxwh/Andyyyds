@@ -1,12 +1,9 @@
 import { ConfigurableLink } from "@/components/configurable-link";
 import { HomePortalCardBody } from "@/components/home-portal-card-body";
 import { SiteHomeClock } from "@/components/site-home-clock";
-import { SiteHomeLogo } from "@/components/site-home-logo";
 import type { HomeClockConfig } from "@andyyyds/shared/home-clock";
-import type { HomeLogoConfig } from "@andyyyds/shared/home-logo";
 import {
   HOME_WIDGET_CLOCK_ID,
-  HOME_WIDGET_LOGO_ID,
   homeWidgetBoxStyle,
   homeWidgetNavId,
   mergeHomeWidgetBoxes,
@@ -20,31 +17,20 @@ export function HomeWidgetsCanvas({
   modules,
   layout,
   clockConfig,
-  logoConfig,
   className = "",
 }: {
   modules: PortalNavLink[];
   layout: HomeWidgetLayoutConfig;
   clockConfig?: HomeClockConfig | null;
-  logoConfig?: HomeLogoConfig | null;
   className?: string;
 }) {
   const navKeys = modules.map((item) => item.key);
   const boxes = mergeHomeWidgetBoxes(layout.items, navKeys);
   const minHeight = resolveCanvasMinHeightPx(boxes, layout.canvasMinHeightPx);
   const clockBox = boxes[HOME_WIDGET_CLOCK_ID];
-  const logoBox = boxes[HOME_WIDGET_LOGO_ID];
 
   return (
     <div className={`relative w-full ${className}`} style={{ minHeight }}>
-      {logoBox ? (
-        <div
-          className="absolute z-20 overflow-visible"
-          style={homeWidgetBoxStyle(logoBox)}
-        >
-          <SiteHomeLogo fill config={logoConfig} className="h-full w-full" />
-        </div>
-      ) : null}
       {clockBox ? (
         <div
           className="absolute z-20 overflow-visible"
@@ -79,12 +65,10 @@ export function HomeWidgetsSection({
   modules,
   layout,
   clockConfig,
-  logoConfig,
 }: {
   modules: PortalNavLink[];
   layout: HomeWidgetLayoutConfig;
   clockConfig?: HomeClockConfig | null;
-  logoConfig?: HomeLogoConfig | null;
 }) {
   return (
     <section className="pb-14">
@@ -107,7 +91,6 @@ export function HomeWidgetsSection({
           modules={modules}
           layout={layout}
           clockConfig={clockConfig}
-          logoConfig={logoConfig}
         />
       </div>
     </section>

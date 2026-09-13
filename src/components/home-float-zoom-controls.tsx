@@ -1,10 +1,13 @@
 "use client";
 
 /**
- * 首页浮动件点开后的＋－和隐藏。缩放只改本机；隐藏由调用方决定是否写库。
+ * 首页浮动件点开后的＋－和隐藏。
+ * 颗秒标的大小会写库；时钟缩放仍只改本机。
  */
 
-type Props = {
+import type { PointerEvent as ReactPointerEvent } from "react";
+
+type ControlsProps = {
   canZoomIn: boolean;
   canZoomOut: boolean;
   onZoomIn: () => void;
@@ -12,6 +15,7 @@ type Props = {
   onHide: () => void;
   hideLabel?: string;
   align?: "start" | "end" | "center";
+  scaleLabel?: string;
 };
 
 const iconBtnClass =
@@ -28,7 +32,8 @@ export function HomeFloatZoomControls({
   onHide,
   hideLabel = "隐藏",
   align = "start",
-}: Props) {
+  scaleLabel,
+}: ControlsProps) {
   const justify =
     align === "end"
       ? "justify-end"
@@ -38,7 +43,7 @@ export function HomeFloatZoomControls({
 
   return (
     <div
-      className={`mt-1 flex flex-wrap gap-1.5 ${justify}`}
+      className={`mt-1 flex flex-wrap items-center gap-1.5 ${justify}`}
       role="group"
       aria-label="缩放或隐藏挂件"
     >
@@ -56,6 +61,11 @@ export function HomeFloatZoomControls({
       >
         −
       </button>
+      {scaleLabel ? (
+        <span className="min-w-11 px-1 text-center text-xs font-medium text-[var(--ink)]">
+          {scaleLabel}
+        </span>
+      ) : null}
       <button
         type="button"
         className={iconBtnClass}
@@ -84,5 +94,25 @@ export function HomeFloatZoomControls({
         {hideLabel}
       </button>
     </div>
+  );
+}
+
+export function HomeFloatResizeHandle({
+  onPointerDown,
+  label,
+}: {
+  onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      className="absolute -bottom-1 -right-1 z-30 flex h-11 w-11 cursor-se-resize touch-none items-center justify-center"
+      onPointerDown={onPointerDown}
+    >
+      <span className="h-5 w-5 rounded-sm border-2 border-[var(--brand)] bg-white shadow" />
+    </button>
   );
 }

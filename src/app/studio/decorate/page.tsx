@@ -73,9 +73,9 @@ export default async function StudioDecoratePage() {
 
       <details open className="surface rounded-[28px] p-5 sm:p-6">
         <summary className="cursor-pointer list-none touch-manipulation text-lg font-semibold">
-          首页卡片、时钟与颗秒标：拖动 / 改大小
+          首页卡片与时钟：拖动 / 改大小
           <span className="mt-1 block text-sm font-normal text-[var(--muted)]">
-            自由摆放门户入口卡片、时钟和颗秒标。启用并保存后，前台首页按此位置与尺寸显示；未启用时时钟和颗秒标仍可在首页自由拖动。
+            自由摆放门户入口卡片和时钟。颗秒标始终浮动在首页，请到上方「首页标」或回首页直接拖动、拉角改大小。
           </span>
         </summary>
         <div className="mt-6">
@@ -83,7 +83,6 @@ export default async function StudioDecoratePage() {
             initial={decorate.homeWidgetLayout}
             navItems={homeCards}
             clockConfig={decorate.homeClock}
-            logoConfig={decorate.homeLogo}
           />
         </div>
       </details>

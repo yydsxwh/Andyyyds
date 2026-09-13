@@ -22,7 +22,11 @@ import {
   HOME_CLOCK_STYLES,
   normalizeHomeClock,
 } from "@andyyyds/shared/home-clock";
-import { normalizeHomeLogo } from "@andyyyds/shared/home-logo";
+import {
+  HOME_LOGO_SCALE_MAX,
+  HOME_LOGO_SCALE_MIN,
+  normalizeHomeLogo,
+} from "@andyyyds/shared/home-logo";
 import { requireAdmin, studioErrorResponse } from "@andyyyds/shared/studio";
 import {
   getSiteSettings,
@@ -99,6 +103,7 @@ const patchSchema = z.object({
       visible: z.boolean().optional(),
       xPercent: z.number().min(0).max(100).nullable().optional(),
       yPercent: z.number().min(0).max(100).nullable().optional(),
+      scale: z.number().min(HOME_LOGO_SCALE_MIN).max(HOME_LOGO_SCALE_MAX).optional(),
       useAnimation: z.boolean().optional(),
       pngLogos: z
         .array(
@@ -108,6 +113,7 @@ const patchSchema = z.object({
             visible: z.boolean().optional(),
             xPercent: z.number().min(0).max(100).nullable().optional(),
             yPercent: z.number().min(0).max(100).nullable().optional(),
+            scale: z.number().min(HOME_LOGO_SCALE_MIN).max(HOME_LOGO_SCALE_MAX).optional(),
           }),
         )
         .max(8)
