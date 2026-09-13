@@ -1,6 +1,8 @@
 """
 安全增量部署：同步本地代码到阿里云，构建并重启 pm2。
 保留远端 .env / 数据库 / public/uploads / node_modules，不执行 seed。
+
+构建失败或新版本起不来时会自动退回上一版 .next，站点不会因为一次发布挂在 502。
 """
 from __future__ import annotations
 
@@ -13,6 +15,8 @@ from pathlib import Path
 
 import paramiko
 
+from install_prod_guard import install as install_guard
+
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 HOST = "47.242.157.181"
@@ -22,6 +26,8 @@ LOCAL_PROJECT = Path(os.environ.get("YYDS_LOCAL_PROJECT") or Path(__file__).reso
 REMOTE_DIR = "/var/www/yyds-course-platform"
 REMOTE_TAR = "/tmp/yyds-safe-deploy.tar.gz"
 REMOTE_STAGE = "/tmp/yyds-safe-deploy-stage"
+# 与 scripts/ops/yyds-app-guard.sh 约定的发布中标记
+DEPLOY_MARKER = "/tmp/yyds-deploy-in-progress"
 
 EXCLUDE_DIRS = {
     "node_modules",
@@ -250,6 +256,73 @@ def upload_tarball(client: paramiko.SSHClient, tarball: Path) -> paramiko.SSHCli
     raise RuntimeError(f"Upload failed after retries: local={local_size} bytes")
 
 
+def snapshot_build(client: paramiko.SSHClient) -> None:
+    """构建前把上一版 .next 留一份硬链接快照。
+
+    构建会就地重写 .next，中途被 OOM / 断网 / 重启打断就只剩半成品，
+    Next 生产模式起不来、nginx 只能回 502。有快照才能立刻退回能用的版本。
+    """
+    run(
+        client,
+        f"rm -f {REMOTE_DIR}/.next/lock; "
+        # 用 [n]ext 避免 pgrep -f 误匹配当前 SSH 命令行把自己杀掉
+        "pids=$(pgrep -f '[n]ext build' || true); "
+        "if [ -n \"$pids\" ]; then kill $pids || true; fi; "
+        "sleep 1; "
+        f"rm -rf {REMOTE_DIR}/.next.prev; "
+        f"if [ -f {REMOTE_DIR}/.next/BUILD_ID ]; then "
+        f"cp -al {REMOTE_DIR}/.next {REMOTE_DIR}/.next.prev 2>/dev/null || "
+        f"cp -a {REMOTE_DIR}/.next {REMOTE_DIR}/.next.prev; fi; "
+        f"rm -rf {REMOTE_DIR}/.next",
+    )
+
+
+def require_build(client: paramiko.SSHClient) -> None:
+    """构建命令返回 0 不代表产物完整，BUILD_ID 在才算真的构建出来了。"""
+    run(client, f"test -f {REMOTE_DIR}/.next/BUILD_ID")
+
+
+def rollback_build(client: paramiko.SSHClient) -> None:
+    run(
+        client,
+        f"if [ -f {REMOTE_DIR}/.next.prev/BUILD_ID ]; then "
+        f"rm -rf {REMOTE_DIR}/.next.broken; "
+        f"if [ -d {REMOTE_DIR}/.next ]; then mv {REMOTE_DIR}/.next {REMOTE_DIR}/.next.broken; fi; "
+        f"cp -al {REMOTE_DIR}/.next.prev {REMOTE_DIR}/.next 2>/dev/null || "
+        f"cp -a {REMOTE_DIR}/.next.prev {REMOTE_DIR}/.next; "
+        "echo ROLLED_BACK; "
+        "else echo NO_PREVIOUS_BUILD; fi",
+    )
+
+
+def restart_app(client: paramiko.SSHClient) -> None:
+    # 用 if/else，避免 || 与 && 连用导致 restart 成功后又多起一个进程
+    run(
+        client,
+        "if pm2 describe yyds-course >/dev/null 2>&1; then "
+        "pm2 restart yyds-course --update-env; "
+        "else "
+        f"cd {REMOTE_DIR} && pm2 start npm --name yyds-course -- start -- -p 3000; "
+        "fi",
+    )
+    run(client, "pm2 save")
+
+
+def site_healthy(client: paramiko.SSHClient, attempts: int = 6) -> bool:
+    """本地端口能出正常页面才算起来了；5xx 说明 Next 没起来，nginx 对外就是 502。"""
+    for _ in range(attempts):
+        time.sleep(10)
+        out = run(
+            client,
+            "curl -s -o /dev/null -m 15 -w '%{http_code}' http://127.0.0.1:3000/ || true",
+        )
+        code = out.strip().splitlines()[-1].strip() if out.strip() else "000"
+        print(f"health check: {code}", flush=True)
+        if code.isdigit() and 200 <= int(code) < 500:
+            return True
+    return False
+
+
 def main() -> int:
     tarball = make_tarball()
     client = connect()
@@ -285,35 +358,36 @@ def main() -> int:
     run(client, f"cd {REMOTE_DIR} && npx prisma generate")
     # Int→BigInt 等兼容扩列时 Prisma 会误报 data loss；SQLite 整数可安全拓宽
     run(client, f"cd {REMOTE_DIR} && npx prisma db push --accept-data-loss")
-    # 清 lock / 残留 .next，避免并发或半成品导致 pages-manifest ENOENT
-    # 用 [n]ext 避免 pkill -f 误匹配当前 SSH 命令行把自己杀掉
-    run(
-        client,
-        f"rm -f {REMOTE_DIR}/.next/lock; "
-        "pids=$(pgrep -f '[n]ext build' || true); "
-        "if [ -n \"$pids\" ]; then kill $pids || true; fi; "
-        f"sleep 1; rm -rf {REMOTE_DIR}/.next",
-    )
-    run(client, f"cd {REMOTE_DIR} && npm run build", timeout=1200)
-    # 用 if/else，避免 || 与 && 连用导致 restart 成功后又多起一个进程
-    run(
-        client,
-        "if pm2 describe yyds-course >/dev/null 2>&1; then "
-        "pm2 restart yyds-course --update-env; "
-        "else "
-        f"cd {REMOTE_DIR} && pm2 start npm --name yyds-course -- start -- -p 3000; "
-        "fi",
-    )
-    run(client, "pm2 save")
+    # 先装好自愈守护：万一后面的构建把机器拖挂，定时器能自己把站点拉回来
+    install_guard(lambda cmd: run(client, cmd))
+
+    # 发布期间站点本来就会短暂中断，打个标记让守护别插进来抢着回滚
+    run(client, f"touch {DEPLOY_MARKER}")
+    try:
+        snapshot_build(client)
+        try:
+            # 构建走 yyds-build.sh，限制内存上限，别再把整机吃到无响应
+            run(client, f"{REMOTE_DIR}/scripts/ops/yyds-build.sh", timeout=1800)
+            require_build(client)
+        except Exception:  # noqa: BLE001
+            print("BUILD_FAILED; rolling back to previous build", flush=True)
+            rollback_build(client)
+            restart_app(client)
+            raise
+
+        restart_app(client)
+        if not site_healthy(client):
+            print("NEW BUILD UNHEALTHY; rolling back to previous build", flush=True)
+            rollback_build(client)
+            restart_app(client)
+            raise RuntimeError("new build failed health check; rolled back")
+    finally:
+        run(client, f"rm -f {DEPLOY_MARKER}")
+
     run(client, "pm2 status")
     run(
         client,
-        "sleep 4; "
-        "curl -s -o /dev/null -w 'local:%{http_code}\\n' http://127.0.0.1:3000/; "
-        "curl -s -o /dev/null -w 'site:%{http_code}\\n' -m 15 https://www.yydsxwh.com/; "
-        f"grep -n '横屏全屏\\|learn-landscape-fs\\|learn-fs-enter' "
-        f"{REMOTE_DIR}/packages/courses/components/learn-player.tsx "
-        f"{REMOTE_DIR}/src/app/globals.css | head -20",
+        "curl -s -o /dev/null -w 'site:%{http_code}\\n' -m 15 https://www.yydsxwh.com/",
     )
     print("DEPLOY_OK", flush=True)
     client.close()
