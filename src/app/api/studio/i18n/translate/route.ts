@@ -46,7 +46,7 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           error:
-            "请先在系统设置「语言与翻译」中配置翻译 API Key（OpenAI 兼容接口）",
+            "请先在系统设置「AI 接口」中配置翻译 API Key（OpenAI 兼容接口）",
         },
         { status: 400 },
       );

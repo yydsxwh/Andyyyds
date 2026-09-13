@@ -57,7 +57,7 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           error:
-            "未配置视觉识别 API Key。请先在系统设置「语言与翻译」中填入 OpenAI 兼容 Key。",
+            "未配置视觉识别 API Key。请先在系统设置「AI 接口」中填入 OpenAI 兼容 Key。",
         },
         { status: 400 },
       );
