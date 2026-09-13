@@ -2,7 +2,11 @@
 给线上装「站点自愈」这套东西，可重复执行：
 
 1. systemd 定时器每分钟跑一次 yyds-app-guard.sh，站点打不开就自动退回上一版构建并重启；
-2. swap 扩到 4G，构建内存峰值有地方落，别再把整机拖到无响应。
+2. swap 扩到 4G 并把 swappiness 调回正常值，构建内存峰值有地方落；
+3. 装 earlyoom，内存快耗尽时先杀掉吃内存最多的进程，保住 sshd / nginx 和整机。
+
+第 2、3 条针对的是同一类事故：这台机器只有 3.4G 内存，一旦有人（任何脚本、任何会话）
+在上面跑重活，内存打满会把整机拖到无响应，连 SSH 都进不去，最后只能被硬重启。
 
 发布脚本 deploy_safe_update.py 每次会自动调用本模块，一般不用手动跑。
 """
@@ -18,6 +22,19 @@ GUARD_SCRIPT = f"{REMOTE_DIR}/scripts/ops/yyds-app-guard.sh"
 GUARD_LOG = "/var/log/yyds-app-guard.log"
 SWAP_FILE = "/swapfile-yyds"
 SWAP_SIZE_MB = 4096
+# 阿里云镜像默认 swappiness=0，内存吃紧时宁可疯狂回收页缓存也不用 swap，
+# 结果就是整机卡死而 swap 一点没用上。调回 60 让内存峰值真的能落到 swap。
+SWAPPINESS = 60
+SYSCTL_FILE = "/etc/sysctl.d/60-yyds-memory.conf"
+# earlyoom 挑 RSS 最大的进程下手，正好是失控的构建；sshd / nginx 必须保住，
+# 否则机器还活着却连不上，等于宕机。
+# 阈值卡在「内存和 swap 都见底」才动手：正常构建把内存用满是常态，
+# 有 swap 兜着只是变慢，只有连 swap 都快没了才是那种再不管就整机卡死的局面。
+EARLYOOM_ARGS = (
+    "-r 60 -m 4 -s 10 "
+    "--avoid '^(sshd|systemd|systemd-.*|nginx|init|dbus-daemon|pm2.*)$' "
+    "--prefer '^(npm|esbuild|tsc|webpack)$'"
+)
 
 SERVICE_UNIT = f"""[Unit]
 Description=YYDS site guard (auto-recover site when it stops responding)
@@ -67,6 +84,34 @@ def install(run) -> None:
     run("sudo systemctl daemon-reload")
     run("sudo systemctl enable --now yyds-app-guard.timer")
     ensure_swap(run)
+    ensure_swappiness(run)
+    ensure_earlyoom(run)
+
+
+def ensure_swappiness(run) -> None:
+    """光加 swap 没用：swappiness=0 时内核几乎不会去用它。"""
+    run(
+        f"echo 'vm.swappiness = {SWAPPINESS}' | sudo tee {SYSCTL_FILE} > /dev/null; "
+        f"sudo sysctl -p {SYSCTL_FILE}"
+    )
+
+
+def ensure_earlyoom(run) -> None:
+    """内存见底时由 earlyoom 精准杀掉最大的进程，而不是让整机一起卡死。"""
+    run(
+        "command -v earlyoom >/dev/null || "
+        "sudo DEBIAN_FRONTEND=noninteractive apt-get install -y earlyoom"
+    )
+    run(
+        "sudo tee /etc/default/earlyoom > /dev/null <<'CONF'\n"
+        f'EARLYOOM_ARGS="{EARLYOOM_ARGS}"\n'
+        "CONF"
+    )
+    run(
+        "sudo systemctl enable earlyoom && "
+        "sudo systemctl restart earlyoom && "
+        "systemctl is-active earlyoom"
+    )
 
 
 def ensure_swap(run) -> None:
