@@ -20,7 +20,7 @@ export default async function StudioSettingsPage() {
       <div>
         <h1 className="text-3xl font-semibold">系统设置</h1>
         <p className="mt-2 text-sm text-[var(--muted)]">
-          配置站点地址、公众号接口、支付，以及存储分流：课程视频用点播、其他文件用
+          配置站点地址、AI 接口、公众号、支付，以及存储分流：课程视频用点播、其他文件用
           OSS。各分区可独立保存。文案请到「内容管理」，视觉请到「装修」。
         </p>
       </div>

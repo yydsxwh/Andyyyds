@@ -104,6 +104,7 @@ const inputClass =
 
 type SettingsSectionId =
   | "site"
+  | "ai"
   | "i18n"
   | "commission"
   | "wechat-mp"
@@ -235,7 +236,7 @@ export function SiteSettingsPanel({ initial }: Props) {
   }));
   // 用集合记录展开项，互不影响，方便对照填写多块配置
   const [openSections, setOpenSections] = useState<Set<SettingsSectionId>>(
-    () => new Set<SettingsSectionId>(["site"]),
+    () => new Set<SettingsSectionId>(["site", "ai"]),
   );
   const [savingSection, setSavingSection] = useState<SettingsSectionId | null>(
     null,
@@ -286,13 +287,17 @@ export function SiteSettingsPanel({ initial }: Props) {
           hideAllPrices: form.hideAllPrices,
           hideSocialChat: form.hideSocialChat,
         };
+      case "ai":
+        // Key 全站共用（翻译 + MathCode），单独栏目保存，避免和语种开关互相覆盖
+        return {
+          translateApiBaseUrl: form.translateApiBaseUrl,
+          translateApiKey: form.translateApiKey,
+          translateApiModel: form.translateApiModel,
+        };
       case "i18n":
         return {
           defaultLocale: form.defaultLocale,
           enabledLocales: form.enabledLocales,
-          translateApiBaseUrl: form.translateApiBaseUrl,
-          translateApiKey: form.translateApiKey,
-          translateApiModel: form.translateApiModel,
         };
       case "commission":
         return {
@@ -375,6 +380,7 @@ export function SiteSettingsPanel({ initial }: Props) {
 
   const SECTION_SAVE_OK: Record<SettingsSectionId, string> = {
     site: "站点基础已保存",
+    ai: "AI 接口已保存",
     i18n: "语言与翻译已保存",
     commission: "分成与抽成已保存",
     "wechat-mp": "微信公众号接口已保存",
@@ -593,6 +599,14 @@ export function SiteSettingsPanel({ initial }: Props) {
         </label>
         {sectionSaveBar("site")}
       </SettingsSection>
+
+      <AiApiSection
+        form={form}
+        set={set}
+        open={openSections.has("ai")}
+        onToggle={toggleSection}
+        sectionSaveBar={sectionSaveBar}
+      />
 
       <LanguageTranslateSection
         form={form}
@@ -1422,6 +1436,165 @@ const LOCALE_OPTIONS: { id: string; label: string }[] = [
   { id: "pt", label: "Português" },
 ];
 
+function AiApiSection({
+  form,
+  set,
+  open,
+  onToggle,
+  sectionSaveBar,
+}: {
+  form: PublicSettings;
+  set: <K extends keyof PublicSettings>(key: K, value: PublicSettings[K]) => void;
+  open: boolean;
+  onToggle: (id: SettingsSectionId) => void;
+  sectionSaveBar: (id: SettingsSectionId) => ReactNode;
+}) {
+  // 选中后自动填 Base URL + 默认模型；已保存值按 Base URL 反查预设
+  const currentPreset = findProviderPreset({
+    baseUrl: form.translateApiBaseUrl,
+    model: form.translateApiModel,
+  });
+
+  return (
+    <SettingsSection
+      id="ai"
+      title="AI 接口"
+      summary={
+        form.translateConfigured
+          ? `${currentPreset.id === "custom" ? "自定义" : currentPreset.name} · ${form.translateApiModel || "未选模型"}`
+          : "尚未配置 Key"
+      }
+      open={open}
+      onToggle={onToggle}
+    >
+      <p className="text-sm text-[var(--muted)]">
+        全站共用：一键翻译和 MathCode 识图转公式都走这里。选预设会自动填
+        Base URL 与推荐模型；Key 只保存在本机数据库，不进代码仓库。
+      </p>
+      <Field
+        label="AI 提供商"
+        hint="选一个预设即自动填 Base URL 与推荐模型；也可选「自定义」手动填写。"
+      >
+        <select
+          className={inputClass}
+          value={currentPreset.id}
+          onChange={(e) => {
+            const preset = AI_PROVIDER_PRESETS.find(
+              (p) => p.id === e.target.value,
+            );
+            if (!preset) return;
+            if (preset.id === "custom") return;
+            set("translateApiBaseUrl", preset.baseUrl);
+            set("translateApiModel", preset.defaultModel);
+          }}
+        >
+          {AI_PROVIDER_PRESETS.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+              {p.id === "custom"
+                ? ""
+                : ` · ${REGION_LABEL[p.region]}${p.vision ? " · 含视觉" : ""}`}
+            </option>
+          ))}
+        </select>
+      </Field>
+      {currentPreset.notes || currentPreset.applyUrl ? (
+        <p className="text-xs leading-6 text-[var(--muted)]">
+          {currentPreset.notes}
+          {currentPreset.applyUrl ? (
+            <>
+              {currentPreset.notes ? "　" : ""}
+              <a
+                className="text-[var(--brand)] hover:underline"
+                href={currentPreset.applyUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                申请 Key →
+              </a>
+            </>
+          ) : null}
+        </p>
+      ) : null}
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field
+          label="Base URL"
+          hint="OpenAI 兼容的 /chat/completions 前缀，通常预设已自动填好；改动会切到「自定义」"
+        >
+          <input
+            className={inputClass}
+            value={form.translateApiBaseUrl || ""}
+            onChange={(e) => set("translateApiBaseUrl", e.target.value)}
+            placeholder="https://api.openai.com/v1"
+          />
+        </Field>
+        <Field
+          label="模型名"
+          hint={
+            currentPreset.models.length
+              ? "可直接输入，或从下方推荐列表挑一个"
+              : "手动填写模型 ID"
+          }
+        >
+          <input
+            className={inputClass}
+            value={form.translateApiModel || ""}
+            onChange={(e) => set("translateApiModel", e.target.value)}
+            placeholder="gpt-4o-mini"
+            list={`ai-models-${currentPreset.id}`}
+          />
+          {currentPreset.models.length ? (
+            <datalist id={`ai-models-${currentPreset.id}`}>
+              {currentPreset.models.map((m) => (
+                <option key={m.id} value={m.id} label={m.label} />
+              ))}
+            </datalist>
+          ) : null}
+          {currentPreset.models.length ? (
+            <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
+              {currentPreset.models.map((m) => {
+                const active = form.translateApiModel === m.id;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => set("translateApiModel", m.id)}
+                    className={
+                      active
+                        ? "min-h-11 rounded-full border border-[var(--brand)] bg-[var(--brand)]/12 px-3 py-1.5 text-[var(--brand)]"
+                        : "min-h-11 rounded-full border border-[var(--line)] bg-white/60 px-3 py-1.5 text-[var(--muted)] hover:border-[var(--brand)]/60 hover:text-[var(--brand)]"
+                    }
+                    title={m.label}
+                  >
+                    {m.id}
+                    {m.vision ? " 👁" : ""}
+                    {m.recommended ? " ★" : ""}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+        </Field>
+        <Field
+          label="API Key"
+          hint="已保存的密钥显示为打码；留空保存表示不修改"
+        >
+          <input
+            className={inputClass}
+            type="password"
+            autoComplete="off"
+            value={form.translateApiKey || ""}
+            onChange={(e) => set("translateApiKey", e.target.value)}
+            placeholder="sk-…"
+          />
+        </Field>
+      </div>
+      {sectionSaveBar("ai")}
+    </SettingsSection>
+  );
+}
+
 function LanguageTranslateSection({
   form,
   set,
@@ -1490,13 +1663,13 @@ function LanguageTranslateSection({
     <SettingsSection
       id="i18n"
       title="语言与翻译"
-      summary={`回退 ${form.defaultLocale || "zh-Hans"} · 启用 ${form.enabledLocales?.length || 0} 种 · ${form.translateConfigured ? "API 已配置" : "API 未配置"}`}
+      summary={`回退 ${form.defaultLocale || "zh-Hans"} · 启用 ${form.enabledLocales?.length || 0} 种`}
       open={open}
       onToggle={onToggle}
     >
       <p className="text-sm text-[var(--muted)]">
-        访客按浏览器语言自动匹配。界面词条与简繁转换免费；课程/约搭等正文一键翻译需配置
-        OpenAI 兼容 API（按量计费），结果落库缓存。站长登录前台时会并排看到中文原文与译文。
+        访客按浏览器语言自动匹配。界面词条与简繁转换免费；课程/约搭等正文一键翻译走「AI
+        接口」里的 Key（按量计费），结果落库缓存。站长登录前台时会并排看到中文原文与译文。
       </p>
       <Field label="无匹配时的回退语言">
         <select
@@ -1530,142 +1703,13 @@ function LanguageTranslateSection({
           ))}
         </div>
       </div>
-      {(() => {
-        // AI 提供商预设：选中后自动填 Base URL + 默认模型；已保存值反查匹配到哪个预设
-        const currentPreset = findProviderPreset({
-          baseUrl: form.translateApiBaseUrl,
-          model: form.translateApiModel,
-        });
-        return (
-          <div className="space-y-4">
-            <Field
-              label="AI 提供商"
-              hint="选一个预设即自动填 Base URL 与推荐模型；也可选「自定义」手动填写。此 Key 同时用于「一键翻译」与「MathCode 公式识别」。"
-            >
-              <select
-                className={inputClass}
-                value={currentPreset.id}
-                onChange={(e) => {
-                  const preset = AI_PROVIDER_PRESETS.find(
-                    (p) => p.id === e.target.value,
-                  );
-                  if (!preset) return;
-                  if (preset.id === "custom") return;
-                  set("translateApiBaseUrl", preset.baseUrl);
-                  set("translateApiModel", preset.defaultModel);
-                }}
-              >
-                {AI_PROVIDER_PRESETS.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                    {p.id === "custom"
-                      ? ""
-                      : ` · ${REGION_LABEL[p.region]}${p.vision ? " · 含视觉" : ""}`}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            {currentPreset.notes || currentPreset.applyUrl ? (
-              <p className="text-xs leading-6 text-[var(--muted)]">
-                {currentPreset.notes}
-                {currentPreset.applyUrl ? (
-                  <>
-                    {currentPreset.notes ? "　" : ""}
-                    <a
-                      className="text-[var(--brand)] hover:underline"
-                      href={currentPreset.applyUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      申请 Key →
-                    </a>
-                  </>
-                ) : null}
-              </p>
-            ) : null}
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field
-                label="Base URL"
-                hint="OpenAI 兼容的 /chat/completions 前缀，通常预设已自动填好；改动会切到「自定义」"
-              >
-                <input
-                  className={inputClass}
-                  value={form.translateApiBaseUrl || ""}
-                  onChange={(e) => set("translateApiBaseUrl", e.target.value)}
-                  placeholder="https://api.openai.com/v1"
-                />
-              </Field>
-              <Field
-                label="模型名"
-                hint={
-                  currentPreset.models.length
-                    ? "可直接输入，或从下方推荐列表挑一个"
-                    : "手动填写模型 ID"
-                }
-              >
-                <input
-                  className={inputClass}
-                  value={form.translateApiModel || ""}
-                  onChange={(e) => set("translateApiModel", e.target.value)}
-                  placeholder="gpt-4o-mini"
-                  list={`ai-models-${currentPreset.id}`}
-                />
-                {currentPreset.models.length ? (
-                  <datalist id={`ai-models-${currentPreset.id}`}>
-                    {currentPreset.models.map((m) => (
-                      <option key={m.id} value={m.id} label={m.label} />
-                    ))}
-                  </datalist>
-                ) : null}
-                {currentPreset.models.length ? (
-                  <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
-                    {currentPreset.models.map((m) => {
-                      const active = form.translateApiModel === m.id;
-                      return (
-                        <button
-                          key={m.id}
-                          type="button"
-                          onClick={() => set("translateApiModel", m.id)}
-                          className={
-                            active
-                              ? "rounded-full border border-[var(--brand)] bg-[var(--brand)]/12 px-2 py-0.5 text-[var(--brand)]"
-                              : "rounded-full border border-[var(--line)] bg-white/60 px-2 py-0.5 text-[var(--muted)] hover:border-[var(--brand)]/60 hover:text-[var(--brand)]"
-                          }
-                          title={m.label}
-                        >
-                          {m.id}
-                          {m.vision ? " 👁" : ""}
-                          {m.recommended ? " ★" : ""}
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : null}
-              </Field>
-              <Field
-                label="API Key"
-                hint="已保存的密钥显示为打码；留空保存表示不修改"
-              >
-                <input
-                  className={inputClass}
-                  type="password"
-                  autoComplete="off"
-                  value={form.translateApiKey || ""}
-                  onChange={(e) => set("translateApiKey", e.target.value)}
-                  placeholder="sk-…"
-                />
-              </Field>
-            </div>
-          </div>
-        );
-      })()}
       {sectionSaveBar("i18n")}
       <div className="mt-4 space-y-3 rounded-2xl border border-[var(--line)] bg-white/50 p-4">
         <p className="text-sm font-medium text-[var(--ink)]">一键翻译正文</p>
         <p className="text-xs text-[var(--muted)]">
           将课程/约搭/分类/装扮/门户可见文案翻译到目标语言并缓存。繁体可走本地转换无需
-          API；英语等需已保存 API Key。
+          API；英语等需先在「AI 接口」保存 Key。
+          {form.translateConfigured ? "" : " 当前尚未配置 Key。"}
         </p>
         <div className="flex flex-wrap items-end gap-3">
           <label className="block text-sm">

@@ -1,7 +1,7 @@
 /**
  * MathCode 公式识别：OpenAI 兼容 Chat Completions（Vision）
  *
- * 复用系统设置里「语言与翻译」的 baseUrl/apiKey，避免站长在两处填 Key；
+ * 复用系统设置里「AI 接口」的 baseUrl/apiKey，避免站长在两处填 Key；
  * 但视觉能力对模型有要求，所以另用一个模型字段（默认 gpt-4o-mini，视觉可用）。
  * 也支持 ENV 覆盖，便于站长单独接入具备视觉能力的 Key/模型：
  *   MATHCODE_API_KEY    覆盖 API Key（不填→回落系统设置里的翻译 Key）

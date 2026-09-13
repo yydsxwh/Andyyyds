@@ -64,7 +64,7 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           error:
-            "未配置视觉识别 API Key。请先在系统设置「语言与翻译」中填入 OpenAI 兼容 Key，且所选模型需支持视觉（默认 gpt-4o-mini）。也可通过环境变量 MATHCODE_API_KEY / MATHCODE_API_BASE / MATHCODE_MODEL 单独配置。",
+            "未配置视觉识别 API Key。请先在系统设置「AI 接口」中填入 OpenAI 兼容 Key，且所选模型需支持视觉（默认 gpt-4o-mini）。也可通过环境变量 MATHCODE_API_KEY / MATHCODE_API_BASE / MATHCODE_MODEL 单独配置。",
         },
         { status: 400 },
       );
