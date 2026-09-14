@@ -32,7 +32,7 @@ function ProductCard({ product }: { product: SoftwareProduct }) {
       </p>
 
       {product.id === "days" ? (
-        <div className="mt-5 flex flex-wrap gap-2">
+        <div className="relative z-10 mt-5 flex flex-wrap gap-2">
           <a
             href="/products/days/"
             target="_blank"
@@ -64,7 +64,7 @@ function ProductCard({ product }: { product: SoftwareProduct }) {
           </span>
         </div>
       ) : product.href && product.id === "mathcode" ? (
-        <div className="mt-4 flex flex-wrap gap-2">
+        <div className="relative z-10 mt-4 flex flex-wrap gap-2">
           <a
             href={product.href}
             target="_blank"
@@ -94,7 +94,7 @@ function ProductCard({ product }: { product: SoftwareProduct }) {
           </a>
         </div>
       ) : product.href ? (
-        <span className="mt-4 inline-flex min-h-11 items-center text-sm font-medium text-[var(--brand)]">
+        <span className="relative z-10 mt-4 inline-flex min-h-11 items-center text-sm font-medium text-[var(--brand)]">
           了解更多 →
         </span>
       ) : (
@@ -104,22 +104,23 @@ function ProductCard({ product }: { product: SoftwareProduct }) {
   );
 
   const className =
-    "surface block rounded-[28px] p-5 transition hover:-translate-y-0.5 sm:p-6";
-
-  if (product.id === "days" || product.id === "mathcode") {
-    return <article className={className}>{inner}</article>;
-  }
+    "surface relative block rounded-[28px] p-5 transition hover:-translate-y-0.5 sm:p-6";
 
   if (product.href) {
+    // 整张产品卡片都可点击，并始终在新标签打开；内部操作按钮保持可独立点击。
     return (
-      <a
-        href={product.href}
-        className={className}
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        {inner}
-      </a>
+      <article className={className}>
+        <a
+          href={product.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={`在新标签页打开${product.name}`}
+          className="absolute inset-0 z-0 rounded-[28px]"
+        />
+        <div className="relative z-10 pointer-events-none [&_a]:pointer-events-auto [&_button]:pointer-events-auto">
+          {inner}
+        </div>
+      </article>
     );
   }
 
