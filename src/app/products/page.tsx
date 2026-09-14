@@ -10,7 +10,7 @@ import {
 
 export const metadata = {
   title: "软件产品",
-  description: "颗秒会议、颗秒网盘等自研软件产品",
+  description: "颗秒系列自研软件产品",
 };
 
 function ProductCard({ product }: { product: SoftwareProduct }) {
@@ -30,7 +30,33 @@ function ProductCard({ product }: { product: SoftwareProduct }) {
       <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
         {product.description}
       </p>
-      {product.href && product.id === "mathcode" ? (
+
+      {product.id === "days" ? (
+        <div className="mt-5 flex flex-wrap gap-2">
+          <a
+            href="/products/days/"
+            className="btn btn-primary min-h-11 px-4 text-sm"
+          >
+            打开网页版
+          </a>
+          <a
+            href="/products/days/kemiao-days.apk"
+            download="kemiao-days.apk"
+            className="btn btn-secondary min-h-11 px-4 text-sm"
+          >
+            Android APK
+          </a>
+          <a
+            href="/products/days/kemiao-days-windows.exe"
+            className="btn btn-secondary min-h-11 px-4 text-sm"
+          >
+            Windows 客户端
+          </a>
+          <span className="btn btn-secondary min-h-11 px-4 text-sm opacity-60">
+            iOS：待签名发布
+          </span>
+        </div>
+      ) : product.href && product.id === "mathcode" ? (
         <div className="mt-4 flex flex-wrap gap-2">
           <Link href={product.href} className="btn btn-primary min-h-11 px-4 text-sm">
             进入 MathCode
@@ -66,8 +92,7 @@ function ProductCard({ product }: { product: SoftwareProduct }) {
   const className =
     "surface block rounded-[28px] p-5 transition hover:-translate-y-0.5 sm:p-6";
 
-  // MathCode 卡片上有多个入口，不能整卡包一层 Link（否则套嵌 <a>）
-  if (product.id === "mathcode") {
+  if (product.id === "days" || product.id === "mathcode") {
     return <article className={className}>{inner}</article>;
   }
 
