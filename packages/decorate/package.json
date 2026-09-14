@@ -1,0 +1,12 @@
+{
+  "name": "@andyyyds/decorate",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Andyyyds 网站装扮：一键主题、配色、背景、文字、门面与首页挂件",
+  "exports": {
+    "./*": "./*"
+  },
+  "dependencies": {
+    "@andyyyds/shared": "*"
+  }
+}

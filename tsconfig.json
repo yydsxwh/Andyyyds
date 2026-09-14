@@ -27,6 +27,7 @@
       "@andyyyds/courses/*": ["./packages/courses/*"],
       "@andyyyds/mathcode/*": ["./packages/mathcode/*"],
       "@andyyyds/docs/*": ["./packages/docs/*"],
+      "@andyyyds/decorate/*": ["./packages/decorate/*"],
       "@/lib/*": ["./packages/shared/src/*"],
       "@/*": ["./src/*"]
     }

@@ -11,6 +11,7 @@ const nextConfig: NextConfig = {
     "@andyyyds/courses",
     "@andyyyds/mathcode",
     "@andyyyds/docs",
+    "@andyyyds/decorate",
   ],
   experimental: {
     serverActions: {

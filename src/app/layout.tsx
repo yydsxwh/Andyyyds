@@ -26,6 +26,7 @@ import {
   typoRoleClass,
   typoRoleStyle,
 } from "@andyyyds/shared/site-typography";
+import "@andyyyds/decorate/styles/decorate.css";
 import "./globals.css";
 
 // 不用 next/font/google：香港机器构建时常拉不到 fonts.googleapis.com 导致整站发版失败。

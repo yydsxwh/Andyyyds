@@ -1,0 +1,261 @@
+/* 网站装扮：文字动画 + 海岛/阳光主题动效。由根 layout 引入，全站（含微信）生效。 */
+
+/* —— 装扮文字动画（轻量、CSS-only；微信/移动端友好）—— */
+.typo-role {
+  /* 扫光/渐变字需要 inline 才能正确 clip */
+}
+
+@keyframes typo-fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes typo-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@keyframes typo-bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-4px);
+  }
+  60% {
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes typo-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+@keyframes typo-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.03);
+  }
+}
+
+@keyframes typo-shine {
+  0% {
+    background-position: 120% 0;
+  }
+  100% {
+    background-position: -120% 0;
+  }
+}
+
+@keyframes typo-breath {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.88;
+    transform: scale(1.015);
+  }
+}
+
+/* 打字机感：clip 逐步显现，不改布局宽度（微信友好） */
+@keyframes typo-typewriter {
+  from {
+    clip-path: inset(0 100% 0 0);
+    opacity: 0.85;
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+    opacity: 1;
+  }
+}
+
+/* 跑马灯感：轻微左右漂移，避免 overflow 截断与挡点击 */
+@keyframes typo-marquee {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(-4%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .typo-role,
+  .typo-nav,
+  .typo-brand,
+  .typo-hero-title,
+  .typo-hero-sub,
+  .typo-section-title,
+  .typo-section-desc,
+  .typo-portal-card-title,
+  .typo-portal-card-desc {
+    animation: none !important;
+  }
+}
+
+/* ============================================================
+ * 海岛/阳光装扮动效（仿 QQ 空间黄钻：海浪、阳光粒子、椰影、呼吸）
+ * 挂在 html[data-theme-fx=…]；仅 transform/opacity，微信内可降级；
+ * prefers-reduced-motion / 窄屏弱化，避免挡点击与耗电。
+ * 暖金圆形「阳光光斑」bokeh 已去掉：固定大圆挡视线，海浪/椰影/细粒子保留。
+ * ============================================================ */
+html[data-theme-fx^="island-"]::before,
+html[data-theme-fx^="island-"]::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  /* 不挡触控；z 低于抽屉/弹层(z-50)，高于普通内容光感 */
+  pointer-events: none;
+  z-index: 25;
+  will-change: transform, opacity;
+}
+
+/* 海浪层：底部柔波 */
+html[data-theme-fx="island-wave"]::before,
+html[data-theme-fx="island-lagoon"]::before {
+  background:
+    radial-gradient(ellipse 80% 28% at 50% 108%, rgba(45, 212, 191, 0.22), transparent 70%),
+    radial-gradient(ellipse 60% 22% at 20% 100%, rgba(56, 189, 248, 0.18), transparent 65%),
+    radial-gradient(ellipse 55% 20% at 85% 102%, rgba(125, 211, 252, 0.2), transparent 60%);
+  animation: island-wave-sway 9s ease-in-out infinite;
+  opacity: 0.9;
+}
+
+/* 椰影轻晃：斜向柔影（不含暖金圆斑） */
+html[data-theme-fx="island-palm"]::before {
+  background:
+    radial-gradient(ellipse 40% 55% at 92% -5%, rgba(22, 101, 52, 0.1), transparent 70%),
+    radial-gradient(ellipse 28% 40% at 8% 0%, rgba(20, 83, 45, 0.08), transparent 65%);
+  animation: island-palm-sway 11s ease-in-out infinite;
+  transform-origin: 90% 0%;
+  opacity: 0.88;
+}
+
+/* 第二层：细小白/水色闪点（去掉琥珀黄粒子，避免残留光斑感） */
+html[data-theme-fx="island-sunbeam"]::after,
+html[data-theme-fx="island-sparkle"]::after,
+html[data-theme-fx="island-lagoon"]::after {
+  background:
+    radial-gradient(circle 3px at 22% 30%, rgba(255, 255, 255, 0.75), transparent 70%),
+    radial-gradient(circle 2.5px at 45% 58%, rgba(255, 255, 255, 0.65), transparent 70%),
+    radial-gradient(circle 2px at 82% 62%, rgba(186, 230, 253, 0.7), transparent 70%),
+    radial-gradient(circle 1.5px at 35% 78%, rgba(255, 255, 255, 0.55), transparent 70%);
+  animation: island-sparkle-twinkle 6.5s ease-in-out infinite;
+  opacity: 0.7;
+}
+
+html[data-theme-fx="island-wave"]::after,
+html[data-theme-fx="island-palm"]::after {
+  background:
+    radial-gradient(circle 60px at 30% 20%, rgba(255, 255, 255, 0.35), transparent 60%);
+  animation: island-bokeh-drift 16s ease-in-out infinite reverse;
+  opacity: 0.55;
+}
+
+html[data-theme-fx="island-breath"]::after {
+  background:
+    radial-gradient(ellipse 70% 45% at 50% 40%, rgba(56, 189, 248, 0.1), transparent 60%);
+  animation: island-breath-glow 8s ease-in-out infinite;
+  opacity: 0.75;
+}
+
+@keyframes island-bokeh-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  33% {
+    transform: translate3d(1.5%, -1.2%, 0) scale(1.03);
+  }
+  66% {
+    transform: translate3d(-1.2%, 1%, 0) scale(0.98);
+  }
+}
+
+@keyframes island-wave-sway {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scaleX(1);
+  }
+  50% {
+    transform: translate3d(0, -1.5%, 0) scaleX(1.04);
+  }
+}
+
+@keyframes island-palm-sway {
+  0%,
+  100% {
+    transform: rotate(0deg) translate3d(0, 0, 0);
+  }
+  50% {
+    transform: rotate(1.2deg) translate3d(-0.6%, 0.4%, 0);
+  }
+}
+
+@keyframes island-sparkle-twinkle {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: translate3d(0, 0, 0);
+  }
+  40% {
+    opacity: 0.85;
+    transform: translate3d(0.4%, -0.6%, 0);
+  }
+  70% {
+    opacity: 0.5;
+    transform: translate3d(-0.3%, 0.3%, 0);
+  }
+}
+
+@keyframes island-breath-glow {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.04);
+  }
+}
+
+@media (max-width: 640px) {
+  html[data-theme-fx^="island-"]::before,
+  html[data-theme-fx^="island-"]::after {
+    opacity: 0.45;
+    animation-duration: 18s;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme-fx^="island-"]::before,
+  html[data-theme-fx^="island-"]::after {
+    animation: none !important;
+    opacity: 0.25;
+  }
+}
