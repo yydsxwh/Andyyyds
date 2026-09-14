@@ -1,0 +1,28 @@
+name: Deploy to Hong Kong Server
+
+on:
+  push:
+    branches:
+      - Andyyyds20260901independentpackage
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT }}
+          script: |
+            cd /var/www/yydsxwh.com
+            git fetch origin
+            git reset --hard origin/Andyyyds20260901independentpackage
+            npm ci
+            npx prisma db push
+            npm run build
+            pm2 restart yydsxwh
+            pm2 save
