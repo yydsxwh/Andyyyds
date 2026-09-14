@@ -35,6 +35,9 @@ EXCLUDE_DIRS = {
     ".git",
     "uploads",
     "public/uploads",
+    # 瞬懂 / 颗秒日事等静态子应用直接放在服务器上（含上百 MB 安装包），
+    # 不进仓库也不该被发布覆盖或删掉
+    "public/products",
     "agent-transcripts",
     "assets",
     ".cursor",
@@ -344,6 +347,7 @@ def main() -> int:
         f"--exclude 'node_modules' "
         f"--exclude '.next' "
         f"--exclude 'public/uploads' "
+        f"--exclude 'public/products' "
         f"--exclude '.deploy_backup' "
         f"--exclude '*.db' "
         f"--exclude '*.db-journal' "

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { NavPageTemplateShell } from "@/components/nav-page-template-shell";
 import { OpenVsCodeButton } from "@andyyyds/mathcode/components/open-vscode-button";
 import { MATHCODE_EDITOR_LINKS } from "@andyyyds/mathcode/lib/mathcode-open";
@@ -10,10 +9,44 @@ import {
 
 export const metadata = {
   title: "软件产品",
-  description: "颗秒系列自研软件产品",
+  description: "瞬懂、颗秒日事、MathCode、网页文档等自研软件产品",
 };
 
+function ProductActions({ product }: { product: SoftwareProduct }) {
+  if (!product.actions?.length) return null;
+  return (
+    <div className="relative z-10 mt-4 flex flex-wrap gap-2">
+      {product.actions.map((action) => {
+        const className = action.primary
+          ? "btn btn-primary min-h-11 px-4 text-sm"
+          : "btn btn-secondary min-h-11 px-4 text-sm";
+        const isApk = /\.apk(?:$|\?)/i.test(action.href);
+        // 安卓 Chrome 用 download 属性走 blob 保存时，APK 首次常提示「下载失败」；
+        // 直接跳转交给 nginx 的 Content-Disposition 命名更稳。其余安装包保留 download。
+        const downloadProps =
+          action.download && !isApk
+            ? { download: action.href.split("/").pop() || "download" }
+            : {};
+        return (
+          <a
+            key={action.href}
+            className={className}
+            href={action.href}
+            type={isApk ? "application/vnd.android.package-archive" : undefined}
+            target="_blank"
+            rel="noopener noreferrer"
+            {...downloadProps}
+          >
+            {action.label}
+          </a>
+        );
+      })}
+    </div>
+  );
+}
+
 function ProductCard({ product }: { product: SoftwareProduct }) {
+  const hasActions = Boolean(product.actions?.length);
   const inner = (
     <>
       <div className="flex flex-wrap items-center gap-2">
@@ -31,38 +64,8 @@ function ProductCard({ product }: { product: SoftwareProduct }) {
         {product.description}
       </p>
 
-      {product.id === "days" ? (
-        <div className="relative z-10 mt-5 flex flex-wrap gap-2">
-          <a
-            href="/products/days/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-primary min-h-11 px-4 text-sm"
-          >
-            打开网页版
-          </a>
-          <a
-            href="/products/days/kemiao-days.apk"
-            download="kemiao-days.apk"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-secondary min-h-11 px-4 text-sm"
-          >
-            下载 Android APK
-          </a>
-          <a
-            href="/products/days/kemiao-days-windows.exe"
-            download="kemiao-days-windows.exe"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-secondary min-h-11 px-4 text-sm"
-          >
-            下载 Windows 客户端
-          </a>
-          <span className="btn btn-secondary min-h-11 px-4 text-sm opacity-60">
-            iOS：待签名发布
-          </span>
-        </div>
+      {hasActions ? (
+        <ProductActions product={product} />
       ) : product.href && product.id === "mathcode" ? (
         <div className="relative z-10 mt-4 flex flex-wrap gap-2">
           <a
@@ -107,7 +110,8 @@ function ProductCard({ product }: { product: SoftwareProduct }) {
     "surface relative block rounded-[28px] p-5 transition hover:-translate-y-0.5 sm:p-6";
 
   if (product.href) {
-    // 整张产品卡片都可点击，并始终在新标签打开；内部操作按钮保持可独立点击。
+    // 整张卡片都可点击，且一律在新标签打开，软件产品页本身不会被覆盖。
+    // 铺满卡片的透明链接放在底层，卡片内的按钮靠 pointer-events 单独接管点击。
     return (
       <article className={className}>
         <a
