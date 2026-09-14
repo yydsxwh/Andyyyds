@@ -1,25 +1,27 @@
-/**
- * 软件产品专栏：顶栏「软件产品」→ /products。
- * 后续可在此扩展更多颗秒系产品；外链/状态集中管理，便于上线时改一处。
- */
-
+/** 软件产品专栏 */
 export type SoftwareProductStatus = "coming_soon" | "beta" | "live";
-
 export type SoftwareProduct = {
   id: string;
   name: string;
   tagline: string;
   description: string;
   status: SoftwareProductStatus;
-  /** 正式产品页或外链；空则只展示介绍 */
   href?: string;
-  /** 卡片角标文案 */
   badge?: string;
-  /** true=仅站长可用（前台仍展示卡片，进入后按登录身份分流） */
   adminOnly?: boolean;
 };
 
 export const SOFTWARE_PRODUCTS: SoftwareProduct[] = [
+  {
+    id: "days",
+    name: "日事",
+    tagline: "日历、课程表、考试与个人时间管理",
+    description:
+      "统一管理日程、我的一天、待办、课程表、考试时间表与自我管理时间表。支持提醒、优先级、课程/考试导入识别，并持续建设 Android、iOS 与 Windows 客户端。",
+    status: "live",
+    href: "/products/days/",
+    badge: "Web + Android + Windows",
+  },
   {
     id: "docs",
     name: "网页文档",
