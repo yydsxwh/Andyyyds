@@ -1,7 +1,8 @@
 name: Integrate decorate package
 
 on:
-  push:
+  pull_request_target:
+    types: [opened, reopened, synchronize]
     branches:
       - Andyyyds20260901independentpackage
 
@@ -10,7 +11,7 @@ permissions:
 
 jobs:
   integrate:
-    if: ${{ github.event.head_commit.message != 'chore: integrate decorate package from PR #19' }}
+    if: ${{ github.event.pull_request.number == 19 }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout latest base
@@ -19,10 +20,13 @@ jobs:
           fetch-depth: 0
           ref: Andyyyds20260901independentpackage
 
-      - name: Merge decorate PR with PR changes preferred on conflicts
+      - name: Merge decorate PR into latest base
+        env:
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
+          set -e
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch origin cursor/decorate-package-14ec
-          git merge --no-ff -X theirs origin/cursor/decorate-package-14ec -m "chore: integrate decorate package from PR #19"
+          git fetch origin "$PR_HEAD_REF"
+          git merge --no-ff -X theirs "origin/$PR_HEAD_REF" -m "chore: integrate decorate package from PR #19"
           git push origin HEAD:Andyyyds20260901independentpackage
