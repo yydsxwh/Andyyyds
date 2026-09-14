@@ -35,6 +35,8 @@ function ProductCard({ product }: { product: SoftwareProduct }) {
         <div className="mt-5 flex flex-wrap gap-2">
           <a
             href="/products/days/"
+            target="_blank"
+            rel="noopener noreferrer"
             className="btn btn-primary min-h-11 px-4 text-sm"
           >
             打开网页版
@@ -42,12 +44,16 @@ function ProductCard({ product }: { product: SoftwareProduct }) {
           <a
             href="/products/days/kemiao-days.apk"
             download="kemiao-days.apk"
+            target="_blank"
+            rel="noopener noreferrer"
             className="btn btn-secondary min-h-11 px-4 text-sm"
           >
             Android APK
           </a>
           <a
             href="/products/days/kemiao-days-windows.exe"
+            target="_blank"
+            rel="noopener noreferrer"
             className="btn btn-secondary min-h-11 px-4 text-sm"
           >
             Windows 客户端
@@ -58,9 +64,14 @@ function ProductCard({ product }: { product: SoftwareProduct }) {
         </div>
       ) : product.href && product.id === "mathcode" ? (
         <div className="mt-4 flex flex-wrap gap-2">
-          <Link href={product.href} className="btn btn-primary min-h-11 px-4 text-sm">
+          <a
+            href={product.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-primary min-h-11 px-4 text-sm"
+          >
             进入 MathCode
-          </Link>
+          </a>
           <a
             className="btn btn-secondary min-h-11 px-4 text-sm"
             href={MATHCODE_EDITOR_LINKS.overleaf}
@@ -72,12 +83,14 @@ function ProductCard({ product }: { product: SoftwareProduct }) {
           <OpenVsCodeButton className="btn btn-secondary min-h-11 px-4 text-sm">
             打开 VS Code
           </OpenVsCodeButton>
-          <Link
+          <a
             href="/app/windows"
+            target="_blank"
+            rel="noopener noreferrer"
             className="btn btn-secondary min-h-11 px-4 text-sm"
           >
             Windows 客户端
-          </Link>
+          </a>
         </div>
       ) : product.href ? (
         <span className="mt-4 inline-flex min-h-11 items-center text-sm font-medium text-[var(--brand)]">
@@ -97,17 +110,15 @@ function ProductCard({ product }: { product: SoftwareProduct }) {
   }
 
   if (product.href) {
-    const external = /^https?:\/\//i.test(product.href);
     return (
-      <Link
+      <a
         href={product.href}
         className={className}
-        {...(external
-          ? { target: "_blank", rel: "noopener noreferrer" }
-          : {})}
+        target="_blank"
+        rel="noopener noreferrer"
       >
         {inner}
-      </Link>
+      </a>
     );
   }
 
@@ -140,8 +151,10 @@ export default function SoftwareProductsPage() {
           <p className="mt-2 max-w-2xl text-sm leading-7 text-[var(--muted)]">
             休闲与学习向游戏入口规划中，先从这里进入专区。
           </p>
-          <Link
+          <a
             href="/games"
+            target="_blank"
+            rel="noopener noreferrer"
             className="surface mt-5 block rounded-[28px] p-5 transition hover:-translate-y-0.5 sm:p-6"
           >
             <div className="flex flex-wrap items-center gap-2">
@@ -159,7 +172,7 @@ export default function SoftwareProductsPage() {
             <span className="mt-4 inline-flex min-h-11 items-center text-sm font-medium text-[var(--brand)]">
               进入游戏中心 →
             </span>
-          </Link>
+          </a>
         </section>
 
         <p className="mt-10 text-center text-xs text-[var(--muted)]">
