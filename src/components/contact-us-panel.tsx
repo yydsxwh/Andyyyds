@@ -106,12 +106,12 @@ export function ContactUsPanel({ contact, variant = "hero" }: Props) {
     <aside
       aria-label={title}
       // 首页靠左展示；与右侧「客户端下载」并排时由外层控制宽度
-      className="surface w-full max-w-md space-y-3 rounded-[24px] p-4 sm:max-w-sm sm:p-5"
+      className="surface w-full max-w-md space-y-3 rounded-[24px] p-5 sm:max-w-md sm:p-6"
     >
-      <h2 className="text-base font-semibold text-[var(--ink)] sm:text-lg">
+      <h2 className="text-lg font-semibold text-[var(--ink)] sm:text-xl">
         {title}
       </h2>
-      <dl className="grid gap-2.5 sm:grid-cols-2">
+      <dl className="grid gap-3 sm:grid-cols-2">
         {rows.map((row) => (
           <div key={row.label} className="min-w-0">
             <dt className="text-xs text-[var(--muted)]">{row.label}</dt>
