@@ -48,15 +48,16 @@ function ProductCard({ product }: { product: SoftwareProduct }) {
             rel="noopener noreferrer"
             className="btn btn-secondary min-h-11 px-4 text-sm"
           >
-            Android APK
+            下载 Android APK
           </a>
           <a
             href="/products/days/kemiao-days-windows.exe"
+            download="kemiao-days-windows.exe"
             target="_blank"
             rel="noopener noreferrer"
             className="btn btn-secondary min-h-11 px-4 text-sm"
           >
-            Windows 客户端
+            下载 Windows 客户端
           </a>
           <span className="btn btn-secondary min-h-11 px-4 text-sm opacity-60">
             iOS：待签名发布
