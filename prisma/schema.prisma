@@ -83,6 +83,8 @@ model User {
   docsDocuments        DocsDocument[]
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
+  /// 学员编号（历史功能写入；线上库 46 条数据保留，功能代码后续恢复）
+  kkNumber             Int?
 
   @@index([forumUniversityId])
   @@index([roleApplicationStatus])
@@ -469,6 +471,10 @@ model SiteSettings {
   smsTestMode Boolean @default(true)
   /// 测试固定验证码（仅 testMode 时生效）；空则每次随机并打日志
   smsTestFixedCode String @default("123456")
+  /// 分场景短信模板 CODE（历史功能写入；线上数据保留，功能代码后续恢复）
+  smsTemplateCodeLogin    String?
+  smsTemplateCodeRegister String?
+  smsTemplateCodeBind     String?
 
   /// 全站背景音乐歌单（JSON）：开关、循环、曲目列表（upload/url/stock/netease）
   bgMusicJson String @default("")

@@ -24,7 +24,7 @@ jobs:
             date -u
             set -e
             export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-            chown -R admin:admin /var/www/yydsxwh.com
+            sudo chown -R admin:admin /var/www/yydsxwh.com
             sudo -u admin git -C /var/www/yydsxwh.com fetch origin
             sudo -u admin git -C /var/www/yydsxwh.com checkout -B Andyyyds20260901independentpackage origin/Andyyyds20260901independentpackage
             sudo -u admin rsync -a --delete --exclude node_modules --exclude .next --exclude .git --exclude .env --exclude 'prod.db*' --exclude 'dev.db*' --exclude public/uploads --exclude public/products --exclude uploads --exclude .deploy_backup --exclude .next.prev --exclude tsconfig.tsbuildinfo /var/www/yydsxwh.com/ /var/www/yyds-course-platform/
