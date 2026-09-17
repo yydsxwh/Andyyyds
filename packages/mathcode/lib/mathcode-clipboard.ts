@@ -26,6 +26,14 @@ const IGNORE_CLIPBOARD_MIME = new Set([
   "text/uri-list",
 ]);
 
+/**
+ * 页面里既有局部 onPaste，也有 window 级 paste 兜底；同一次浏览器粘贴事件
+ * 在某些浏览器/微信 WebView 中可能被两条通道各处理一次。
+ * 用一个很短的跨事件去重窗口挡住同一文件的重复入队，确保一次粘贴只识别一次。
+ */
+const RECENT_TRANSFER_TTL_MS = 1200;
+const recentTransferKeys = new Map<string, number>();
+
 function clipboardStamp(): string {
   const d = new Date();
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -43,6 +51,22 @@ function fileKey(file: File): string {
   return `${file.name}|${file.size}|${file.type}|${file.lastModified}`;
 }
 
+function isRecentTransferDuplicate(file: File): boolean {
+  const now = Date.now();
+  for (const [key, seenAt] of recentTransferKeys) {
+    if (now - seenAt > RECENT_TRANSFER_TTL_MS) {
+      recentTransferKeys.delete(key);
+    }
+  }
+  const key = fileKey(file);
+  const seenAt = recentTransferKeys.get(key);
+  if (seenAt != null && now - seenAt <= RECENT_TRANSFER_TTL_MS) {
+    return true;
+  }
+  recentTransferKeys.set(key, now);
+  return false;
+}
+
 function ensureFileName(file: File): File {
   const raw = (file.name || "").replace(/^.*[/\\]/, "").trim();
   if (raw && raw !== "image.png" && raw !== "blob") return file;
@@ -56,11 +80,17 @@ function ensureFileName(file: File): File {
   });
 }
 
-function pushUnique(out: File[], seen: Set<string>, file: File | null) {
+function pushUnique(
+  out: File[],
+  seen: Set<string>,
+  file: File | null,
+  dedupeRecent = false,
+) {
   if (!file || file.size <= 0) return;
   const named = ensureFileName(file);
   const key = fileKey(named);
   if (seen.has(key)) return;
+  if (dedupeRecent && isRecentTransferDuplicate(named)) return;
   seen.add(key);
   out.push(named);
 }
@@ -73,7 +103,7 @@ export function filesFromDataTransfer(
   const seen = new Set<string>();
 
   for (const file of Array.from(dt.files || [])) {
-    pushUnique(out, seen, file);
+    pushUnique(out, seen, file, true);
   }
 
   const items = dt.items ? Array.from(dt.items) : [];
@@ -81,7 +111,7 @@ export function filesFromDataTransfer(
     if (item.kind !== "file") continue;
     const mime = (item.type || "").toLowerCase();
     if (IGNORE_CLIPBOARD_MIME.has(mime)) continue;
-    pushUnique(out, seen, item.getAsFile());
+    pushUnique(out, seen, item.getAsFile(), true);
   }
 
   return out;
