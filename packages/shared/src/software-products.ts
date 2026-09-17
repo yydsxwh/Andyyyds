@@ -13,6 +13,26 @@ export type SoftwareProduct = {
 
 export const SOFTWARE_PRODUCTS: SoftwareProduct[] = [
   {
+    id: "android-app",
+    name: "安卓 App",
+    tagline: "手机客户端下载",
+    description:
+      "歪歪滴艾斯安卓手机客户端：课程学习、论坛、约搭与消息随身携带，随时随地在线学习与交流。",
+    status: "live",
+    href: "/app",
+    badge: "手机端",
+  },
+  {
+    id: "windows-client",
+    name: "Windows 客户端",
+    tagline: "电脑客户端下载",
+    description:
+      "歪歪滴艾斯 Windows 桌面客户端：站点完整功能的桌面版，大屏学习更专注，下载安装即用。",
+    status: "live",
+    href: "/app/windows",
+    badge: "电脑端",
+  },
+  {
     id: "days",
     name: "日事",
     tagline: "日历、课程表、考试与个人时间管理",

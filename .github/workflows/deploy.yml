@@ -18,11 +18,27 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT }}
           script: |
+            set -e
+            # 1) 更新中转 git 检出目录
             cd /var/www/yydsxwh.com
             git fetch origin
-            git reset --hard origin/Andyyyds20260901independentpackage
+            git checkout -B Andyyyds20260901independentpackage origin/Andyyyds20260901independentpackage
+            # 2) 同步代码到线上服务目录（保留运行时数据：.env / 数据库 / uploads / 依赖与构建产物由后续步骤重建）
+            rsync -a --delete \
+              --exclude node_modules \
+              --exclude .next \
+              --exclude .git \
+              --exclude .env \
+              --exclude 'prod.db*' \
+              --exclude 'dev.db*' \
+              --exclude public/uploads \
+              --exclude uploads \
+              /var/www/yydsxwh.com/ /var/www/yyds-course-platform/
+            # 3) 在线上目录安装依赖、同步数据库结构、构建
+            cd /var/www/yyds-course-platform
             npm ci
             npx prisma db push
             npm run build
-            pm2 restart yydsxwh
+            # 4) 重启真正对外服务的进程（nginx -> 127.0.0.1:3000 -> pm2 yyds-course）
+            pm2 restart yyds-course
             pm2 save
