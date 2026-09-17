@@ -19,19 +19,15 @@ jobs:
           port: ${{ secrets.SERVER_PORT }}
           script_stop: true
           script: |
-            exec >> /tmp/gh-deploy.log 2>&1
+            exec > /tmp/gh-deploy.log 2>&1
             set -x
             date -u
             set -e
             export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-            cd /var/www/yydsxwh.com
-            git fetch origin
-            git checkout -B Andyyyds20260901independentpackage origin/Andyyyds20260901independentpackage
-            rsync -a --delete --exclude node_modules --exclude .next --exclude .git --exclude .env --exclude 'prod.db*' --exclude 'dev.db*' --exclude public/uploads --exclude public/products --exclude uploads --exclude .deploy_backup --exclude .next.prev --exclude tsconfig.tsbuildinfo /var/www/yydsxwh.com/ /var/www/yyds-course-platform/
-            cd /var/www/yyds-course-platform
-            npm ci
-            npx prisma db push
-            npm run build
+            sudo -u admin git -C /var/www/yydsxwh.com fetch origin
+            sudo -u admin git -C /var/www/yydsxwh.com checkout -B Andyyyds20260901independentpackage origin/Andyyyds20260901independentpackage
+            sudo -u admin rsync -a --delete --exclude node_modules --exclude .next --exclude .git --exclude .env --exclude 'prod.db*' --exclude 'dev.db*' --exclude public/uploads --exclude public/products --exclude uploads --exclude .deploy_backup --exclude .next.prev --exclude tsconfig.tsbuildinfo /var/www/yydsxwh.com/ /var/www/yyds-course-platform/
+            sudo -u admin bash -c 'cd /var/www/yyds-course-platform && npm ci && npx prisma db push && npm run build'
             sudo -u admin pm2 restart yyds-course
             sudo -u admin pm2 save
             echo DEPLOY_OK
