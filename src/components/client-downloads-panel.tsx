@@ -115,7 +115,7 @@ export function HomeContactAndDownloads({
 }) {
   return (
     <div className="flex w-full max-w-6xl flex-col gap-4 px-3 sm:px-5 lg:flex-row lg:items-start lg:justify-between lg:gap-6 lg:px-8">
-      <div className="min-w-0 shrink-0 lg:max-w-sm">{contactPanel}</div>
+      <div className="min-w-0 shrink-0 lg:max-w-md">{contactPanel}</div>
       <div className="min-w-0 lg:ml-auto">
         <ClientDownloadsPanel />
       </div>
