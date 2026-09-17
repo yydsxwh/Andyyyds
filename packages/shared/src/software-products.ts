@@ -1,14 +1,31 @@
-/** 软件产品专栏 */
+/**
+ * 软件产品专栏：顶栏「软件产品」→ /products。
+ * 后续可在此扩展更多颗秒系产品；外链/状态集中管理，便于上线时改一处。
+ */
+
 export type SoftwareProductStatus = "coming_soon" | "beta" | "live";
+
+export type SoftwareProductAction = {
+  label: string;
+  href: string;
+  primary?: boolean;
+  download?: boolean;
+};
+
 export type SoftwareProduct = {
   id: string;
   name: string;
   tagline: string;
   description: string;
   status: SoftwareProductStatus;
+  /** 正式产品页或外链；空则只展示介绍 */
   href?: string;
+  /** 卡片角标文案 */
   badge?: string;
+  /** true=仅站长可用（前台仍展示卡片，进入后按登录身份分流） */
   adminOnly?: boolean;
+  /** 卡片上的多个入口（网页版、安装包等） */
+  actions?: SoftwareProductAction[];
 };
 
 export const SOFTWARE_PRODUCTS: SoftwareProduct[] = [
@@ -21,6 +38,9 @@ export const SOFTWARE_PRODUCTS: SoftwareProduct[] = [
     status: "live",
     href: "/app",
     badge: "手机端",
+    actions: [
+      { label: "下载安卓 App", href: "/app", primary: true },
+    ],
   },
   {
     id: "windows-client",
@@ -31,16 +51,22 @@ export const SOFTWARE_PRODUCTS: SoftwareProduct[] = [
     status: "live",
     href: "/app/windows",
     badge: "电脑端",
+    actions: [
+      { label: "下载 Windows 客户端", href: "/app/windows", primary: true },
+    ],
   },
   {
-    id: "days",
-    name: "日事",
-    tagline: "日历、课程表、考试与个人时间管理",
+    id: "kemiao-shundong",
+    name: "瞬懂",
+    tagline: "无畏契约点位社区",
     description:
-      "统一管理日程、我的一天、待办、课程表、考试时间表与自我管理时间表。支持提醒、优先级、课程/考试导入识别，并持续建设 Android、iOS 与 Windows 客户端。",
+      "上传点位教学视频和图文攻略笔记，支持评论、点赞、收藏和分享。按地图、英雄和用途检索。",
     status: "live",
-    href: "/products/days/",
-    badge: "Web + Android + Windows",
+    href: "/products/shundong/",
+    badge: "网页版",
+    actions: [
+      { label: "打开网页版", href: "/products/shundong/", primary: true },
+    ],
   },
   {
     id: "docs",
@@ -61,6 +87,29 @@ export const SOFTWARE_PRODUCTS: SoftwareProduct[] = [
     status: "live",
     href: "/products/mathcode",
     badge: "0.5元/页 · 会员更优惠",
+  },
+  {
+    id: "kemiao-days",
+    name: "颗秒日事",
+    tagline: "日历 · 课表 · 待办 · 倒数日",
+    description:
+      "青春校园风日历、超级课程表、待办、倒数日与便签。可导入表格或课表照片，上课和考试会按时提醒。网页即开即用，也可下载 Android 或 Windows 安装包。",
+    status: "live",
+    href: "/products/days/",
+    badge: "网页版 + Android + Windows",
+    actions: [
+      { label: "打开网页版", href: "/products/days/", primary: true },
+      {
+        label: "下载 Android 安装包",
+        href: "/products/days/kemiao-days.apk",
+        download: true,
+      },
+      {
+        label: "下载 Windows 客户端",
+        href: "/products/days/kemiao-days-windows.exe",
+        download: true,
+      },
+    ],
   },
   {
     id: "kemiao-meeting",

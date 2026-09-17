@@ -23,7 +23,8 @@ jobs:
             cd /var/www/yydsxwh.com
             git fetch origin
             git checkout -B Andyyyds20260901independentpackage origin/Andyyyds20260901independentpackage
-            # 2) 同步代码到线上服务目录（保留运行时数据：.env / 数据库 / uploads / 依赖与构建产物由后续步骤重建）
+            # 2) 同步代码到线上服务目录（保留运行时数据与不在仓库里的静态产品站）
+            #    public/products = 瞬懂/颗秒日事等静态产品站与安装包（不在 git 内，勿删）
             rsync -a --delete \
               --exclude node_modules \
               --exclude .next \
@@ -32,7 +33,11 @@ jobs:
               --exclude 'prod.db*' \
               --exclude 'dev.db*' \
               --exclude public/uploads \
+              --exclude public/products \
               --exclude uploads \
+              --exclude .deploy_backup \
+              --exclude .next.prev \
+              --exclude tsconfig.tsbuildinfo \
               /var/www/yydsxwh.com/ /var/www/yyds-course-platform/
             # 3) 在线上目录安装依赖、同步数据库结构、构建
             cd /var/www/yyds-course-platform
