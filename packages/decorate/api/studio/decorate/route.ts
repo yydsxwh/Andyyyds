@@ -8,6 +8,12 @@ import {
 } from "@andyyyds/decorate/lib/decorate";
 import { normalizeHomeWidgetLayout } from "@andyyyds/decorate/lib/home-widget-layout";
 import {
+  isHomeFloatCardId,
+  normalizeHomeFloatCardPlacement,
+  normalizeHomeFloatCards,
+  type HomeFloatCardsConfig,
+} from "@andyyyds/decorate/lib/home-float-cards";
+import {
   DEFAULT_BACKGROUND_ID,
   DEFAULT_LAYOUT_DENSITY,
   DEFAULT_PALETTE_ID,
@@ -131,6 +137,16 @@ const patchSchema = z.object({
         .optional(),
     })
     .optional(),
+  homeFloatCards: z
+    .record(
+      z.string(),
+      z.object({
+        xPercent: z.number().min(0).max(100).nullable().optional(),
+        yPercent: z.number().min(0).max(100).nullable().optional(),
+        scale: z.number().min(0.4).max(3).optional(),
+      }),
+    )
+    .optional(),
 });
 
 export async function GET() {
@@ -207,6 +223,19 @@ export async function PATCH(req: Request) {
     const homeWidgetLayout = normalizeHomeWidgetLayout(
       body.homeWidgetLayout ?? current.homeWidgetLayout,
     );
+    // 卡片摆放逐卡合并：只传某张卡的坐标/大小，其余卡与未传字段都保留
+    let homeFloatCards = current.homeFloatCards;
+    if (body.homeFloatCards) {
+      const mergedCards: HomeFloatCardsConfig = { ...current.homeFloatCards };
+      for (const [cardId, patch] of Object.entries(body.homeFloatCards)) {
+        if (!isHomeFloatCardId(cardId)) continue;
+        mergedCards[cardId] = normalizeHomeFloatCardPlacement({
+          ...mergedCards[cardId],
+          ...patch,
+        });
+      }
+      homeFloatCards = normalizeHomeFloatCards(mergedCards);
+    }
 
     const next = {
       logoUrl: (body.logoUrl ?? current.logoUrl).trim() || DEFAULT_DECORATE.logoUrl,
@@ -251,6 +280,7 @@ export async function PATCH(req: Request) {
       homeClock,
       homeLogo,
       homeWidgetLayout,
+      homeFloatCards,
     };
 
     const row = await prisma.siteSettings.update({

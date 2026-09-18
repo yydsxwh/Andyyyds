@@ -2,9 +2,14 @@ import Link from "next/link";
 import { HomeUserChatSearch } from "@/components/chat/home-user-chat-search";
 import { ConfigurableLink } from "@/components/configurable-link";
 import { ContactUsPanel } from "@/components/contact-us-panel";
-import { HomeContactAndDownloads } from "@/components/client-downloads-panel";
+import {
+  ClientDownloadsPanel,
+  HomeContactAndDownloads,
+} from "@/components/client-downloads-panel";
 import { CourseCard } from "@andyyyds/courses/components/course-card";
+import { HomeFloatCardShell } from "@andyyyds/decorate/components/home-float-card-shell";
 import { getSession } from "@andyyyds/shared/auth";
+import { canManageDecorate } from "@andyyyds/shared/roles";
 import {
   MeetupCard,
   type MeetupCardData,
@@ -73,11 +78,78 @@ type CourseCardRow = Course & {
   category: Category | null;
 };
 
-function ContactSection({ contact }: { contact: PortalContact }) {
+/** 联系我们 + 客户端下载：两张卡都套自由摆放外壳（站长可拖/缩，写库后全员可见） */
+function ContactDownloadsRow({
+  contact,
+  decorate,
+  canArrange,
+}: {
+  contact: PortalContact;
+  decorate: DecorateConfig;
+  canArrange: boolean;
+}) {
+  return (
+    <HomeContactAndDownloads
+      contactPanel={
+        <HomeFloatCardShell
+          cardId="contact"
+          placement={decorate.homeFloatCards?.contact}
+          canDrag={canArrange}
+          flowClassName="min-w-0 shrink-0 md:max-w-sm lg:max-w-md"
+        >
+          <ContactUsPanel contact={contact} variant="hero" />
+        </HomeFloatCardShell>
+      }
+      downloadsPanel={
+        <HomeFloatCardShell
+          cardId="downloads"
+          placement={decorate.homeFloatCards?.downloads}
+          canDrag={canArrange}
+          flowClassName="min-w-0 md:ml-auto"
+        >
+          <ClientDownloadsPanel />
+        </HomeFloatCardShell>
+      }
+    />
+  );
+}
+
+/** 找人私聊卡片：套自由摆放外壳 */
+function ChatSearchCard({
+  loggedIn,
+  decorate,
+  canArrange,
+}: {
+  loggedIn: boolean;
+  decorate: DecorateConfig;
+  canArrange: boolean;
+}) {
+  return (
+    <HomeFloatCardShell
+      cardId="chatSearch"
+      placement={decorate.homeFloatCards?.chatSearch}
+      canDrag={canArrange}
+    >
+      <HomeUserChatSearch loggedIn={loggedIn} />
+    </HomeFloatCardShell>
+  );
+}
+
+function ContactSection({
+  contact,
+  decorate,
+  canArrange,
+}: {
+  contact: PortalContact;
+  decorate: DecorateConfig;
+  canArrange: boolean;
+}) {
   return (
     <section className="pt-4 sm:pt-6">
-      <HomeContactAndDownloads
-        contactPanel={<ContactUsPanel contact={contact} variant="hero" />}
+      <ContactDownloadsRow
+        contact={contact}
+        decorate={decorate}
+        canArrange={canArrange}
       />
     </section>
   );
@@ -394,6 +466,7 @@ function ClassicHomeByOrder({
   hideAllPrices,
   hideSocialChat,
   loggedIn,
+  canArrangeCards,
   heroLocalized,
   sectionLabels,
 }: {
@@ -406,6 +479,7 @@ function ClassicHomeByOrder({
   hideAllPrices: boolean;
   hideSocialChat: boolean;
   loggedIn: boolean;
+  canArrangeCards: boolean;
   heroLocalized: {
     heroHeadline: string;
     heroHeadlineEn?: string;
@@ -431,12 +505,23 @@ function ClassicHomeByOrder({
     <div>
       {/* 合规隐藏社交找人；产品/约搭咨询私信入口不在首页，不受影响 */}
       {!hideSocialChat ? (
-        <HomeUserChatSearch loggedIn={loggedIn} />
+        <ChatSearchCard
+          loggedIn={loggedIn}
+          decorate={decorate}
+          canArrange={canArrangeCards}
+        />
       ) : null}
       {sectionIds.map((sectionId) => {
         switch (sectionId) {
           case "contact":
-            return <ContactSection key="contact" contact={contact} />;
+            return (
+              <ContactSection
+                key="contact"
+                contact={contact}
+                decorate={decorate}
+                canArrange={canArrangeCards}
+              />
+            );
           case "hero":
             return (
               <HeroSection
@@ -566,6 +651,8 @@ export default async function HomePage() {
       getRequestLocaleContext(),
     ]);
   const loggedIn = Boolean(session);
+  // 站长才可拖动/缩放首页卡片；访客只读展示已保存的位置与大小
+  const canArrangeCards = Boolean(session && canManageDecorate(session));
   const { locale, contentLocale, bilingual } = localeCtx;
   const t = (key: string) => translateMessage(locale, key);
   const sectionLabels = {
@@ -710,12 +797,18 @@ export default async function HomePage() {
     return (
       <div className="space-y-4 py-4 sm:py-6">
         {contactBefore ? (
-          <HomeContactAndDownloads
-            contactPanel={<ContactUsPanel contact={contact} variant="hero" />}
+          <ContactDownloadsRow
+            contact={contact}
+            decorate={decorate}
+            canArrange={canArrangeCards}
           />
         ) : null}
         {!hideSocialChat ? (
-          <HomeUserChatSearch loggedIn={loggedIn} />
+          <ChatSearchCard
+            loggedIn={loggedIn}
+            decorate={decorate}
+            canArrange={canArrangeCards}
+          />
         ) : null}
         {isHomeWidgetLayoutEnabled(decorate.homeWidgetLayout) ? (
           <HomeWidgetsSection
@@ -738,8 +831,10 @@ export default async function HomePage() {
           />
         ) : null}
         {showContact && !contactBefore ? (
-          <HomeContactAndDownloads
-            contactPanel={<ContactUsPanel contact={contact} variant="hero" />}
+          <ContactDownloadsRow
+            contact={contact}
+            decorate={decorate}
+            canArrange={canArrangeCards}
           />
         ) : null}
       </div>
@@ -757,6 +852,7 @@ export default async function HomePage() {
       hideAllPrices={hideAllPrices}
       hideSocialChat={hideSocialChat}
       loggedIn={loggedIn}
+      canArrangeCards={canArrangeCards}
       heroLocalized={heroLocalized}
       sectionLabels={sectionLabels}
     />

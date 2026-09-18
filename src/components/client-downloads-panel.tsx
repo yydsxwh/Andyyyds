@@ -110,17 +110,16 @@ export async function ClientDownloadsPanel() {
 /** 联系我们 + 客户端下载：中屏起左右并排（客户端下载贴右侧），贴近页顶中部 */
 export function HomeContactAndDownloads({
   contactPanel,
+  downloadsPanel,
 }: {
   contactPanel: ReactNode;
+  /** 传入已包好「自由摆放外壳」的下载卡片；缺省原地渲染默认面板 */
+  downloadsPanel?: ReactNode;
 }) {
   return (
     <div className="flex w-full max-w-6xl flex-col gap-4 px-3 sm:px-5 md:flex-row md:items-start md:justify-between md:gap-6 md:px-8">
-      <div className="min-w-0 shrink-0 md:max-w-sm lg:max-w-md">
-        {contactPanel}
-      </div>
-      <div className="min-w-0 md:ml-auto">
-        <ClientDownloadsPanel />
-      </div>
+      {contactPanel}
+      {downloadsPanel ?? <ClientDownloadsPanel />}
     </div>
   );
 }

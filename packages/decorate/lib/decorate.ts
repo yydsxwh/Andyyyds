@@ -33,6 +33,11 @@ import {
   normalizeHomeLogo,
   type HomeLogoConfig,
 } from "@andyyyds/decorate/lib/home-logo";
+import {
+  DEFAULT_HOME_FLOAT_CARDS,
+  normalizeHomeFloatCards,
+  type HomeFloatCardsConfig,
+} from "@andyyyds/decorate/lib/home-float-cards";
 
 export type { HomeWidgetBox, HomeWidgetLayoutConfig } from "@andyyyds/decorate/lib/home-widget-layout";
 
@@ -98,6 +103,8 @@ export type DecorateConfig = {
   homeLogo: HomeLogoConfig;
   /** 首页时钟与门户卡片的自由位置/尺寸；未启用时保持顶栏时钟 + 栅格 */
   homeWidgetLayout: HomeWidgetLayoutConfig;
+  /** 首页内容卡片（找人私聊/联系我们/客户端下载）的自由摆放；空 = 全部留在文档流 */
+  homeFloatCards: HomeFloatCardsConfig;
 };
 
 export const DEFAULT_LOGO_URL = "/brand/logo.png";
@@ -148,6 +155,7 @@ export const DEFAULT_DECORATE: DecorateConfig = {
   homeClock: { ...DEFAULT_HOME_CLOCK },
   homeLogo: { ...DEFAULT_HOME_LOGO },
   homeWidgetLayout: structuredClone(DEFAULT_HOME_WIDGET_LAYOUT),
+  homeFloatCards: { ...DEFAULT_HOME_FLOAT_CARDS },
 };
 
 function newId() {
@@ -280,6 +288,7 @@ export function parseDecorate(raw: string | null | undefined): DecorateConfig {
       homeClock: normalizeHomeClock(parsed.homeClock),
       homeLogo: normalizeHomeLogo(parsed.homeLogo),
       homeWidgetLayout: normalizeHomeWidgetLayout(parsed.homeWidgetLayout),
+      homeFloatCards: normalizeHomeFloatCards(parsed.homeFloatCards),
     };
   } catch {
     return structuredClone(DEFAULT_DECORATE);
