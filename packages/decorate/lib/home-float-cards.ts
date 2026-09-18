@@ -3,7 +3,9 @@
  * 与时钟挂件同一套交互：站长拖位置写库，所有人可见；
  * 点卡片空白处弹＋－调大小。与挂件不同的是卡片大小也写库——
  * 访客看到的卡片位置和大小与站长摆放的完全一致。
- * xPercent/yPercent 为 null 表示未摆放，卡片留在原文档流位置。
+ * 坐标用「文档像素」(xPx/yPx)：卡片以 absolute 挂在页面文档里，
+ * 随页面一起滚动（不同于时钟挂件的 fixed 视口浮动）。
+ * xPx/yPx 为 null 表示未摆放，卡片留在原文档流位置。
  */
 
 export const HOME_FLOAT_CARD_IDS = [
@@ -30,10 +32,10 @@ export const HOME_FLOAT_CARD_BASE_WIDTH_PX: Record<HomeFloatCardId, number> = {
 };
 
 export type HomeFloatCardPlacement = {
-  /** 相对视口宽度的左边距（%）；null = 未摆放（留在文档流） */
-  xPercent: number | null;
-  /** 相对视口高度的上边距（%） */
-  yPercent: number | null;
+  /** 相对页面文档的左边距（px）；null = 未摆放（留在文档流） */
+  xPx: number | null;
+  /** 相对页面文档顶部的上边距（px） */
+  yPx: number | null;
   /** 卡片大小倍数；写库让所有人看到同一尺寸 */
   scale: number;
 };
@@ -67,15 +69,15 @@ export function normalizeHomeFloatCardPlacement(
   raw: Partial<HomeFloatCardPlacement> | undefined | null,
 ): HomeFloatCardPlacement {
   const hasPlace =
-    raw?.xPercent != null &&
-    raw?.yPercent != null &&
-    Number.isFinite(Number(raw.xPercent)) &&
-    Number.isFinite(Number(raw.yPercent));
-  const x = hasPlace ? clamp(asFiniteNumber(raw!.xPercent, 0), 0, 100) : null;
-  const y = hasPlace ? clamp(asFiniteNumber(raw!.yPercent, 0), 0, 100) : null;
+    raw?.xPx != null &&
+    raw?.yPx != null &&
+    Number.isFinite(Number(raw.xPx)) &&
+    Number.isFinite(Number(raw.yPx));
+  const x = hasPlace ? clamp(asFiniteNumber(raw!.xPx, 0), 0, 100000) : null;
+  const y = hasPlace ? clamp(asFiniteNumber(raw!.yPx, 0), 0, 1000000) : null;
   return {
-    xPercent: x == null ? null : Math.round(x * 10) / 10,
-    yPercent: y == null ? null : Math.round(y * 10) / 10,
+    xPx: x == null ? null : Math.round(x),
+    yPx: y == null ? null : Math.round(y),
     scale: normalizeHomeFloatCardScale(raw?.scale),
   };
 }
@@ -83,9 +85,7 @@ export function normalizeHomeFloatCardPlacement(
 export function isHomeFloatCardPlaced(
   placement: HomeFloatCardPlacement | null | undefined,
 ) {
-  return Boolean(
-    placement && placement.xPercent != null && placement.yPercent != null,
-  );
+  return Boolean(placement && placement.xPx != null && placement.yPx != null);
 }
 
 export function normalizeHomeFloatCards(raw: unknown): HomeFloatCardsConfig {

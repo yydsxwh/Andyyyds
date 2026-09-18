@@ -6,6 +6,7 @@
  * 点击空白处弹＋－逐步调大小（也写库，访客看到同一尺寸）；可一键还原。
  * 访客：只读展示站长保存的位置与大小；卡片里的输入框/按钮/链接照常可点。
  * 未摆放时卡片留在原文档流，站长可从原位置直接拖出。
+ * 定位用「文档坐标 + absolute」：卡片随页面一起滚动，不浮在视口。
  */
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -33,19 +34,11 @@ function isInteractiveTarget(target: EventTarget | null) {
   );
 }
 
-function clampPlace(
-  leftPx: number,
-  topPx: number,
-  widthPx: number,
-  heightPx: number,
-) {
+/** 文档像素坐标夹紧：左/右不出视口（文档坐标下仅水平方向受视口宽约束） */
+function clampDocX(xPx: number, widthPx: number) {
   const pad = EDGE_PAD_PX;
   const maxLeft = Math.max(pad, window.innerWidth - widthPx - pad);
-  const maxTop = Math.max(pad, window.innerHeight - heightPx - pad);
-  return {
-    left: Math.min(maxLeft, Math.max(pad, leftPx)),
-    top: Math.min(maxTop, Math.max(pad, topPx)),
-  };
+  return Math.min(maxLeft, Math.max(pad, xPx));
 }
 
 function clampScale(value: number) {
@@ -76,10 +69,10 @@ export function HomeFloatCardShell({
   children,
 }: Props) {
   const storedPlaced =
-    placement?.xPercent != null && placement?.yPercent != null;
+    placement?.xPx != null && placement?.yPx != null;
   const [override, setOverride] = useState<{ x: number; y: number } | null>(() =>
     storedPlaced
-      ? { x: placement!.xPercent as number, y: placement!.yPercent as number }
+      ? { x: placement!.xPx as number, y: placement!.yPx as number }
       : null,
   );
   const [scale, setScale] = useState(() => clampScale(placement?.scale ?? 1));
@@ -93,8 +86,8 @@ export function HomeFloatCardShell({
     pointerId: number;
     startX: number;
     startY: number;
-    origLeftPx: number;
-    origTopPx: number;
+    origDocX: number;
+    origDocY: number;
     moved: boolean;
     lastX: number;
     lastY: number;
@@ -104,8 +97,8 @@ export function HomeFloatCardShell({
   useEffect(() => {
     if (storedPlaced) {
       setOverride({
-        x: placement!.xPercent as number,
-        y: placement!.yPercent as number,
+        x: placement!.xPx as number,
+        y: placement!.yPx as number,
       });
       const nextScale = clampScale(placement?.scale ?? 1);
       scaleRef.current = nextScale;
@@ -114,7 +107,7 @@ export function HomeFloatCardShell({
       setOverride(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [placement?.xPercent, placement?.yPercent, placement?.scale]);
+  }, [placement?.xPx, placement?.yPx, placement?.scale]);
 
   useEffect(() => {
     if (!controlsOpen) return;
@@ -159,8 +152,8 @@ export function HomeFloatCardShell({
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
-      origLeftPx: box.left,
-      origTopPx: box.top,
+      origDocX: box.left + window.scrollX,
+      origDocY: box.top + window.scrollY,
       moved: false,
       lastX: 0,
       lastY: 0,
@@ -175,24 +168,18 @@ export function HomeFloatCardShell({
     const dy = event.clientY - drag.startY;
     if (!drag.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) return;
     if (!drag.moved) {
-      // 起拖：从文档流/原位拿起，把当前像素位置换算成视口百分比
+      // 起拖：从文档流/原位拿起，把当前像素位置换算成文档坐标
       drag.moved = true;
       setDragging(true);
     }
     const box = rootRef.current?.getBoundingClientRect();
     const widthPx = box?.width || 320;
-    const heightPx = box?.height || 160;
-    const next = clampPlace(
-      drag.origLeftPx + dx,
-      drag.origTopPx + dy,
-      widthPx,
-      heightPx,
-    );
-    const nextX = Math.round((next.left / window.innerWidth) * 1000) / 10;
-    const nextY = Math.round((next.top / window.innerHeight) * 1000) / 10;
-    drag.lastX = nextX;
-    drag.lastY = nextY;
-    setOverride({ x: nextX, y: nextY });
+    // 水平方向夹紧到视口内（文档坐标下垂直方向随页面可任意滚动）
+    const nextX = clampDocX(drag.origDocX + dx, widthPx);
+    const nextY = drag.origDocY + dy;
+    drag.lastX = Math.round(nextX);
+    drag.lastY = Math.round(nextY);
+    setOverride({ x: Math.round(nextX), y: Math.round(nextY) });
   }
 
   function onPointerUp(event: React.PointerEvent<HTMLDivElement>) {
@@ -210,7 +197,7 @@ export function HomeFloatCardShell({
       void persistPatch(
         {
           homeFloatCards: {
-            [cardId]: { xPercent: drag.lastX, yPercent: drag.lastY },
+            [cardId]: { xPx: drag.lastX, yPx: drag.lastY },
           },
         },
         "正在保存位置…",
@@ -231,7 +218,7 @@ export function HomeFloatCardShell({
 
   async function applyScale(
     nextScale: number,
-    place?: { xPercent: number; yPercent: number },
+    place?: { xPx: number; yPx: number },
   ) {
     const clamped = clampScale(nextScale);
     scaleRef.current = clamped;
@@ -249,15 +236,15 @@ export function HomeFloatCardShell({
 
   function zoomIn() {
     if (!override) {
-      // 未摆放时调大小：先以当前屏幕位置就地拿起，再缩放
+      // 未摆放时调大小：先以当前文档位置就地拿起，再缩放
       const box = rootRef.current?.getBoundingClientRect();
       if (!box) return;
-      const x = Math.round((box.left / window.innerWidth) * 1000) / 10;
-      const y = Math.round((box.top / window.innerHeight) * 1000) / 10;
+      const x = Math.round(box.left + window.scrollX);
+      const y = Math.round(box.top + window.scrollY);
       setOverride({ x, y });
       void applyScale(scaleRef.current + HOME_FLOAT_CARD_SCALE_STEP, {
-        xPercent: x,
-        yPercent: y,
+        xPx: x,
+        yPx: y,
       });
       return;
     }
@@ -268,12 +255,12 @@ export function HomeFloatCardShell({
     if (!override) {
       const box = rootRef.current?.getBoundingClientRect();
       if (!box) return;
-      const x = Math.round((box.left / window.innerWidth) * 1000) / 10;
-      const y = Math.round((box.top / window.innerHeight) * 1000) / 10;
+      const x = Math.round(box.left + window.scrollX);
+      const y = Math.round(box.top + window.scrollY);
       setOverride({ x, y });
       void applyScale(scaleRef.current - HOME_FLOAT_CARD_SCALE_STEP, {
-        xPercent: x,
-        yPercent: y,
+        xPx: x,
+        yPx: y,
       });
       return;
     }
@@ -286,7 +273,7 @@ export function HomeFloatCardShell({
     setScale(1);
     setControlsOpen(false);
     void persistPatch(
-      { homeFloatCards: { [cardId]: { xPercent: null, yPercent: null, scale: 1 } } },
+      { homeFloatCards: { [cardId]: { xPx: null, yPx: null, scale: 1 } } },
       "正在还原…",
       "已还原到原始版式位置",
     );
@@ -300,7 +287,7 @@ export function HomeFloatCardShell({
       ref={rootRef}
       className={
         floating
-          ? `fixed z-[30] ${dragging ? "cursor-grabbing select-none" : ""} ${
+          ? `absolute z-[30] ${dragging ? "cursor-grabbing select-none" : ""} ${
               dragging || controlsOpen ? "z-[42]" : ""
             }`
           : `relative ${flowClassName} ${canDrag ? "cursor-grab select-none" : ""}`
@@ -308,8 +295,8 @@ export function HomeFloatCardShell({
       style={
         floating
           ? {
-              left: `${override.x}%`,
-              top: `${override.y}%`,
+              left: `${override.x}px`,
+              top: `${override.y}px`,
               width: `min(${widthPx}px, calc(100vw - ${VIEWPORT_PAD_PX}px))`,
               touchAction: "none",
             }

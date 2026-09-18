@@ -141,8 +141,8 @@ const patchSchema = z.object({
     .record(
       z.string(),
       z.object({
-        xPercent: z.number().min(0).max(100).nullable().optional(),
-        yPercent: z.number().min(0).max(100).nullable().optional(),
+        xPx: z.number().min(0).max(100000).nullable().optional(),
+        yPx: z.number().min(0).max(1000000).nullable().optional(),
         scale: z.number().min(0.4).max(3).optional(),
       }),
     )
