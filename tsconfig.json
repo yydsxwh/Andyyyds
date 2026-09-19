@@ -19,6 +19,7 @@
       }
     ],
     "paths": {
+      "@yydsxwh/shared/*": ["./node_modules/@yydsxwh/shared/src/*"],
       "@andyyyds/shared/*": ["./packages/shared/src/*"],
       "@andyyyds/company/*": ["./packages/company/*"],
       "@andyyyds/person/*": ["./packages/person/*"],
