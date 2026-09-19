@@ -780,11 +780,12 @@ export default async function HomePage() {
   };
 
   const modules = portal.nav.filter(
-    // 游戏中心并进软件产品顶栏分区，首页入口卡片不再单独占一格
+    // 游戏中心并进软件产品顶栏分区；账号中心只走顶栏外链，首页卡片都不单独占格
     (item) =>
       item.enabled !== false &&
       item.key !== "home" &&
-      item.key !== "games",
+      item.key !== "games" &&
+      item.key !== "account-center",
   );
 
   // 仅「已设为默认」且含模块的首页 DIY 才接管；否则用系统经典首页（介绍文案等）

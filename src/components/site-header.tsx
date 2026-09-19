@@ -14,6 +14,7 @@ import { translateMessage } from "@andyyyds/shared/i18n/messages";
 import { navHoverMessageKey, navMessageKey } from "@andyyyds/shared/i18n/nav-labels";
 import { typoRoleClass, typoRoleStyle } from "@andyyyds/shared/site-typography";
 import { canAccessStudio, canManageDecorate, hasRole, isAdmin } from "@andyyyds/shared/roles";
+import { ACCOUNT_CENTER_HREF } from "@andyyyds/shared/portal";
 import {
   getDecorateConfig,
   getPortalConfig,
@@ -97,6 +98,7 @@ export async function SiteHeader() {
           { key: "products", href: "/products", label: "软件产品" },
           { key: "forum", href: "/forum", label: "论坛" },
           { key: "games", href: "/games", label: "游戏中心" },
+          { key: "account-center", href: ACCOUNT_CENTER_HREF, label: "账号中心" },
         ];
 
   const mappedPortalLinks: HeaderNavLink[] = await Promise.all(
