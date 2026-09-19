@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { BilingualHover } from "@/components/i18n/bilingual-hover";
 import { useLocale } from "@/components/i18n/locale-provider";
 import { translateMessage } from "@andyyyds/shared/i18n/messages";
+import { ACCOUNT_CENTER_HREF } from "@andyyyds/shared/portal";
 import { SITE_PRODUCT_PACKAGES } from "@andyyyds/shared/site-products";
 import { typoRoleClass, typoRoleStyle } from "@andyyyds/shared/site-typography";
 
@@ -48,6 +49,7 @@ const FALLBACK_MOBILE_HREFS = [
     key: "nav.products",
     children: [{ href: "/games", key: "nav.games" }],
   },
+  { href: ACCOUNT_CENTER_HREF, key: "nav.accountCenter" },
 ] as const;
 
 function DesktopDropdown({
