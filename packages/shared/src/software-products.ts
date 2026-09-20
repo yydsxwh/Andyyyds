@@ -2,8 +2,9 @@
  * 软件产品专栏：顶栏「软件产品」→ /products。
  * 后续可在此扩展更多颗秒系产品；外链/状态集中管理，便于上线时改一处。
  *
- * 卡片字段由 @yydsxwh/shared 统一定义；本文件只维护主站露出的目录内容
- * （软件专栏站点露出的是另一份列表）。
+ * 卡片字段由 @yydsxwh/shared 统一定义。
+ * 机器可读事实的目标来源是 platform Catalog；本文件是运营文案 + fallback。
+ * PLATFORM_CATALOG_ENABLED 默认关闭，本轮不删此数组。
  */
 
 import type { SoftwareProduct } from "@yydsxwh/shared/types/software-product";
