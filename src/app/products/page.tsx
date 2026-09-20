@@ -2,10 +2,10 @@ import { NavPageTemplateShell } from "@/components/nav-page-template-shell";
 import { OpenVsCodeButton } from "@andyyyds/mathcode/components/open-vscode-button";
 import { MATHCODE_EDITOR_LINKS } from "@andyyyds/mathcode/lib/mathcode-open";
 import {
-  SOFTWARE_PRODUCTS,
   SOFTWARE_PRODUCTS_PAGE,
   type SoftwareProduct,
 } from "@andyyyds/shared/software-products";
+import { loadSoftwareProducts } from "@andyyyds/shared/platform-catalog";
 
 export const metadata = {
   title: "软件产品",
@@ -131,7 +131,10 @@ function ProductCard({ product }: { product: SoftwareProduct }) {
   return <article className={className}>{inner}</article>;
 }
 
-export default function SoftwareProductsPage() {
+export default async function SoftwareProductsPage() {
+  // 产品集合来自 platform Catalog（未开启时回落到本地列表），文案仍由本站维护
+  const products = await loadSoftwareProducts();
+
   return (
     <NavPageTemplateShell type="products">
       <div className="container py-10 sm:py-12">
@@ -145,7 +148,7 @@ export default function SoftwareProductsPage() {
         </header>
 
         <div className="grid gap-4 sm:grid-cols-2 sm:gap-6">
-          {SOFTWARE_PRODUCTS.map((product) => (
+          {products.map((product) => (
             <ProductCard key={product.id} product={product} />
           ))}
         </div>

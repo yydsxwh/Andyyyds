@@ -3,6 +3,18 @@ import { access, mkdir, unlink, writeFile } from "fs/promises";
 import path from "path";
 import crypto from "crypto";
 import { getSiteSettings, type SiteSettingsRow } from "./site-settings";
+import {
+  deletePlatformStoredFile,
+  isPlatformStoredUrl,
+  platformStorageEnabled,
+  resolvePlatformAccessUrl,
+  storeUploadViaPlatform,
+} from "./platform-storage";
+import {
+  getLegacyInstallerDownloadUrl,
+  hasPublishedRelease,
+  platformReleasesEnabled,
+} from "./platform-releases";
 
 import {
   uploadVideoToVod,
@@ -228,6 +240,13 @@ export async function resolveAppInstallerAvailability(): Promise<{
   apk: boolean;
   windows: boolean;
 }> {
+  if (platformReleasesEnabled()) {
+    const [apk, windows] = await Promise.all([
+      hasPublishedRelease("ANDROID"),
+      hasPublishedRelease("WINDOWS"),
+    ]);
+    if (apk || windows) return { apk, windows };
+  }
   const apkDisk = appInstallerOnDisk("yyds.apk");
   const windowsDisk =
     appInstallerOnDisk("yyds-windows-setup.exe") ||
@@ -257,6 +276,9 @@ export async function getAppInstallerDownloadUrl(
   fileName: string,
 ): Promise<string | null> {
   if (!APP_INSTALLER_FILES.has(fileName)) return null;
+  // 已切到 Releases 时由发版登记决定实际文件，代码里不再写死版本
+  const fromReleases = await getLegacyInstallerDownloadUrl(fileName);
+  if (fromReleases) return fromReleases;
   try {
     const settings = await getSiteSettings();
     if (settings.storageProvider !== "ALIYUN_OSS") return null;
@@ -306,6 +328,15 @@ export async function resolveStoredAccessUrl(
   const expiresInSec = options.expiresInSec ?? OSS_SIGNED_URL_TTL_SEC;
   if (!fileUrl || fileUrl.startsWith("/") || isVodUrl(fileUrl)) {
     return fileUrl;
+  }
+  // platform 托管的对象每次现签；取不到时原样返回，让调用方按缺图处理而不是整页挂掉
+  if (isPlatformStoredUrl(fileUrl)) {
+    const signed = await resolvePlatformAccessUrl(fileUrl, {
+      expiresInSeconds: expiresInSec,
+      downloadFileName:
+        options.contentDisposition === "attachment" ? options.fileName : undefined,
+    });
+    return signed ?? fileUrl;
   }
   try {
     const settings = await getSiteSettings();
@@ -775,10 +806,25 @@ export async function storeUpload(input: {
    * 便于在 OSS/本地 uploads 里按分类查找。
    */
   subPath?: string;
+  /** platform storage 的存放区；不填用默认区 */
+  namespace?: string;
 }): Promise<StoredObject> {
   const settings = await getSiteSettings();
   const kind =
     input.kind || (isVideoMime(input.mimeType) ? "video" : "file");
+
+  // 点播是另一条独立链路（VOD 凭证、转码、播放地址），本轮不改；
+  // 其余服务端上传在开关打开后交给 platform，历史数据仍走下面的原路径。
+  if (kind !== "video" && platformStorageEnabled()) {
+    return storeUploadViaPlatform({
+      ownerId: input.ownerId,
+      fileName: input.fileName,
+      buffer: input.buffer,
+      mimeType: input.mimeType,
+      namespace: input.namespace,
+      subPath: input.subPath,
+    });
+  }
 
   if (kind === "video") {
     if (
@@ -818,6 +864,11 @@ export async function deleteStoredFile(
   opts?: { vodVideoId?: string; storageProvider?: string },
 ) {
   if (!fileUrl && !opts?.vodVideoId) return;
+
+  if (isPlatformStoredUrl(fileUrl)) {
+    await deletePlatformStoredFile(fileUrl);
+    return;
+  }
 
   if (
     opts?.storageProvider === "ALIYUN_VOD" ||
