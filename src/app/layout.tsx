@@ -29,6 +29,9 @@ import {
 import "@andyyyds/decorate/styles/decorate.css";
 import "./globals.css";
 
+// 顶栏读 Session Cookie。不强制动态时，登出 303 回首页可能仍吃到已登录的缓存 HTML。
+export const dynamic = "force-dynamic";
+
 // 不用 next/font/google：香港机器构建时常拉不到 fonts.googleapis.com 导致整站发版失败。
 // 站长选中的中文字体在运行时按需 CDN 注入（见 SiteFontLinks）。
 

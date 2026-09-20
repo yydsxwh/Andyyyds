@@ -13,6 +13,8 @@ model User {
   passwordHash String
   /// 是否已设置可用登录密码；手机/微信自动注册且未设密码时为 false
   passwordSet  Boolean            @default(true)
+  /// 登出时自增；JWT.sv 对不上即视为已失效，避免旧 Cookie 重放
+  sessionEpoch Int                @default(0)
   name         String
   /// 账号密码登录用的登录名（小写存储）；空/null 表示未开通账号登录，与邮箱登录分开
   username     String?            @unique
