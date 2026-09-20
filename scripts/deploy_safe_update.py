@@ -88,11 +88,20 @@ def make_tarball() -> Path:
     return tmp
 
 
+def load_deploy_key() -> paramiko.PKey:
+    key_path = str(Path.home() / ".ssh" / "yyds_aliyun")
+    errors: list[str] = []
+    for loader in (paramiko.Ed25519Key.from_private_key_file, paramiko.RSAKey.from_private_key_file):
+        try:
+            return loader(key_path)
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"{loader.__qualname__}: {exc}")
+    raise RuntimeError("cannot load deploy key: " + "; ".join(errors))
+
+
 def connect(retries: int = 8) -> paramiko.SSHClient:
     last: Exception | None = None
-    key = paramiko.Ed25519Key.from_private_key_file(
-        str(Path.home() / ".ssh" / "yyds_aliyun")
-    )
+    key = load_deploy_key()
     for i in range(retries):
         try:
             client = paramiko.SSHClient()
