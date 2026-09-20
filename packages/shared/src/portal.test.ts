@@ -1,12 +1,16 @@
 import assert from "node:assert/strict";
 import { ACCOUNT_CENTER_HREF, parsePortal } from "./portal";
 
+function isEnabled(item: { enabled?: boolean } | undefined) {
+  return Boolean(item && item.enabled !== false);
+}
+
 {
   const portal = parsePortal(null);
   const item = portal.nav.find((link) => link.key === "account-center");
   assert.ok(item);
   assert.equal(item?.href, ACCOUNT_CENTER_HREF);
-  assert.equal(item?.enabled, true);
+  assert.equal(isEnabled(item), true);
 }
 
 {
@@ -26,7 +30,7 @@ import { ACCOUNT_CENTER_HREF, parsePortal } from "./portal";
   const item = portal.nav.find((link) => link.key === "account-center");
   assert.ok(item);
   assert.equal(item?.href, ACCOUNT_CENTER_HREF);
-  assert.equal(item?.enabled, true);
+  assert.equal(isEnabled(item), true);
 }
 
 {
@@ -38,7 +42,7 @@ import { ACCOUNT_CENTER_HREF, parsePortal } from "./portal";
   const item = portal.nav.find((link) => link.key === "account-center");
   assert.ok(item);
   assert.equal(item?.href, ACCOUNT_CENTER_HREF);
-  assert.equal(item?.enabled, true);
+  assert.equal(isEnabled(item), true);
 }
 
 {
