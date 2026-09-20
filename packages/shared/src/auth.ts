@@ -8,6 +8,12 @@
 
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
+import {
+  SESSION_COOKIE_NAME,
+  applySessionCookie,
+  clearSessionCookie,
+  isSessionEpochValid,
+} from "./auth-session-cookie";
 import { prisma } from "./db";
 import { hashPassword, makeReferralCode, verifyPassword } from "./password";
 import {
@@ -19,8 +25,11 @@ import {
 } from "./roles";
 
 export { hashPassword, makeReferralCode, verifyPassword };
-
-const COOKIE_NAME = "yyds_session";
+export {
+  SESSION_COOKIE_NAME,
+  sessionCookieClearOptions,
+  sessionCookieWriteOptions,
+} from "./auth-session-cookie";
 
 export type SessionUser = {
   id: string;
@@ -57,11 +66,16 @@ function getSecret() {
 export async function createSession(
   user: Pick<SessionUser, "id" | "email" | "name" | "role">,
 ) {
+  const current = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { sessionEpoch: true },
+  });
   const token = await new SignJWT({
     id: user.id,
     email: user.email,
     name: user.name,
     role: user.role,
+    sv: current?.sessionEpoch ?? 0,
   })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
@@ -69,23 +83,32 @@ export async function createSession(
     .sign(getSecret());
 
   const jar = await cookies();
-  jar.set(COOKIE_NAME, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 30,
-  });
+  applySessionCookie(jar, token);
 }
 
 export async function destroySession() {
   const jar = await cookies();
-  jar.delete(COOKIE_NAME);
+  const token = jar.get(SESSION_COOKIE_NAME)?.value;
+  if (token) {
+    try {
+      const { payload } = await jwtVerify(token, getSecret());
+      const id = String(payload.id || "");
+      if (id) {
+        await prisma.user.update({
+          where: { id },
+          data: { sessionEpoch: { increment: 1 } },
+        });
+      }
+    } catch {
+      // 过期/伪造 token 仍要清 Cookie；用户不存在时也不阻断登出
+    }
+  }
+  clearSessionCookie(jar);
 }
 
 export async function getSession(): Promise<SessionUser | null> {
   const jar = await cookies();
-  const token = jar.get(COOKIE_NAME)?.value;
+  const token = jar.get(SESSION_COOKIE_NAME)?.value;
   if (!token) return null;
 
   try {
@@ -103,6 +126,7 @@ export async function getSession(): Promise<SessionUser | null> {
         avatarUrl: true,
         requestedRole: true,
         roleApplicationStatus: true,
+        sessionEpoch: true,
         forumUniversityId: true,
         forumSchoolVerifications: {
           select: {
@@ -114,6 +138,7 @@ export async function getSession(): Promise<SessionUser | null> {
       },
     });
     if (!user) return null;
+    if (!isSessionEpochValid(payload.sv, user.sessionEpoch)) return null;
     const roles = normalizeRoles({
       role: user.role,
       roles: user.roles || "",

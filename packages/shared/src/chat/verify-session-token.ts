@@ -3,8 +3,9 @@
  * 与 auth.ts 的 Cookie 名 / 算法保持一致。
  */
 import { jwtVerify } from "jose";
+import { SESSION_COOKIE_NAME } from "../auth-session-cookie";
 
-export const CHAT_SESSION_COOKIE = "yyds_session";
+export const CHAT_SESSION_COOKIE = SESSION_COOKIE_NAME;
 
 function getSecret() {
   const secret = process.env.AUTH_SECRET;
