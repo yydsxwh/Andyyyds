@@ -1,5 +1,7 @@
 /**
  * POST /api/auth/login
+ * @deprecated 新登录走 account OIDC（/login → /api/auth/account/start）。
+ * 本接口保留给未配置 OIDC 的本地/旧客户端，确认无生产依赖后再删。
  * 待审账号可登录，但响应带 pendingReview，前端引导提示。
  */
 

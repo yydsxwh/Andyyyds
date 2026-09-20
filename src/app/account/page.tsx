@@ -29,6 +29,7 @@ import {
   type RoleApplicationStatus,
 } from "@andyyyds/shared/roles";
 import { resolveStoredAccessUrl } from "@andyyyds/shared/storage";
+import { ACCOUNT_CENTER_HREF } from "@andyyyds/shared/portal";
 import { formatPrice } from "@andyyyds/shared/utils";
 
 export const dynamic = "force-dynamic";
@@ -61,6 +62,8 @@ export default async function AccountPage() {
       where: { id: session.id },
       select: {
         referralCode: true,
+        accountSub: true,
+        kkNumber: true,
         roleApplicationNote: true,
         roleApplicationStatus: true,
         requestedRole: true,
@@ -185,7 +188,31 @@ export default async function AccountPage() {
           <span className="mx-2 text-[var(--line)]">·</span>
           <span className="break-all text-sm">{headerContact}</span>
         </p>
+        {session.kkNumber || user?.kkNumber ? (
+          <p className="text-sm text-[var(--muted)]">
+            KK号{" "}
+            <span className="font-mono font-semibold text-[var(--ink)]">
+              {session.kkNumber ?? user?.kkNumber}
+            </span>
+          </p>
+        ) : null}
       </header>
+
+      <section className="surface rounded-[28px] p-5 sm:p-6">
+        <h2 className="text-lg font-semibold">账号中心</h2>
+        <p className="mt-1 text-sm text-[var(--muted)]">
+          登录、密码、手机、邮箱、微信绑定与 KK 号由统一账号中心管理。
+          {session.accountSub
+            ? " 当前身份已与账号中心对齐。"
+            : " 下次从本站登录后会自动对齐。"}
+        </p>
+        <Link
+          href={ACCOUNT_CENTER_HREF}
+          className="btn btn-primary mt-3 inline-flex min-h-10 px-4"
+        >
+          打开账号中心
+        </Link>
+      </section>
 
       {/* 申请状态总览（待审 / 拒绝原因） */}
       {session.rolePending ? (

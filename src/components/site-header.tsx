@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Suspense } from "react";
+import { AuthEntryLinks } from "@/components/auth-entry-links";
 import { ChatUnreadBadge } from "@/components/chat/chat-unread-badge";
 import { SiteHeaderNav, type HeaderNavLink } from "@/components/site-header-nav";
 import { SiteHomeClock } from "@/components/site-home-clock";
@@ -229,22 +231,35 @@ export async function SiteHeader() {
               </form>
             </>
           ) : (
-            <>
-              <Link
-                href="/login"
-                className={`btn btn-secondary btn-compact px-2.5 text-sm sm:px-4 ${typoRoleClass("nav")}`}
-                style={typoRoleStyle("nav")}
-              >
-                {t("nav.login")}
-              </Link>
-              <Link
-                href="/register"
-                className={`btn btn-fire btn-compact hidden min-[420px]:inline-flex sm:px-4 ${typoRoleClass("nav")}`}
-                style={typoRoleStyle("nav")}
-              >
-                {t("nav.register")}
-              </Link>
-            </>
+            <Suspense
+              fallback={
+                <>
+                  <Link
+                    href="/login"
+                    className={`btn btn-secondary btn-compact px-2.5 text-sm sm:px-4 ${typoRoleClass("nav")}`}
+                    style={typoRoleStyle("nav")}
+                  >
+                    {t("nav.login")}
+                  </Link>
+                  <Link
+                    href="/register"
+                    className={`btn btn-fire btn-compact hidden min-[420px]:inline-flex sm:px-4 ${typoRoleClass("nav")}`}
+                    style={typoRoleStyle("nav")}
+                  >
+                    {t("nav.register")}
+                  </Link>
+                </>
+              }
+            >
+              <AuthEntryLinks
+                loginLabel={t("nav.login")}
+                registerLabel={t("nav.register")}
+                loginClassName={`btn btn-secondary btn-compact px-2.5 text-sm sm:px-4 ${typoRoleClass("nav")}`}
+                registerClassName={`btn btn-fire btn-compact hidden min-[420px]:inline-flex sm:px-4 ${typoRoleClass("nav")}`}
+                loginStyle={typoRoleStyle("nav")}
+                registerStyle={typoRoleStyle("nav")}
+              />
+            </Suspense>
           )}
         </div>
       </div>

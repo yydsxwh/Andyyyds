@@ -1,5 +1,7 @@
 /**
  * POST /api/auth/register
+ * @deprecated 新注册走 account OIDC（/register → /api/auth/account/start）。
+ * 本接口保留兼容，确认无生产依赖后再删。
  * 注册时可选身份；不可自选站长。高权限角色进入待审，学员直接可用。
  */
 

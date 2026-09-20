@@ -268,7 +268,46 @@ function mergePortalNav(
     seenKeys.add(defaultItem.key);
   }
 
-  return merged.slice(0, 20);
+  const trimmed = merged.slice(0, 20);
+  const hasAccountCenter = trimmed.some(
+    (item) =>
+      item.key === "account-center" ||
+      item.href === ACCOUNT_CENTER_HREF ||
+      item.label === "账号中心",
+  );
+  // 满 20 项时默认项会被裁掉；账号中心必须留下，宁可少显示一个普通入口
+  return ensureAccountCenterNav(
+    hasAccountCenter ? trimmed : merged.slice(0, 19),
+  );
+}
+
+/**
+ * 账号中心必须始终出现在顶栏，且指向独立子域。
+ * CMS 旧数据可能关掉、改成 /account、或漏掉该项——运行时纠正，避免入口被永久吞掉。
+ */
+function ensureAccountCenterNav(nav: PortalNavLink[]): PortalNavLink[] {
+  const index = nav.findIndex(
+    (item) =>
+      item.key === "account-center" ||
+      item.href === ACCOUNT_CENTER_HREF ||
+      item.label === "账号中心",
+  );
+  if (index >= 0) {
+    const current = nav[index];
+    nav[index] = {
+      ...current,
+      key: "account-center",
+      href: ACCOUNT_CENTER_HREF,
+      enabled: true,
+      comingSoon: false,
+      label: current.label || "账号中心",
+    };
+    return nav;
+  }
+  return [
+    ...nav,
+    { key: "account-center", label: "账号中心", href: ACCOUNT_CENTER_HREF },
+  ];
 }
 
 function normalizeContact(

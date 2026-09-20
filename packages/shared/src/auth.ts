@@ -4,6 +4,9 @@
  * Cookie 名：yyds_session。角色在 role（主角色）+ roles（多角色列表）。
  * 校验 JWT 后会回查用户表，保证站长改角色后无需重新登录即可生效。
  * 需要登录的 API / 页面先 getSession()，没有则 401 或跳转 /login。
+ *
+ * 新登录走 account OIDC，跨产品主键是 accountSub=usr_xxx。
+ * 本地 User.id 只给本站业务表用，不再当身份源。
  */
 
 import { SignJWT, jwtVerify } from "jose";
@@ -33,6 +36,13 @@ export {
 
 export type SessionUser = {
   id: string;
+  /**
+   * account OIDC sub（usr_xxx）。跨产品主键。
+   * 旧本地账号尚未联邦时为空字符串，业务仍用下方本地 id。
+   */
+  accountSub: string;
+  /** 来自 account 投影的 KK 号；未挂钩时可能仍是主站历史字段 */
+  kkNumber: number | null;
   email: string;
   name: string;
   /** 主角色（优先级最高）；分成比例等仍可读此字段 */
@@ -119,6 +129,8 @@ export async function getSession(): Promise<SessionUser | null> {
       where: { id },
       select: {
         id: true,
+        accountSub: true,
+        kkNumber: true,
         email: true,
         name: true,
         role: true,
@@ -152,6 +164,8 @@ export async function getSession(): Promise<SessionUser | null> {
     );
     return {
       id: user.id,
+      accountSub: user.accountSub || "",
+      kkNumber: user.kkNumber ?? null,
       email: user.email,
       name: user.name,
       role: primaryRole(roles),

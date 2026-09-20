@@ -9,6 +9,8 @@ datasource db {
 
 model User {
   id           String             @id @default(cuid())
+  /// account OIDC 的稳定用户标识（sub=usr_xxx）。本地行只是业务投影，不是身份源。
+  accountSub   String?            @unique
   email        String             @unique
   passwordHash String
   /// 是否已设置可用登录密码；手机/微信自动注册且未设密码时为 false

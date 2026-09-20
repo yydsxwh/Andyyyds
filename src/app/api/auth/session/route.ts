@@ -27,6 +27,8 @@ export async function GET() {
     {
       user: {
         id: session.id,
+        accountSub: session.accountSub || "",
+        kkNumber: session.kkNumber,
         name: session.name,
         avatarUrl,
       },

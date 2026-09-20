@@ -1,5 +1,6 @@
 /**
  * POST /api/auth/phone/login
+ * @deprecated 新登录注册走 account OIDC。本接口保留兼容。
  * body: { phone, code, mode?, name?, password?, referralCode?, requestedRole? }
  *
  * mode=login（默认）：验证码通过后登录；无账号则自动注册学员。

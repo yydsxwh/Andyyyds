@@ -1,5 +1,6 @@
 /**
  * POST /api/auth/account
+ * @deprecated 新登录注册走 account OIDC。本接口保留兼容。
  * body: { username, password, mode?, name?, referralCode?, requestedRole? }
  *
  * 账号 + 密码注册/登录（与邮箱通道分开，不接受邮箱当地址）。
