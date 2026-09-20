@@ -26,7 +26,8 @@ export default async function StudioDecoratePage() {
     (item) =>
       item.enabled !== false &&
       item.key !== "home" &&
-      item.key !== "games",
+      item.key !== "games" &&
+      item.key !== "account-center",
   );
 
   return (

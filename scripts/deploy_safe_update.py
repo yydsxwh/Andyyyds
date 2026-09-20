@@ -344,6 +344,7 @@ def main() -> int:
         f"--exclude 'node_modules' "
         f"--exclude '.next' "
         f"--exclude 'public/uploads' "
+        f"--exclude 'public/products' "
         f"--exclude '.deploy_backup' "
         f"--exclude '*.db' "
         f"--exclude '*.db-journal' "
