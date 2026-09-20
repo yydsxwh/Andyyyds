@@ -28,7 +28,7 @@ jobs:
             sudo -u admin git -C /var/www/yydsxwh.com fetch origin
             sudo -u admin git -C /var/www/yydsxwh.com checkout -B Andyyyds20260901independentpackage origin/Andyyyds20260901independentpackage
             sudo -u admin rsync -a --delete --exclude node_modules --exclude .next --exclude .git --exclude .env --exclude 'prod.db*' --exclude 'dev.db*' --exclude public/uploads --exclude public/products --exclude uploads --exclude .deploy_backup --exclude .next.prev --exclude tsconfig.tsbuildinfo /var/www/yydsxwh.com/ /var/www/yyds-course-platform/
-            sudo -u admin bash -c 'cd /var/www/yyds-course-platform && npm ci && npx prisma db push && npm run build'
+            sudo -u admin bash -c 'cd /var/www/yyds-course-platform && npm ci && npx prisma db push --accept-data-loss && ./scripts/ops/yyds-build.sh'
             sudo -u admin pm2 restart yyds-course
             sudo -u admin pm2 save
             echo DEPLOY_OK
