@@ -22,6 +22,17 @@ alwaysApply: true
 
 公共能力（登录、支付、权限、国际化、存储）才进 `@andyyyds/shared`。
 
+## 跨站点公共代码（`@yydsxwh/shared`）
+
+软件专栏（softwarelist）等其它站点也要用的**纯代码**——类型、工具、i18n、校验、
+客户端环境探测——唯一来源是公共仓库 [`yydsxwh/shared`](https://github.com/yydsxwh/shared)，
+以 git tag 固定版本装在 `node_modules`。
+
+- 只收纯函数：不碰 Prisma、会话、`next/headers`、服务端密钥
+- 主站独有的业务（商城、优惠券、工作室、门户、装扮）不要往里塞
+- `packages/shared` 下已搬走的模块只留一行 `export *` 兼容旧 import，别再往里写实现
+- 改公共代码先改公共仓库、打新 tag，再回来升依赖；不要在本仓库改副本
+
 ## 新产品（默认）
 
 一出现新产品，先建库再写业务：
