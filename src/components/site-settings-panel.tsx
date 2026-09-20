@@ -12,6 +12,7 @@ import {
   findProviderPreset,
   REGION_LABEL,
 } from "@andyyyds/shared/ai-providers";
+import { PlatformAiStatus } from "@/components/platform-ai-status";
 
 export type PublicSettings = {
   siteUrl: string;
@@ -1471,6 +1472,7 @@ function AiApiSection({
         全站共用：一键翻译和 MathCode 识图转公式都走这里。选预设会自动填
         Base URL 与推荐模型；Key 只保存在本机数据库，不进代码仓库。
       </p>
+      <PlatformAiStatus />
       <Field
         label="AI 提供商"
         hint="选一个预设即自动填 Base URL 与推荐模型；也可选「自定义」手动填写。"
