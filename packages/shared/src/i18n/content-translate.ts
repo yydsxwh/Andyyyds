@@ -10,6 +10,7 @@ import {
 } from "@andyyyds/shared/i18n/locales";
 import { hashSourceText } from "@andyyyds/shared/i18n/source-hash";
 import { toTraditionalChinese } from "@andyyyds/shared/i18n/opencc";
+import { chatViaPlatform } from "@andyyyds/shared/platform-ai";
 
 export type TranslateJobItem = {
   entityType: string;
@@ -44,6 +45,20 @@ export async function callTranslateApi(input: {
     ? `You are a professional translator. Translate the user's HTML from Simplified Chinese into natural, accurate ${targetName}. Preserve all HTML tags and attributes exactly; only translate visible text. Return only the translated HTML, no markdown fences.`
     : `You are a professional translator. Translate the user's text from Simplified Chinese into natural, accurate ${targetName}. Return only the translation, no quotes or explanations.`;
 
+  const messages = [
+    { role: "system" as const, content: system },
+    { role: "user" as const, content: input.sourceText },
+  ];
+
+  // 开关打开时由 platform 统一持有 Key 与模型路由；未开启或不可达则走下面的直连
+  const viaPlatform = await chatViaPlatform({
+    purpose: "translate",
+    messages,
+    temperature: 0.2,
+    metadata: { targetLocale: input.targetLocale },
+  });
+  if (viaPlatform.ok) return viaPlatform.content;
+
   const base = trimBaseUrl(input.baseUrl || "https://api.openai.com/v1");
   const url = `${base}/chat/completions`;
   const res = await fetch(url, {
@@ -55,10 +70,7 @@ export async function callTranslateApi(input: {
     body: JSON.stringify({
       model: input.model || "gpt-4o-mini",
       temperature: 0.2,
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: input.sourceText },
-      ],
+      messages,
     }),
   });
   if (!res.ok) {

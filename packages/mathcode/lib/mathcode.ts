@@ -10,6 +10,7 @@
  */
 
 import { getSiteSettings } from "@andyyyds/shared/site-settings";
+import { chatViaPlatform } from "@andyyyds/shared/platform-ai";
 import { sanitizeLatexBody } from "@andyyyds/mathcode/lib/mathcode-doc";
 import { sanitizeMathcodeUserHint } from "@andyyyds/mathcode/lib/mathcode-hint";
 
@@ -94,6 +95,29 @@ export async function callMathcodeOcr(input: {
   userHint?: string;
 }): Promise<string> {
   const { provider, imageDataUrl } = input;
+  const messages = [
+    { role: "system" as const, content: SYSTEM_PROMPT },
+    {
+      role: "user" as const,
+      content: [
+        { type: "text" as const, text: appendUserHint(USER_PROMPT, input.userHint) },
+        { type: "image_url" as const, image_url: { url: imageDataUrl } },
+      ],
+    },
+  ];
+
+  // 视觉识别对模型有要求，路由交给 platform；未开启或不可达则走下面的直连
+  const viaPlatform = await chatViaPlatform({
+    purpose: "vision-ocr",
+    messages,
+    temperature: 0,
+    maxTokens: 8192,
+    metadata: { feature: "mathcode-ocr" },
+  });
+  if (viaPlatform.ok) {
+    return sanitizeLatexBody(stripCodeFences(viaPlatform.content));
+  }
+
   const url = `${provider.baseUrl}/chat/completions`;
   const res = await fetch(url, {
     method: "POST",
@@ -106,19 +130,7 @@ export async function callMathcodeOcr(input: {
       temperature: 0,
       // 整页含中文叙述时输出更长，给足额度避免截断正文
       max_tokens: 8192,
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        {
-          role: "user",
-          content: [
-            { type: "text", text: appendUserHint(USER_PROMPT, input.userHint) },
-            {
-              type: "image_url",
-              image_url: { url: imageDataUrl },
-            },
-          ],
-        },
-      ],
+      messages,
     }),
   });
   if (!res.ok) {
@@ -156,6 +168,35 @@ export async function callMathcodeTextConvert(input: {
   const { provider } = input;
   const source = input.text.trim();
   if (!source) return "";
+  const messages = [
+    { role: "system" as const, content: TEXT_SYSTEM_PROMPT },
+    {
+      role: "user" as const,
+      content: [
+        appendUserHint(
+          [
+            `请把下面这份文档转成 LaTeX 正文。来源：${input.sourceLabel}`,
+            "只写原文有的内容，禁止编造。禁止 wrapfigure / textpos。只返回正文。",
+          ].join("\n"),
+          input.userHint,
+        ),
+        "",
+        source.slice(0, 80_000),
+      ].join("\n"),
+    },
+  ];
+
+  const viaPlatform = await chatViaPlatform({
+    purpose: "general",
+    messages,
+    temperature: 0,
+    maxTokens: 8192,
+    metadata: { feature: "mathcode-convert" },
+  });
+  if (viaPlatform.ok) {
+    return sanitizeLatexBody(stripCodeFences(viaPlatform.content));
+  }
+
   const url = `${provider.baseUrl}/chat/completions`;
   const res = await fetch(url, {
     method: "POST",
@@ -167,23 +208,7 @@ export async function callMathcodeTextConvert(input: {
       model: provider.model,
       temperature: 0,
       max_tokens: 8192,
-      messages: [
-        { role: "system", content: TEXT_SYSTEM_PROMPT },
-        {
-          role: "user",
-          content: [
-            appendUserHint(
-              [
-                `请把下面这份文档转成 LaTeX 正文。来源：${input.sourceLabel}`,
-                "只写原文有的内容，禁止编造。禁止 wrapfigure / textpos。只返回正文。",
-              ].join("\n"),
-              input.userHint,
-            ),
-            "",
-            source.slice(0, 80_000),
-          ].join("\n"),
-        },
-      ],
+      messages,
     }),
   });
   if (!res.ok) {
