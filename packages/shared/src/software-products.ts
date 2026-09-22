@@ -79,7 +79,7 @@ export const SOFTWARE_PRODUCTS: SoftwareProduct[] = [
     name: "颗秒日事",
     tagline: "日历 · 课表 · 待办 · 倒数日",
     description:
-      "青春校园风日历、超级课程表、待办、倒数日与便签。可导入表格或课表照片，上课和考试会按时提醒。网页即开即用，也可下载 Android 或 Windows 安装包。",
+      "青春校园风日历、课表、待办、日子与便签。Android 客户端改为原生应用。若下载页仍提示迁移中，或已安装的是早期测试版，请先同步或导出备份，再卸载后安装正式签名版；正式签名版之间可以直接覆盖升级。",
     status: "live",
     href: "/products/days/",
     badge: "网页版 + Android + Windows",
