@@ -106,6 +106,30 @@ export function resolveAccountRedirectUri(input: {
   return "https://www.yydsxwh.com/api/auth/callback";
 }
 
+/**
+ * Keep the host that creates the OIDC transaction cookie identical to the
+ * callback host. A host-only cookie written on yydsxwh.com is intentionally
+ * not sent to www.yydsxwh.com (and vice versa), which otherwise makes the
+ * callback look expired on browsers that entered through the alias host.
+ */
+export function resolveCanonicalAuthStartUrl(input: {
+  requestUrl: string;
+  requestPublicOrigin: string;
+  redirectUri: string;
+}): URL | null {
+  try {
+    const currentOrigin = new URL(input.requestPublicOrigin).origin;
+    const callbackOrigin = new URL(input.redirectUri).origin;
+    if (!isAllowedCallbackOrigin(callbackOrigin)) return null;
+    if (currentOrigin === callbackOrigin) return null;
+
+    const requestUrl = new URL(input.requestUrl);
+    return new URL(`${requestUrl.pathname}${requestUrl.search}`, callbackOrigin);
+  } catch {
+    return null;
+  }
+}
+
 export function createPkcePair() {
   const verifier = randomBytes(48).toString("base64url");
   const challenge = createHash("sha256")
