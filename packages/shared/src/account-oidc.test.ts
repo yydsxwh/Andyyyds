@@ -12,6 +12,7 @@ import {
   parseKkNumberClaim,
   readAccountIdClaims,
   resolveAccountRedirectUri,
+  resolveCanonicalAuthStartUrl,
 } from "./account-oidc";
 import { decideIdentityLink, pickProjectionEmail } from "./account-identity";
 
@@ -125,6 +126,35 @@ assert.equal(
     requestOrigin: "http://localhost:3000",
   }),
   "http://localhost:3000/api/auth/callback",
+);
+
+{
+  const canonical = resolveCanonicalAuthStartUrl({
+    requestUrl:
+      "https://yydsxwh.com/api/auth/account/start?mode=login&next=%2Fcourses",
+    requestPublicOrigin: "https://yydsxwh.com",
+    redirectUri: "https://www.yydsxwh.com/api/auth/callback",
+  });
+  assert.equal(
+    canonical?.toString(),
+    "https://www.yydsxwh.com/api/auth/account/start?mode=login&next=%2Fcourses",
+  );
+}
+assert.equal(
+  resolveCanonicalAuthStartUrl({
+    requestUrl: "https://www.yydsxwh.com/api/auth/account/start?mode=login",
+    requestPublicOrigin: "https://www.yydsxwh.com",
+    redirectUri: "https://www.yydsxwh.com/api/auth/callback",
+  }),
+  null,
+);
+assert.equal(
+  resolveCanonicalAuthStartUrl({
+    requestUrl: "https://yydsxwh.com/api/auth/account/start?mode=login",
+    requestPublicOrigin: "https://yydsxwh.com",
+    redirectUri: "https://evil.example/api/auth/callback",
+  }),
+  null,
 );
 
 assert.equal(
