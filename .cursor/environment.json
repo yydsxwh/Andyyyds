@@ -1,11 +1,17 @@
 {
   "name": "Andyyyds",
-  "install": "[ -f .env ] || printf 'AUTH_SECRET=\"dev-secret-change-me\"\\nDATABASE_URL=\"file:./dev.db\"\\nNEXT_PUBLIC_SITE_URL=\"http://localhost:3000\"\\nPAYMENT_MODE=\"mock\"\\n' > .env\nnpm install\nnpm run db:reset",
+  "install": "[ -f .env ] || printf 'AUTH_SECRET=\"dev-secret-change-me\"\\nDATABASE_URL=\"file:./dev.db\"\\nNEXT_PUBLIC_SITE_URL=\"http://localhost:3000\"\\nPAYMENT_MODE=\"mock\"\\n' > .env\nnpm ci\nnpm run db:reset",
   "terminals": [
     {
       "name": "dev",
       "command": "npm run dev",
       "description": "Next.js dev server on http://localhost:3000 (mock payment mode, seeded SQLite)"
+    }
+  ],
+  "ports": [
+    {
+      "name": "web",
+      "port": 3000
     }
   ]
 }
