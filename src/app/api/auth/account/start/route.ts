@@ -11,6 +11,7 @@ import {
   buildAuthorizeUrl,
   createOidcRandoms,
   readAccountOidcEnv,
+  resolveCanonicalAuthStartUrl,
   resolveAccountRedirectUri,
 } from "@andyyyds/shared/account-oidc";
 import {
@@ -35,11 +36,24 @@ export async function GET(req: Request) {
     return NextResponse.redirect(new URL(fallback, url.origin));
   }
 
+  const publicSiteUrl = await getPublicSiteUrl();
+  const requestPublicOrigin = getRequestPublicOrigin(req) || url.origin;
   const redirectUri = resolveAccountRedirectUri({
     envRedirectUri: env.redirectUri,
-    requestOrigin: getRequestPublicOrigin(req) || url.origin,
-    publicSiteUrl: await getPublicSiteUrl(),
+    requestOrigin: requestPublicOrigin,
+    publicSiteUrl,
   });
+  const canonicalStartUrl = resolveCanonicalAuthStartUrl({
+    requestUrl: url.toString(),
+    requestPublicOrigin,
+    redirectUri,
+  });
+  if (canonicalStartUrl) {
+    const res = NextResponse.redirect(canonicalStartUrl, { status: 307 });
+    res.headers.set("Cache-Control", "private, no-store");
+    return res;
+  }
+
   const config = { ...env, redirectUri };
   const randoms = createOidcRandoms();
   const authorize = buildAuthorizeUrl(config, {
