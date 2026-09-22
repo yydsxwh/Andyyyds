@@ -1,7 +1,6 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { nextFromCurrentLocation } from "@andyyyds/shared/safe-next-path";
 
@@ -31,20 +30,30 @@ export function AuthEntryLinks({
     pathname,
     searchParams.toString() ? `?${searchParams.toString()}` : "",
   );
-  const suffix = next && next !== "/" ? `?next=${encodeURIComponent(next)}` : "";
+  const loginParams = new URLSearchParams({ mode: "login", next });
+  const registerParams = new URLSearchParams({ mode: "register", next });
 
   return (
     <>
-      <Link href={`/login${suffix}`} className={loginClassName} style={loginStyle}>
+      {/*
+       * Authentication is a top-level cross-origin OIDC navigation. Use a
+       * native anchor instead of a Next client transition so iOS Safari does
+       * not have to complete /login hydration before following the redirect.
+       */}
+      <a
+        href={`/api/auth/account/start?${loginParams.toString()}`}
+        className={loginClassName}
+        style={loginStyle}
+      >
         {loginLabel}
-      </Link>
-      <Link
-        href={`/register${suffix}`}
+      </a>
+      <a
+        href={`/api/auth/account/start?${registerParams.toString()}`}
         className={registerClassName}
         style={registerStyle}
       >
         {registerLabel}
-      </Link>
+      </a>
     </>
   );
 }
