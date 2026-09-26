@@ -81,10 +81,31 @@ export function isAllowedCallbackOrigin(origin: string): boolean {
     const host = url.hostname.toLowerCase();
     if (LOOPBACK_HOSTS.has(host)) return url.protocol === "http:" || url.protocol === "https:";
     if (url.protocol !== "https:") return false;
-    return FIRST_PARTY_HOSTS.has(host);
+    return FIRST_PARTY_HOSTS.has(host) || extraAllowedHosts().has(host);
   } catch {
     return false;
   }
+}
+
+function extraAllowedHosts(): Set<string> {
+  const hosts = new Set<string>();
+  const raw = [
+    process.env.ACCOUNT_ALLOWED_ORIGINS || "",
+    process.env.NEXT_PUBLIC_SITE_URL || "",
+    process.env.SITE_URL || "",
+    process.env.PUBLIC_BASE_URL || "",
+  ].join(",");
+  for (const item of raw.split(",")) {
+    const trimmed = item.trim();
+    if (!trimmed) continue;
+    try {
+      const withScheme = trimmed.includes("://") ? trimmed : `https://${trimmed}`;
+      hosts.add(new URL(withScheme).hostname.toLowerCase());
+    } catch {
+      // 坏的环境变量不能把校验放宽成任意主机。
+    }
+  }
+  return hosts;
 }
 
 export function resolveAccountRedirectUri(input: {
@@ -101,9 +122,14 @@ export function resolveAccountRedirectUri(input: {
   if (origin && isAllowedCallbackOrigin(origin)) {
     return `${origin}/api/auth/callback`;
   }
-  const publicOrigin = (input.publicSiteUrl || "").replace(/\/+$/, "");
+  const publicOrigin = (
+    input.publicSiteUrl ||
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.SITE_URL ||
+    ""
+  ).replace(/\/+$/, "");
   if (publicOrigin) return `${publicOrigin}/api/auth/callback`;
-  return "https://www.yydsxwh.com/api/auth/callback";
+  return "";
 }
 
 /**

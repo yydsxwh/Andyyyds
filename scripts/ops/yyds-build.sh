@@ -6,7 +6,8 @@
 # .next 停在半成品状态，站点起不来。放进 cgroup 后超限只杀构建本身，机器保持在线。
 set -uo pipefail
 
-APP_DIR="${YYDS_APP_DIR:-/var/www/yyds-course-platform}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+APP_DIR="${YYDS_APP_DIR:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 # 给系统和正在服务的 Node 进程留出余量，别把整机内存都让给构建
 BUILD_MEMORY_MAX="${YYDS_BUILD_MEMORY_MAX:-2600M}"
 NODE_HEAP_MB="${YYDS_NODE_HEAP_MB:-2048}"

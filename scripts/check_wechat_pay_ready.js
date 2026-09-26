@@ -4,8 +4,16 @@ const os = require("os");
 const path = require("path");
 const { Client } = require("ssh2");
 
-const HOST = "47.242.157.181";
-const KEY = path.join(os.homedir(), ".ssh", "yyds_aliyun");
+const HOST = process.env.OPS_SSH_HOST;
+const APP_DIR = process.env.OPS_APP_DIR;
+const KEY = process.env.OPS_SSH_KEY_FILE
+  ? path.resolve(process.env.OPS_SSH_KEY_FILE)
+  : path.join(os.homedir(), ".ssh", "yyds_aliyun");
+
+if (!HOST || !APP_DIR) {
+  console.error("set OPS_SSH_HOST and OPS_APP_DIR");
+  process.exit(1);
+}
 
 const conn = new Client();
 conn
@@ -13,7 +21,7 @@ conn
     const cmd = [
       "curl -s -o /dev/null -w local:%{http_code} http://127.0.0.1:3000/; echo",
       "pm2 jlist 2>/dev/null | head -c 400; echo",
-      "cd /var/www/yyds-course-platform && node scripts/_peek_wechat_flags.js",
+      `cd '${APP_DIR.replaceAll("'", "")}' && node scripts/_peek_wechat_flags.js`,
     ].join(" && ");
     conn.exec(cmd, (err, stream) => {
       if (err) {

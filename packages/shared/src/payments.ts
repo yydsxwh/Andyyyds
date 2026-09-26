@@ -42,7 +42,11 @@ function envAlipayReady() {
   );
 }
 
-const DEFAULT_SITE_URL = "https://www.yydsxwh.com";
+function deploymentSiteUrl() {
+  return (process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || "")
+    .trim()
+    .replace(/\/+$/, "");
+}
 
 /**
  * 把后台填写的「站点公网地址」收成干净的 https://域名 形态。
@@ -50,7 +54,7 @@ const DEFAULT_SITE_URL = "https://www.yydsxwh.com";
  */
 export function normalizePublicSiteUrl(raw: string | null | undefined): string {
   let value = (raw || "").trim().replace(/[\\\s\u3000]+/g, "");
-  if (!value) return DEFAULT_SITE_URL;
+  if (!value) return deploymentSiteUrl();
 
   // 有人误把完整回调 URL 填进「站点地址」时，裁回站点根
   value = value.replace(
@@ -65,14 +69,14 @@ export function normalizePublicSiteUrl(raw: string | null | undefined): string {
   try {
     const u = new URL(value);
     if (!u.hostname || !u.hostname.includes(".")) {
-      return DEFAULT_SITE_URL;
+      return deploymentSiteUrl();
     }
     // 只保留协议 + 主机（+非常规端口），不带业务路径
     const port =
       u.port && u.port !== "80" && u.port !== "443" ? `:${u.port}` : "";
     return `${u.protocol}//${u.hostname.toLowerCase()}${port}`;
   } catch {
-    return DEFAULT_SITE_URL;
+    return deploymentSiteUrl();
   }
 }
 
@@ -82,9 +86,7 @@ export async function getPublicSiteUrl() {
   const fromDb = settings.siteUrl?.trim();
   if (fromDb) return normalizePublicSiteUrl(fromDb);
   return normalizePublicSiteUrl(
-    process.env.NEXT_PUBLIC_SITE_URL ||
-      process.env.SITE_URL ||
-      DEFAULT_SITE_URL,
+    process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || "",
   );
 }
 

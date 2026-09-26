@@ -169,4 +169,11 @@ assert.ok(
   }).includes("<script>alert(1)"),
 );
 
+process.env.ACCOUNT_ALLOWED_ORIGINS = "https://academic.example";
+assert.equal(isAllowedCallbackOrigin("https://academic.example"), true);
+delete process.env.ACCOUNT_ALLOWED_ORIGINS;
+delete process.env.NEXT_PUBLIC_SITE_URL;
+delete process.env.SITE_URL;
+assert.equal(resolveAccountRedirectUri({ requestOrigin: "https://evil.example" }), "");
+
 console.log("account-oidc tests passed");

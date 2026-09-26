@@ -13,7 +13,7 @@ function loginHref(next: string) {
 }
 
 function startHref(next: string, ref: string) {
-  const url = new URL("/api/auth/account/start", "https://yydsxwh.com");
+  const url = new URL("/api/auth/account/start", "http://localhost");
   url.searchParams.set("mode", "register");
   url.searchParams.set("next", next);
   if (ref) url.searchParams.set("ref", ref);
