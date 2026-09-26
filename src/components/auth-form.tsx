@@ -1,11 +1,12 @@
 "use client";
 
 /**
- * 登录 / 注册统一表单：微信 | 账号 | 手机号 | 邮箱。
+ * 登录 / 注册统一表单：微信 | KK号 | 账号 | 手机号 | 邮箱。
  *
  * - 微信内：公众号网页授权（/api/auth/wechat）
  * - 站外浏览器：开放平台网站应用扫码（/api/auth/wechat/qr）
  * - Capacitor Android：开放平台移动应用 SDK（/api/auth/wechat/mobile）
+ * - KK号：历史学员编号 + 密码（仅登录，不开放自助注册）
  * - 账号：登录名 + 密码（与邮箱通道分开，不填邮箱）
  * - 手机号：短信验证码；注册可带身份申请与可选密码
  * - 邮箱：真实邮箱 + 密码
@@ -33,7 +34,7 @@ import {
 } from "@andyyyds/shared/wechat-env";
 import { WechatLogin } from "@andyyyds/shared/wechat-login-plugin";
 
-type AuthChannel = "email" | "account" | "phone" | "wechat";
+type AuthChannel = "email" | "account" | "kk" | "phone" | "wechat";
 
 type Props = {
   mode: "login" | "register";
@@ -284,6 +285,29 @@ export function AuthForm({
     finishAuth(data);
   }
 
+  async function onKkSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    setNotice("");
+    const formData = new FormData(e.currentTarget);
+    const kkNumber = String(formData.get("kkNumber") || "");
+    const password = String(formData.get("password") || "");
+
+    const res = await fetch("/api/auth/kk", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kkNumber, password }),
+    });
+    const data = await res.json();
+    setLoading(false);
+    if (!res.ok) {
+      setError(data.error || "登录失败");
+      return;
+    }
+    finishAuth(data);
+  }
+
   async function sendCode() {
     setError("");
     setNotice("");
@@ -459,10 +483,11 @@ export function AuthForm({
   const useMobileQuickLogin =
     inCapacitorAndroid && methods.wechatMobile && Boolean(methods.wechatMobileAppId);
 
-  // Tab 顺序：微信 → 账号 → 手机号 → 邮箱（账号与邮箱分开，电脑端可走账号密码）
+  // 登录：微信 → KK号 → 账号 → 手机号 → 邮箱；注册不开放自造 KK 号
   const visibleTabs = (
     [
       { id: "wechat" as const, label: "微信", show: true },
+      { id: "kk" as const, label: "KK号", show: mode === "login" },
       { id: "account" as const, label: "账号", show: true },
       { id: "phone" as const, label: "手机号", show: true },
       { id: "email" as const, label: "邮箱", show: methods.email },
@@ -474,7 +499,9 @@ export function AuthForm({
       ? "grid-cols-2"
       : visibleTabs.length === 3
         ? "grid-cols-3"
-        : "grid-cols-2 sm:grid-cols-4";
+        : visibleTabs.length === 5
+          ? "grid-cols-2 sm:grid-cols-5"
+          : "grid-cols-2 sm:grid-cols-4";
 
   const { t } = useLocale();
 
@@ -486,7 +513,7 @@ export function AuthForm({
         </h1>
         <p className="mt-2 text-sm text-[var(--muted)]">
           {mode === "login"
-            ? "可用微信、账号密码、手机号或邮箱登录。"
+            ? "可用微信、KK 号、账号密码、手机号或邮箱登录。"
             : "可用微信、账号密码、手机号或邮箱注册。普通用户即用；加盟代理 / 入驻商家 / 老师需站长审核。"}
         </p>
       </div>
@@ -518,6 +545,43 @@ export function AuthForm({
           </button>
         ))}
       </div>
+
+      {channel === "kk" ? (
+        <form onSubmit={onKkSubmit} className="space-y-4">
+          <p className="rounded-2xl bg-[var(--bg-deep)]/60 px-3 py-2 text-xs leading-5 text-[var(--muted)]">
+            使用历史学员 KK 号 + 密码登录。自设登录名请改用「账号」。
+          </p>
+          <input
+            className="field"
+            name="kkNumber"
+            inputMode="numeric"
+            autoComplete="username"
+            placeholder="KK 号"
+            spellCheck={false}
+            required
+          />
+          <input
+            className="field"
+            type="password"
+            name="password"
+            autoComplete="current-password"
+            placeholder="密码（至少 6 位）"
+            minLength={6}
+            required
+          />
+          {error ? <p className="text-sm text-red-700">{error}</p> : null}
+          {notice ? (
+            <p className="text-sm text-[var(--brand-strong)]">{notice}</p>
+          ) : null}
+          <button
+            className="btn btn-primary w-full"
+            disabled={loading}
+            type="submit"
+          >
+            {loading ? "提交中..." : "KK 号登录"}
+          </button>
+        </form>
+      ) : null}
 
       {channel === "account" ? (
         <form onSubmit={onAccountSubmit} className="space-y-4">

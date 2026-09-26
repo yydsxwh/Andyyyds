@@ -1,5 +1,6 @@
 import { AuthForm } from "@/components/auth-form";
 import { preferWechatFromAcceptLanguage } from "@andyyyds/shared/auth-channel-preference";
+import { ACCOUNT_CENTER_HREF } from "@andyyyds/shared/portal";
 import { isAccountOidcConfigured } from "@andyyyds/shared/account-oidc";
 import { getSession } from "@andyyyds/shared/auth";
 import { safeNextPath } from "@andyyyds/shared/safe-next-path";
@@ -62,6 +63,12 @@ export default async function LoginPage({
         还没有账号？{" "}
         <Link href={registerHref(next)} className="text-[var(--brand)]">
           去注册
+        </Link>
+      </p>
+      <p className="mt-2 text-center text-sm text-[var(--muted)]">
+        也可前往{" "}
+        <Link href={ACCOUNT_CENTER_HREF} className="text-[var(--brand)]">
+          打开账号中心
         </Link>
       </p>
     </div>

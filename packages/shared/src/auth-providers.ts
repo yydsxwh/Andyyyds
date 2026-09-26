@@ -474,6 +474,50 @@ export async function registerUserByUsername(input: {
   return { userId: user.id, result };
 }
 
+/** KK 号是历史学员编号（正整数），与自设登录名分开。 */
+const KK_NUMBER_MAX = 2_147_483_647;
+
+export function parseKkNumber(
+  raw: string,
+): { ok: true; kkNumber: number } | { ok: false; error: string } {
+  const digits = String(raw || "").trim();
+  if (!digits) return { ok: false, error: "请填写 KK 号" };
+  if (!/^\d{1,10}$/.test(digits)) {
+    return { ok: false, error: "KK 号为数字学员编号" };
+  }
+  const kkNumber = Number.parseInt(digits, 10);
+  if (!Number.isInteger(kkNumber) || kkNumber <= 0 || kkNumber > KK_NUMBER_MAX) {
+    return { ok: false, error: "KK 号无效" };
+  }
+  return { ok: true, kkNumber };
+}
+
+/** KK 号 + 密码登录。只认已有用户，不开放自助创建 KK 号。 */
+export async function loginUserByKkNumber(input: {
+  kkNumber: string;
+  password: string;
+}): Promise<{ userId: string; result: AuthResultPayload }> {
+  const checked = parseKkNumber(input.kkNumber);
+  if (!checked.ok) throw new Error(checked.error);
+
+  const password = (input.password || "").trim();
+  if (password.length < 6) throw new Error("密码至少 6 位");
+
+  const user = await prisma.user.findFirst({
+    where: { kkNumber: checked.kkNumber },
+  });
+  if (
+    !user ||
+    !user.passwordSet ||
+    !(await verifyPassword(password, user.passwordHash))
+  ) {
+    throw new Error("KK 号或密码错误");
+  }
+
+  const result = await sessionPayloadForUser(user);
+  return { userId: user.id, result };
+}
+
 /**
  * 账号 + 密码登录（只查 username，不走邮箱字段）。
  */
