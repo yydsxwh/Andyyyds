@@ -1,6 +1,6 @@
 {
   "name": "Andyyyds",
-  "install": "[ -f .env ] || printf 'AUTH_SECRET=\"dev-secret-change-me\"\\nDATABASE_URL=\"file:./dev.db\"\\nNEXT_PUBLIC_SITE_URL=\"http://localhost:3000\"\\nPAYMENT_MODE=\"mock\"\\n' > .env\nnpm ci\nnpm run db:reset",
+  "install": "bash .cursor/install.sh",
   "terminals": [
     {
       "name": "dev",
