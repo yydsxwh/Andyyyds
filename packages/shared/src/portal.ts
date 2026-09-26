@@ -87,6 +87,20 @@ export type HomeSectionEntry = {
 /** 独立账号中心（account 子域）。必须用绝对地址，避免被当成主站相对路径。 */
 export const ACCOUNT_CENTER_HREF = "https://account.yydsxwh.com/";
 
+/**
+ * Academic 教务独立站点。只在这里读取 ACADEMIC_URL，导航组件不要再写死域名。
+ * 未配置时使用正式子域，主站渲染导航不请求 Academic。
+ */
+export function academicPublicHref() {
+  const configured =
+    process.env.ACADEMIC_URL ||
+    process.env.NEXT_PUBLIC_ACADEMIC_URL ||
+    "https://academic.yydsxwh.com";
+  return `${configured.replace(/\/$/, "")}/`;
+}
+
+export const ACADEMIC_HREF = academicPublicHref();
+
 /** 无序配置时的默认：联系我们 → 主视觉 → 横幅 → 门户入口 → 热门课程 → 热门约搭 */
 export const DEFAULT_HOME_SECTION_ORDER: HomeSectionEntry[] =
   HOME_SECTION_IDS.map((id) => ({ id, visible: true }));
@@ -135,6 +149,7 @@ export const DEFAULT_PORTAL: PortalConfig = {
     { key: "home", label: "首页", href: "/" },
     { key: "company", label: "公司介绍", href: "/about/company" },
     { key: "person", label: "个人介绍", href: "/about/person" },
+    { key: "academic", label: "教务", href: ACADEMIC_HREF },
     // 顶栏只留「网课资料」；课程/资料广场在页内 Tab 同级切换，不与首页/商城抢位
     { key: "courses", label: "网课资料", href: "/courses" },
     // 约搭：线下结伴 / 活动匹配广场（类似「一起玩」，非小程序复刻）
@@ -268,7 +283,7 @@ function mergePortalNav(
     seenKeys.add(defaultItem.key);
   }
 
-  const trimmed = merged.slice(0, 20);
+  const trimmed = placeAcademicNav(merged).slice(0, 21);
   const hasAccountCenter = trimmed.some(
     (item) =>
       item.key === "account-center" ||
@@ -276,9 +291,50 @@ function mergePortalNav(
       item.label === "账号中心",
   );
   // 满 20 项时默认项会被裁掉；账号中心必须留下，宁可少显示一个普通入口
-  return ensureAccountCenterNav(
-    hasAccountCenter ? trimmed : merged.slice(0, 19),
+  return placeAcademicNav(
+    ensureAccountCenterNav(hasAccountCenter ? trimmed : merged.slice(0, 20)),
   );
+}
+
+function isPersonNav(item: PortalNavLink) {
+  return (
+    item.key === "person" ||
+    item.href === "/about/person" ||
+    item.label === "个人介绍" ||
+    item.label === "个人IP" ||
+    item.label === "个人 IP"
+  );
+}
+
+function isCoursesNav(item: PortalNavLink) {
+  return item.key === "courses" || item.href === "/courses" || item.label === "网课资料";
+}
+
+function isAcademicNav(item: PortalNavLink) {
+  return (
+    item.key === "academic" ||
+    item.label === "教务" ||
+    item.href === ACADEMIC_HREF ||
+    item.href.startsWith("https://academic.yydsxwh.com")
+  );
+}
+
+/** 教务固定在个人介绍/个人 IP 与网课资料之间，不依赖 Academic 是否在线。 */
+function placeAcademicNav(nav: PortalNavLink[]): PortalNavLink[] {
+  const rest = nav.filter((item) => !isAcademicNav(item));
+  const academic: PortalNavLink = {
+    key: "academic",
+    label: "教务",
+    href: ACADEMIC_HREF,
+    enabled: true,
+    comingSoon: false,
+  };
+  const personIndex = rest.findIndex(isPersonNav);
+  const coursesIndex = rest.findIndex(isCoursesNav);
+  if (personIndex >= 0) rest.splice(personIndex + 1, 0, academic);
+  else if (coursesIndex >= 0) rest.splice(coursesIndex, 0, academic);
+  else rest.push(academic);
+  return rest;
 }
 
 /**

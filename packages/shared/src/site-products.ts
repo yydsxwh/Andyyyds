@@ -1,7 +1,10 @@
 /**
  * 面向用户的产品包（与 packages/<名> / @andyyyds/<名> 一一对应）。
  * 顶栏/汉堡菜单兜底、客户端侧栏等应完整露出这些项。
+ * 教务是独立站点，不是本仓库里的产品包。
  */
+
+import { ACADEMIC_HREF } from "./portal";
 
 export type SiteProductPackage = {
   id: string;
@@ -24,6 +27,12 @@ export const SITE_PRODUCT_PACKAGES: readonly SiteProductPackage[] = [
     label: "个人 IP",
     href: "/about/person",
     navKey: "nav.person",
+  },
+  {
+    id: "academic",
+    label: "教务",
+    href: ACADEMIC_HREF,
+    navKey: "nav.academic",
   },
   {
     id: "courses",
