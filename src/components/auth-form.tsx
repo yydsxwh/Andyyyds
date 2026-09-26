@@ -214,11 +214,12 @@ export function AuthForm({
       router.refresh();
       return;
     }
-    // 登录与各渠道注册成功后统一进个人中心；账号/邮箱密码注册去课程广场选课
+    // 没有合法 next：登录回首页；账号/邮箱注册仍去课程广场。
+    // 个人中心只在用户主动点击个人中心入口时进入。
     if (mode === "register" && (channel === "email" || channel === "account")) {
       router.push("/courses");
     } else {
-      router.push("/account");
+      router.push("/");
     }
     router.refresh();
   }
@@ -427,7 +428,7 @@ export function AuthForm({
       const nextPath =
         safeNextPath(
           new URLSearchParams(window.location.search).get("next"),
-        ) || "/account";
+        ) || "/";
       const res = await fetch("/api/auth/wechat/mobile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
