@@ -30,6 +30,10 @@ npm run dev
 
 浏览器打开 [http://localhost:3000](http://localhost:3000)
 
+探活：`GET /api/health`（只表示进程还在，不查数据库、不返回配置）。
+
+网课、MathCode、约搭、论坛、网页文档、个人站和公司介绍目前仍在这一个进程、同一份 SQLite 里。停掉 `yyds-course` 会让这些页面一起停。账号中心和颗秒日事不在这个进程里。架构约束见 `yydsxwh/infra` 的 `docs/architecture/FAULT-ISOLATION.md`。
+
 ### 演示账号
 
 | 角色 | 邮箱 | 密码 |
