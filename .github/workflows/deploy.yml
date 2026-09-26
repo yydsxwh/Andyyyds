@@ -1,9 +1,7 @@
 name: Deploy to Hong Kong Server
 
 on:
-  push:
-    branches:
-      - Andyyyds20260901independentpackage
+  workflow_dispatch:
 
 jobs:
   deploy:
