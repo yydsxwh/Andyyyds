@@ -9,6 +9,9 @@ jobs:
 
     steps:
       - name: Deploy via SSH
+        env:
+          YYDS_GIT_DIR: ${{ vars.YYDS_GIT_DIR }}
+          YYDS_APP_DIR: ${{ vars.YYDS_APP_DIR }}
         uses: appleboy/ssh-action@v1.2.2
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -16,17 +19,21 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT }}
           script_stop: true
+          envs: YYDS_GIT_DIR,YYDS_APP_DIR
           script: |
             exec > /tmp/gh-deploy.log 2>&1
             set -x
             date -u
             set -e
             export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-            sudo chown -R admin:admin /var/www/yydsxwh.com
-            sudo -u admin git -C /var/www/yydsxwh.com fetch origin
-            sudo -u admin git -C /var/www/yydsxwh.com checkout -B Andyyyds20260901independentpackage origin/Andyyyds20260901independentpackage
-            sudo -u admin rsync -a --delete --exclude node_modules --exclude .next --exclude .git --exclude .env --exclude 'prod.db*' --exclude 'dev.db*' --exclude public/uploads --exclude public/products --exclude uploads --exclude .deploy_backup --exclude .next.prev --exclude tsconfig.tsbuildinfo /var/www/yydsxwh.com/ /var/www/yyds-course-platform/
-            sudo -u admin bash -c 'cd /var/www/yyds-course-platform && npm ci && npx prisma db push --accept-data-loss && chmod +x scripts/ops/*.sh && bash scripts/ops/yyds-build.sh'
+            : "${YYDS_GIT_DIR:?set GitHub variable YYDS_GIT_DIR}"
+            : "${YYDS_APP_DIR:?set GitHub variable YYDS_APP_DIR}"
+            sudo chown -R admin:admin "$YYDS_GIT_DIR"
+            sudo -u admin git -C "$YYDS_GIT_DIR" fetch origin
+            sudo -u admin git -C "$YYDS_GIT_DIR" checkout -B Andyyyds20260901independentpackage origin/Andyyyds20260901independentpackage
+            # 同一台机器上的代码同步。排除数据库、上传和环境文件。这不是跨服务器迁移。
+            sudo -u admin rsync -a --delete --exclude node_modules --exclude .next --exclude .git --exclude .env --exclude 'prod.db*' --exclude 'dev.db*' --exclude public/uploads --exclude public/products --exclude uploads --exclude .deploy_backup --exclude .next.prev --exclude tsconfig.tsbuildinfo "$YYDS_GIT_DIR/" "$YYDS_APP_DIR/"
+            sudo -u admin bash -c "cd '$YYDS_APP_DIR' && npm ci && npx prisma db push --accept-data-loss && chmod +x scripts/ops/*.sh && bash scripts/ops/yyds-build.sh"
             sudo -u admin pm2 restart yyds-course
             sudo -u admin pm2 save
             echo DEPLOY_OK

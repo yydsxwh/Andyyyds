@@ -15,7 +15,7 @@ function registerHref(next: string) {
 function startHref(mode: "login" | "register", next: string) {
   const url = new URL(
     `/api/auth/account/start`,
-    "https://yydsxwh.com",
+    "http://localhost",
   );
   url.searchParams.set("mode", mode);
   url.searchParams.set("next", next);

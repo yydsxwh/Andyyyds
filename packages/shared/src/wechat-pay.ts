@@ -175,7 +175,7 @@ async function buildNotifyUrl() {
   const notifyUrl = `${siteUrl}/api/payments/wechat/notify`;
   if (!/^https?:\/\/[^\s/?#]+/i.test(notifyUrl)) {
     throw new Error(
-      `支付回调地址无效（${notifyUrl}）。请在系统设置把「站点公网地址」设为 https://www.yydsxwh.com`,
+      `支付回调地址无效（${notifyUrl}）。请在系统设置填写站点公网地址`,
     );
   }
   return notifyUrl;

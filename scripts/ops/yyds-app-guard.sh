@@ -7,7 +7,8 @@
 # 兜底顺序：先退回上一版构建（秒级恢复），退不回去才重新构建（慢，且只在别无选择时做）。
 set -uo pipefail
 
-APP_DIR="${YYDS_APP_DIR:-/var/www/yyds-course-platform}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+APP_DIR="${YYDS_APP_DIR:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 APP_NAME="${YYDS_APP_NAME:-yyds-course}"
 APP_PORT="${YYDS_APP_PORT:-3000}"
 HEALTH_URL="http://127.0.0.1:${APP_PORT}/"

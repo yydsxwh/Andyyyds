@@ -5,7 +5,7 @@
 
 import { productDetailPath } from "@andyyyds/shared/product-types";
 
-export function siteBaseUrl(fallback = "https://www.yydsxwh.com") {
+export function siteBaseUrl(fallback = "") {
   if (typeof window !== "undefined" && window.location?.origin) {
     return window.location.origin.replace(/\/$/, "");
   }
