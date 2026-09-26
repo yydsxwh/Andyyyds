@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
 import { BgMusicPlayer } from "@/components/bg-music-player";
 import { CouponCapture } from "@/components/coupon-capture";
@@ -72,7 +72,7 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default async function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
   const [decorate, localeCtx] = await Promise.all([
     getDecorateConfig(),
     getRequestLocaleContext(),
