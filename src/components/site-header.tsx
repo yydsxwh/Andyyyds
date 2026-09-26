@@ -16,7 +16,7 @@ import { translateMessage } from "@andyyyds/shared/i18n/messages";
 import { navHoverMessageKey, navMessageKey } from "@andyyyds/shared/i18n/nav-labels";
 import { typoRoleClass, typoRoleStyle } from "@andyyyds/shared/site-typography";
 import { canAccessStudio, canManageDecorate, hasRole, isAdmin } from "@andyyyds/shared/roles";
-import { ACCOUNT_CENTER_HREF } from "@andyyyds/shared/portal";
+import { ACCOUNT_CENTER_HREF, ACADEMIC_HREF } from "@andyyyds/shared/portal";
 import {
   getDecorateConfig,
   getPortalConfig,
@@ -94,6 +94,7 @@ export async function SiteHeader() {
           { key: "home", href: "/", label: "首页" },
           { key: "company", href: "/about/company", label: "公司介绍" },
           { key: "person", href: "/about/person", label: "个人介绍" },
+          { key: "academic", href: ACADEMIC_HREF, label: "教务" },
           { key: "courses", href: "/courses", label: "网课资料" },
           { key: "meetup", href: "/meetup", label: "约搭" },
           { key: "shop", href: "/shop", label: "商城" },
