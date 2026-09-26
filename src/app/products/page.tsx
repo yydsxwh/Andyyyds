@@ -33,8 +33,8 @@ function ProductActions({ product }: { product: SoftwareProduct }) {
             className={className}
             href={action.href}
             type={isApk ? "application/vnd.android.package-archive" : undefined}
-            target="_blank"
-            rel="noopener noreferrer"
+            target={isApk ? undefined : "_blank"}
+            rel={isApk ? undefined : "noopener noreferrer"}
             {...downloadProps}
           >
             {action.label}
