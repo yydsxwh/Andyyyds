@@ -30,6 +30,15 @@ import {
 
 const TZ_STORAGE_KEY = "yyds.homeClock.timeZone";
 const PROVERB = "一寸光阴一寸金，寸金难买寸光阴。";
+/**
+ * 首屏固定姿态。不能在 render 里用 new Date()：
+ * 服务端 Node 的 Intl 和安卓 Chrome 的格式不一致，慢网下秒数也会错开，
+ * 水合文本对不上时 React 会抛错，安卓上整页变成 “This page couldn’t load”。
+ */
+const CLOCK_HYDRATION_POSE = new Date(Date.UTC(2026, 0, 1, 2, 10, 31));
+/** 上面这个 UTC 时刻在 Asia/Shanghai 的墙钟，首屏字面量，不经 Intl */
+const CLOCK_HYDRATION_HMS = { hour: 18, minute: 10, second: 31 } as const;
+const CLOCK_HYDRATION_TEXT = "18:10:31";
 
 function readStoredTimeZone(): string {
   if (typeof window === "undefined") return DEFAULT_MEETUP_TIMEZONE;
@@ -93,7 +102,8 @@ export function SiteHomeClock({
       : () => null,
   });
   const [timeZone, setTimeZone] = useState(DEFAULT_MEETUP_TIMEZONE);
-  const [now, setNow] = useState(() => new Date());
+  // null：服务端和客户端第一次渲染都用固定姿态，避免安卓水合失败
+  const [now, setNow] = useState<Date | null>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
 
@@ -103,6 +113,7 @@ export function SiteHomeClock({
 
   useEffect(() => {
     if (!visible) return;
+    setNow(new Date());
     const id = window.setInterval(() => setNow(new Date()), 1000);
     return () => window.clearInterval(id);
   }, [visible]);
@@ -128,7 +139,7 @@ export function SiteHomeClock({
   if (!visible || place.hidden) return null;
 
   const label = meetupTimeZoneLabel(timeZone);
-  const clockText = formatClock(now, timeZone);
+  const clockText = now ? formatClock(now, timeZone) : CLOCK_HYDRATION_TEXT;
   const frameClass =
     HOME_CLOCK_FRAME_CLASS[clock.style] || HOME_CLOCK_FRAME_CLASS.imperial;
   function pickZone(tz: string) {
@@ -193,10 +204,11 @@ export function SiteHomeClock({
             }
           >
             <HomeClockFace
-              now={now}
+              now={now ?? CLOCK_HYDRATION_POSE}
               timeZone={timeZone}
               style={clock.style}
               className="h-full w-full"
+              fixedHms={now ? undefined : CLOCK_HYDRATION_HMS}
             />
           </span>
           {clock.showDigital ? (
