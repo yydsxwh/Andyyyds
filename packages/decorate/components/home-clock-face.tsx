@@ -196,17 +196,20 @@ export function HomeClockFace({
   timeZone,
   style,
   className = "",
+  fixedHms,
 }: {
   now: Date;
   timeZone: string;
   style: HomeClockStyle;
   className?: string;
+  /** 首屏固定时分秒，避开 Node 与安卓 Intl 结果不一致导致的水合失败 */
+  fixedHms?: { hour: number; minute: number; second: number };
 }) {
   const uid = useId().replace(/:/g, "");
   const faceId = `clkFace-${uid}`;
   const rimId = `clkRim-${uid}`;
   const theme = FACE_THEME[style] || FACE_THEME.imperial;
-  const { hour, minute, second } = getZonedHms(now, timeZone);
+  const { hour, minute, second } = fixedHms ?? getZonedHms(now, timeZone);
   const secondDeg = second * 6;
   const minuteDeg = minute * 6 + second * 0.1;
   const hourDeg = (hour % 12) * 30 + minute * 0.5 + second * (0.5 / 60);
